@@ -1,0 +1,17 @@
+{
+  "name": "sorteio",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "db:up": "docker compose up -d",
+    "db:push": "npm run db:push -w api",
+    "db:seed": "npm run db:seed -w api",
+    "dev:api": "npm run start:dev -w api",
+    "dev:web": "npm run dev -w web",
+    "dev": "concurrently -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "build": "npm run build -w api && npm run build -w web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

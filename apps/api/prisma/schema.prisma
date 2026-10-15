@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  cpf       String
+  phone     String
+  city      String
+  plan      String
+  paidAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+  entries   Entry[]
+}
+
+model Raffle {
+  id          String   @id @default(cuid())
+  title       String
+  prize       String
+  site        String
+  siteColor   String
+  siteEmoji   String
+  seed        Int
+  baseCount   Int
+  endsAt      DateTime
+  winnerName  String?
+  winnerUserId String?
+  createdAt   DateTime @default(now())
+  entries     Entry[]
+
+  @@index([endsAt])
+}
+
+model Entry {
+  id        String   @id @default(cuid())
+  userId    String
+  raffleId  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  raffle    Raffle   @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, raffleId])
+}
