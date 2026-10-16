@@ -1,7 +1,8 @@
 import { Body, CanActivate, Controller, ExecutionContext, Get, Injectable, NotFoundException, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
-import { randomWinnerName } from '../mock';
+import { uniqueWinnerName } from '../mock';
+import { ensureWinners } from '../raffles/raffles.controller';
 
 @Injectable()
 class AdminGuard implements CanActivate {
@@ -26,8 +27,9 @@ export class AdminController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get('raffles')
-  list() {
-    return this.prisma.raffle.findMany({ orderBy: { endsAt: 'asc' }, include: { _count: { select: { entries: true } } } });
+  async list() {
+    await ensureWinners(this.prisma);
+    return this.prisma.raffle.findMany({ where: { endsAt: { gt: new Date(Date.now() - 48 * 3600 * 1000) } }, orderBy: { endsAt: 'asc' }, include: { _count: { select: { entries: true } } } });
   }
 
   @Get('users')
@@ -54,7 +56,9 @@ export class AdminController {
   @Post('raffles/:id/draw')
   async draw(@Param('id') id: string) {
     const r = await this.find(id);
-    return this.prisma.raffle.update({ where: { id }, data: { winnerName: randomWinnerName(r.seed), winnerUserId: null } });
+    const taken = await this.prisma.raffle.findMany({ where: { winnerName: { not: null }, NOT: { id } }, select: { winnerName: true } });
+    const name = uniqueWinnerName(r.seed, new Set(taken.map((t) => t.winnerName as string)));
+    return this.prisma.raffle.update({ where: { id }, data: { winnerName: name, winnerUserId: null } });
   }
 
   /** Útil para testes: faz o sorteio terminar em N segundos. */

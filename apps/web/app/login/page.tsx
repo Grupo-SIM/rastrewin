@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, User } from '@/lib/api';
+import { Logo } from '@/components/Logo';
 
 export default function Login() {
   const router = useRouter();
@@ -24,22 +25,27 @@ export default function Login() {
   }
 
   return (
-    <>
-      <div className="wrap topbar">
-        <a href="/"><b style={{ fontSize: 20 }}>🎯 SorteioPilot</b></a>
-      </div>
-      <main className="wrap" style={{ display: 'grid', placeItems: 'center', paddingTop: 60 }}>
-        <form className="card" onSubmit={submit} style={{ width: 380, maxWidth: '100%', display: 'grid', gap: 14 }}>
-          <h2 style={{ margin: 0 }}>Entrar</h2>
-          <div>
-            <label>E-mail cadastrado</label>
-            <input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
+    <div className="auth-page">
+      <div className="auth-frame">
+        <nav className="nav">
+          <a href="/"><Logo /></a>
+          <a href="/" className="nav-hide" style={{ font: '500 15.5px var(--f-body)', color: 'var(--txt-2)', paddingRight: 16 }}>Ainda não sou cliente</a>
+        </nav>
+        <main className="auth-main">
+          <div className="auth-box">
+            <h1 className="display"><span className="accent" style={{ fontSize: '1.14em' }}>Entrar</span></h1>
+            <form onSubmit={submit} style={{ width: '100%', display: 'grid', gap: 16, justifyItems: 'stretch' }}>
+              <label className="auth-mobile-label" htmlFor="email">E-mail cadastrado</label>
+              <div className="auth-input">
+                <input id="email" type="email" required autoFocus placeholder="E-mail cadastrado" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <button className="btn-dark" disabled={busy}>{busy ? 'Entrando...' : 'Entrar'}</button>
+              </div>
+              {err && <div className="err">{err}</div>}
+            </form>
+            <a href="/" className="auth-link">Ainda não sou cliente</a>
           </div>
-          {err && <div style={{ color: '#f87171', fontSize: 13 }}>{err}</div>}
-          <button className="btn" disabled={busy}>{busy ? 'Entrando...' : 'Entrar'}</button>
-          <a href="/" style={{ color: 'var(--mut)', fontSize: 14, textAlign: 'center' }}>Ainda não sou cliente</a>
-        </form>
-      </main>
-    </>
+        </main>
+      </div>
+    </div>
   );
 }

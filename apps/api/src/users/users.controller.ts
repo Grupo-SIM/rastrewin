@@ -1,6 +1,7 @@
 import { Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
 import { IsEmail, IsIn, IsString, MinLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
+import { VISIBLE_AFTER_END_MS } from '../raffles/raffles.controller';
 
 class RegisterDto {
   @IsString() @MinLength(2) name: string;
@@ -19,7 +20,7 @@ class LoginDto {
 export class UsersController {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Cadastro + pagamento (mock): cria o usuário e inscreve em todos os sorteios abertos. */
+  /** Cadastro + pagamento (mock): cria o usuário e inscreve nos sorteios visíveis (abertos e recém-encerrados). */
   @Post()
   async register(@Body() dto: RegisterDto) {
     const user = await this.prisma.user.upsert({
@@ -27,7 +28,7 @@ export class UsersController {
       update: { ...dto, paidAt: new Date() },
       create: dto,
     });
-    const open = await this.prisma.raffle.findMany({ select: { id: true } });
+    const open = await this.prisma.raffle.findMany({ where: { endsAt: { gt: new Date(Date.now() - VISIBLE_AFTER_END_MS) } }, select: { id: true } });
     await this.prisma.entry.createMany({
       data: open.map((r) => ({ userId: user.id, raffleId: r.id })),
       skipDuplicates: true,

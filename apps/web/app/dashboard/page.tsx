@@ -3,7 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, Raffle, User } from '@/lib/api';
 import { LogoStrip } from '@/components/LogoStrip';
-import { Console } from '@/components/Console';
+import { Console, useRobotLines } from '@/components/Console';
+import { Logo } from '@/components/Logo';
+import { Tabs } from '@/components/Tabs';
+import { Toast, ToastData } from '@/components/Toast';
 import { RaffleCard } from '@/components/RaffleCard';
 
 type Tab = 'all' | 'open' | 'ended' | 'won';
@@ -16,9 +19,9 @@ export default function Dashboard() {
   const [now, setNow] = useState(Date.now());
   const [tab, setTab] = useState<Tab>('all');
   const [shown, setShown] = useState(PAGE);
-  const [extra, setExtra] = useState<string[]>([]);
-  const [toasts, setToasts] = useState<{ id: string; text: string; me: boolean }[]>([]);
+  const [toasts, setToasts] = useState<ToastData[]>([]);
   const notified = useRef<Set<string> | null>(null);
+  const lines = useRobotLines();
 
   const load = useCallback(async (uid: string) => {
     setRaffles(await api<Raffle[]>(`/raffles?userId=${uid}`));
@@ -29,13 +32,14 @@ export default function Dashboard() {
     if (!uid) return void router.replace('/');
     api<User>(`/users/${uid}`).then(setUser).catch(() => router.replace('/'));
     load(uid);
+    // reinscreve já na abertura (ex.: após o banco ser recriado), sem esperar o ciclo de 25s
+    api(`/raffles/discover?userId=${uid}`, { method: 'POST' }).then(() => load(uid)).catch(() => {});
     const poll = setInterval(() => load(uid), 3000);
     const tick = setInterval(() => setNow(Date.now()), 1000);
     // "descoberta" periódica de novos sorteios
     const discover = setInterval(async () => {
       try {
-        const found = await api<Raffle[]>(`/raffles/discover?userId=${uid}`, { method: 'POST' });
-        setExtra((e) => [...e, ...found.map((r) => `Inscrito em: ${r.title} (${r.site}) ✔`)].slice(-3));
+        await api<Raffle[]>(`/raffles/discover?userId=${uid}`, { method: 'POST' });
         load(uid);
       } catch {}
     }, 25000);
@@ -43,6 +47,12 @@ export default function Dashboard() {
   }, [router, load]);
 
   const mine = useMemo(() => raffles.filter((r) => r.entered), [raffles]);
+
+  // o contador zerou mas o ganhador ainda não chegou: busca já, sem esperar o próximo ciclo
+  useEffect(() => {
+    const uid = localStorage.getItem('userId');
+    if (uid && mine.some((r) => new Date(r.endsAt).getTime() <= now && !r.winnerName)) load(uid);
+  }, [now, mine, load]);
 
   // avisa quando um sorteio termina e tem ganhador definido
   useEffect(() => {
@@ -57,13 +67,9 @@ export default function Dashboard() {
     fresh.forEach((r) => notified.current!.add(r.id));
     setToasts((t) => [
       ...t,
-      ...fresh.map((r) => {
-        const me = r.winnerUserId === user.id;
-        const text = me
-          ? `🎉 VOCÊ GANHOU: ${r.prize} (${r.site})!`
-          : `🏆 ${r.winnerName} ganhou ${r.title}`;
-        return { id: r.id, me, text };
-      }),
+      ...fresh.map((r): ToastData => ({
+        id: r.id, me: r.winnerUserId === user.id, winner: r.winnerName ?? '', prize: r.title, site: r.site, color: r.siteColor,
+      })),
     ]);
   }, [mine, user]);
   const isOpen = (r: Raffle) => new Date(r.endsAt).getTime() > now;
@@ -93,44 +99,69 @@ export default function Dashboard() {
 
   if (!user) return null;
 
+  const countOf = (k: Tab) => mine.filter((r) => {
+    if (k === 'open') return isOpen(r);
+    if (k === 'ended') return !isOpen(r);
+    if (k === 'won') return !isOpen(r) && r.winnerUserId === user.id;
+    return true;
+  }).length;
+  const stats = [
+    { l: 'sorteios que você participa', v: mine.length, c: 'var(--ink)', bg: '#fff' },
+    { l: 'em andamento', v: open, c: 'var(--ink)', bg: 'var(--blue-bg)' },
+    { l: 'encerrados', v: mine.length - open, c: 'var(--ink)', bg: 'var(--line)' },
+    { l: 'prêmios ganhos', v: won, c: 'var(--green-fg)', bg: 'var(--green-bg)' },
+  ];
+  const first = user.name.split(' ')[0];
+  const lastLine = lines[lines.length - 1]?.s ?? '';
+
   return (
-    <>
-      <div className="wrap topbar">
-        <b style={{ fontSize: 20 }}>🎯 SorteioPilot</b>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <span style={{ color: 'var(--mut)' }}>Olá, {user.name.split(' ')[0]} · plano {user.plan}</span>
-          <a href="/admin" className="btn ghost sm">Admin</a>
-          <button className="btn ghost sm" onClick={() => { localStorage.removeItem('userId'); router.push('/'); }}>Sair</button>
-        </div>
+    <div className="app">
+      <div className="app-top">
+        <nav className="nav">
+          <a href="/dashboard"><Logo /></a>
+          <div className="app-status">
+            <span className="pill green"><i className="dot green" />robô em execução</span>
+            <span className="txt">{lastLine}</span>
+          </div>
+          <div className="app-user">
+            <span className="hi">Olá, {first} · plano {user.plan}</span>
+            <a href="/admin" className="lnk">Admin</a>
+            <button className="btn-outline" onClick={() => { localStorage.removeItem('userId'); router.push('/'); }}>Sair</button>
+          </div>
+        </nav>
       </div>
-      <LogoStrip />
-      <main className="wrap">
-        <div className="stats">
-          <div className="card stat"><b>{mine.length}</b><span>sorteios que você participa</span></div>
-          <div className="card stat"><b>{open}</b><span>em andamento</span></div>
-          <div className="card stat"><b>{mine.length - open}</b><span>encerrados</span></div>
-          <div className="card stat"><b style={{ color: 'var(--ok)' }}>{won}</b><span>prêmios ganhos</span></div>
+      <main className="app-main">
+        <div className="app-head">
+          <div>
+            <span className="hello" style={{ display: 'none' }}>Olá, {first} · plano {user.plan}</span>
+            <h1 className="display">Seus <span className="accent">sorteios</span></h1>
+          </div>
+          <div className="stat-row">
+            {stats.map((s) => (
+              <div key={s.l} className="stat" style={{ background: s.bg }}><b style={{ color: s.c }}>{s.v}</b><span>{s.l}</span></div>
+            ))}
+          </div>
         </div>
 
-        <div className="tabs">
-          {([['all', 'Todos'], ['open', 'Em andamento'], ['ended', 'Encerrados'], ['won', 'Ganhei']] as [Tab, string][]).map(([k, label]) => (
-            <button key={k} className={`tab ${tab === k ? 'on' : ''}`} onClick={() => { setTab(k); setShown(PAGE); }}>{label}</button>
-          ))}
+        <div className="toolbar">
+          <Tabs
+            value={tab}
+            onChange={(k) => { setTab(k); setShown(PAGE); }}
+            items={(['all', 'open', 'ended', 'won'] as Tab[]).map((k) => ({ key: k, label: { all: 'Todos', open: 'Em andamento', ended: 'Encerrados', won: 'Ganhei' }[k], count: countOf(k) }))}
+          />
+          <LogoStrip />
         </div>
 
         <div className="raffles">
           {visible.slice(0, shown).map((r) => <RaffleCard key={r.id} r={r} now={now} userId={user.id} />)}
         </div>
       </main>
-      <div style={{ position: 'fixed', right: 16, bottom: 16, display: 'grid', gap: 8, zIndex: 60, maxWidth: 360 }}>
-        {toasts.slice(-4).map((t) => (
-          <div key={t.id} className={`winner ${t.me ? 'me' : ''}`} style={{ cursor: 'pointer' }}
-            onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}>
-            {t.text}
-          </div>
+      <div className="toasts">
+        {toasts.slice(-3).map((t) => (
+          <Toast key={t.id} t={t} onClose={() => setToasts((x) => x.filter((y) => y.id !== t.id))} />
         ))}
       </div>
-      <Console extra={extra} />
-    </>
+      <Console lines={lines} />
+    </div>
   );
 }

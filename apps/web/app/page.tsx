@@ -1,7 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, User } from '@/lib/api';
+import { api, fmtRemaining, User } from '@/lib/api';
+import { Logo } from '@/components/Logo';
+import { SiteIcon } from '@/components/SiteIcon';
+import { SITES as ALL_SITES } from '@/lib/sites';
 
 const PLANS = [
   { id: 'basico', name: 'Básico', price: 'R$ 19/mês', desc: '50 sorteios' },
@@ -9,7 +12,30 @@ const PLANS = [
   { id: 'vip', name: 'VIP', price: 'R$ 79/mês', desc: 'Ilimitado' },
 ];
 
+const STEPS = [
+  { n: '01', t: 'Você preenche seus dados', bg: 'radial-gradient(120% 90% at 100% 0%,#e3f0ff 0%,#f1f7ff 45%,rgba(241,247,255,0) 100%)', c: '#3b82f6' },
+  { n: '02', t: 'Nós buscamos e inscrevemos você nos sorteios', bg: 'radial-gradient(120% 90% at 100% 0%,#ffe9d4 0%,#fff5ec 45%,rgba(255,245,236,0) 100%)', c: '#ff8a1f' },
+  { n: '03', t: 'Você acompanha tudo em tempo real', bg: 'radial-gradient(120% 90% at 100% 0%,#dcfbe6 0%,#effdf3 45%,rgba(239,253,243,0) 100%)', c: '#16a34a' },
+];
+
+const SITES: [string, string][] = ALL_SITES.slice(0, 10).map((x) => [x.name, x.color]);
+const SCATTER = [['3%', '8%', '-6deg'], ['8%', '38%', '4deg'], ['6%', '62%', '3deg'], ['20%', '82%', '-5deg'], ['74%', '6%', '5deg'],
+  ['84%', '26%', '-4deg'], ['70%', '66%', '-3deg'], ['86%', '84%', '6deg'], ['40%', '4%', '-2deg'], ['44%', '88%', '3deg']];
+
+const LOG = [
+  'Buscando sorteios...', 'Cadastrando você nos melhores sorteios...', 'Sorteios encontrados!', 'Calculando melhores probabilidades...',
+  'Verificando regulamentos...', 'Preenchendo formulário automaticamente...', 'Confirmando sua participação...', 'Inscrição confirmada ✔',
+];
+
+const FAQ = [
+  ['Preciso fazer algo depois de pagar?', 'Não. Após o pagamento você já é inscrito e acompanha tudo pelo painel.'],
+  ['Quantos sorteios posso participar?', 'Depende do plano: 50, 200 ou ilimitados, com novos sorteios entrando o tempo todo.'],
+  ['Como sei se ganhei?', 'O painel mostra o ganhador de cada sorteio quando o contador termina.'],
+];
+
 const empty = { name: '', email: '', cpf: '', phone: '', city: '', plan: 'pro' };
+const pad = (n: number) => String(n).padStart(2, '0');
+const clock = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
 export default function Landing() {
   const router = useRouter();
@@ -17,8 +43,27 @@ export default function Landing() {
   const [f, setF] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [heroEmail, setHeroEmail] = useState('');
+  const [tick, setTick] = useState(0);
+  const [lines, setLines] = useState<{ s: string; t: string }[]>([]);
+  const [demoEnd] = useState(() => Date.now() + (2 * 3600 + 14 * 60) * 1000);
+
+  useEffect(() => {
+    setLines([{ s: LOG[0], t: clock(new Date()) }]);
+    let i = 1;
+    const a = setInterval(() => setTick((t) => t + 1), 1000);
+    const b = setInterval(() => setLines((l) => [...l, { s: LOG[i++ % LOG.length], t: clock(new Date()) }].slice(-5)), 2200);
+    return () => { clearInterval(a); clearInterval(b); };
+  }, []);
 
   const set = (k: keyof typeof empty) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  const plan = PLANS.find((p) => p.id === f.plan)!;
+
+  function start(e: React.FormEvent) {
+    e.preventDefault();
+    if (heroEmail) setF((x) => ({ ...x, email: heroEmail }));
+    document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   async function pay() {
     setBusy(true);
@@ -34,102 +79,195 @@ export default function Landing() {
     }
   }
 
+  const demoMs = demoEnd - Date.now();
+  void tick;
+
   return (
-    <>
-      <div className="wrap topbar">
-        <b style={{ fontSize: 20 }}>🎯 SorteioPilot</b>
-        <a href="/login" className="btn ghost sm">Já sou cliente</a>
+    <div className="shell">
+      {/* HERO */}
+      <div className="hero-frame">
+        <div className="hero-photos" aria-hidden>
+          <div className="ph a cut" style={{ backgroundImage: "url(/prizes/iphone.png)" }} />
+          <div className="ph b cut" style={{ backgroundImage: "url(/prizes/viagem.png)" }} />
+          <div className="ph c cut" style={{ backgroundImage: "url(/prizes/moto.png)" }} />
+          <div className="ph d cut" style={{ backgroundImage: "url(/prizes/pix.png)" }} />
+        </div>
+        <nav className="nav">
+          <a href="/"><Logo /></a>
+          <a href="#planos" className="nav-hide" style={{ display: 'flex', alignItems: 'center', gap: 10, font: '600 15px var(--f-body)', color: 'var(--ink-2)' }}>
+            <span className="pill blue" style={{ fontSize: 13 }}>Novo</span>+500 sorteios monitorados ↓
+          </a>
+          <div className="nav-links">
+            <a href="/login" className="plain"><span className="nav-hide">Já sou cliente</span><span className="m-only">Entrar</span></a>
+            <a href="#planos" className="btn-rainbow sm">Começar</a>
+          </div>
+        </nav>
+
+        <div className="hero-body">
+          <span className="tag">Cadastre uma vez. Nós inscrevemos você.</span>
+          <h1 className="display">Entre em <span className="accent">centenas</span> de sorteios sem mover um dedo.</h1>
+          <p className="lead">Cadastre seus dados uma única vez. Nossa plataforma encontra os melhores sorteios, inscreve você automaticamente e avisa quando houver resultado.</p>
+          <form className="hero-input" onSubmit={start}>
+            <input type="email" placeholder="seu melhor e-mail" value={heroEmail} onChange={(e) => setHeroEmail(e.target.value)} aria-label="E-mail" />
+            <button className="btn-rainbow">Começar</button>
+          </form>
+          <a href="#planos" className="plan-chip">
+            <span className="pro">Pro</span>
+            <span style={{ display: 'grid', gap: 3 }}>
+              <span className="t">Plano Pro<span className="badge-pop">POPULAR</span></span>
+              <span className="s">200 sorteios · R$ 39/mês</span>
+            </span>
+            <span style={{ fontSize: 22, color: 'var(--txt-2)', marginLeft: 18 }}>→</span>
+          </a>
+        </div>
+        <div className="hero-photos" aria-hidden>
+          <div className="mob"><div className="ph a cut" style={{ backgroundImage: "url(/prizes/iphone.png)" }} /><div className="ph b cut" style={{ backgroundImage: "url(/prizes/viagem.png)" }} /></div>
+        </div>
       </div>
-      <main className="wrap">
-        <section className="hero">
-          <div>
-            <h1>Entre em <span>centenas de sorteios</span> sem mover um dedo.</h1>
-            <p>Cadastre seus dados uma única vez. Nossa plataforma encontra os melhores sorteios, inscreve você automaticamente e avisa quando houver resultado.</p>
-            <div className="steps" style={{ gridTemplateColumns: '1fr', margin: '24px 0 0' }}>
-              <div className="card">1. Você preenche seus dados</div>
-              <div className="card">2. Nós buscamos e inscrevemos você nos sorteios</div>
-              <div className="card">3. Você acompanha tudo em tempo real</div>
+
+      {/* COMO FUNCIONA */}
+      <section className="section">
+        <div className="sec-head">
+          <span className="eyebrow">Como funciona</span>
+          <h2 className="display">Três passos. Depois é com o robô.</h2>
+        </div>
+        <div className="steps3">
+          {STEPS.map((s) => (
+            <div key={s.n} className="step" style={{ background: s.bg }}>
+              <div><span className="n" style={{ color: s.c }}>{s.n}</span><span className="t">{s.t}</span></div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* AUTOMÁTICO */}
+      <section className="section feat stage-left">
+        <div className="feat-copy">
+          <span className="feat-tag" style={{ background: 'var(--orange-bg)', color: 'var(--orange-fg)' }}>Automático</span>
+          <h2 className="display">Você cadastra <span className="accent">uma vez</span>.</h2>
+          <p className="copy">Você cadastra uma vez e o robô inscreve você em novos sorteios o dia todo.</p>
+          <div className="dots-wrap" style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
+            <div className="dots">{ALL_SITES.slice(0, 5).map((s) => <SiteIcon key={s.name} name={s.name} size={34} />)}</div>
+            <span style={{ font: '500 15px var(--f-body)', color: 'var(--mut)' }}>+40 sites parceiros</span>
+          </div>
+        </div>
+        <div className="feat-stage" style={{ background: 'radial-gradient(120% 90% at 100% 0%,#ffe9d4 0%,#fff5ec 45%,rgba(255,245,236,0) 100%)' }}>
+          <div className="stage-card" style={{ width: 420 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ font: '600 18px var(--f-body)', color: 'var(--txt-2)' }}>Robô em execução</span>
+              <span className="pill orange" style={{ fontSize: 13 }}><i className="dot orange" />Ao vivo</span>
+            </div>
+            <div style={{ display: 'grid', gap: 2 }}>
+              {lines.map((l, i) => (
+                <div key={l.t + i} className="log-row" style={{ opacity: i === lines.length - 1 ? 1 : 0.55 }}>
+                  <span className="ck">✓</span><span className="s">{l.s}</span><span className="tm">{l.t}</span>
+                </div>
+              ))}
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="card">
-            {step === 'form' ? (
-              <form
-                onSubmit={(e) => { e.preventDefault(); setStep('checkout'); }}
-                style={{ display: 'grid', gap: 12 }}
-              >
-                <h2 style={{ margin: 0 }}>Comece agora</h2>
-                <div><label>Nome completo</label><input required minLength={2} value={f.name} onChange={set('name')} /></div>
-                <div><label>E-mail</label><input required type="email" value={f.email} onChange={set('email')} /></div>
-                <div className="grid2">
-                  <div><label>CPF</label><input required minLength={11} value={f.cpf} onChange={set('cpf')} placeholder="000.000.000-00" /></div>
-                  <div><label>Telefone</label><input required minLength={8} value={f.phone} onChange={set('phone')} placeholder="(11) 99999-9999" /></div>
-                </div>
-                <div><label>Cidade</label><input required value={f.city} onChange={set('city')} /></div>
-                <div>
-                  <label>Plano</label>
-                  <div className="plans">
-                    {PLANS.map((p) => (
-                      <div key={p.id} className={`plan ${f.plan === p.id ? 'on' : ''}`} onClick={() => setF({ ...f, plan: p.id })}>
-                        <b>{p.name}</b><div style={{ fontSize: 13 }}>{p.price}</div>
-                        <div style={{ fontSize: 12, color: 'var(--mut)' }}>{p.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <button className="btn">Continuar para o pagamento</button>
-              </form>
-            ) : (
-              <div style={{ display: 'grid', gap: 14 }}>
-                <h2 style={{ margin: 0 }}>Pagamento</h2>
-                <div className="pending">
-                  🧩 Espaço reservado para o checkout.<br />
-                  Plano <b>{PLANS.find((p) => p.id === f.plan)?.name}</b> · {PLANS.find((p) => p.id === f.plan)?.price}
-                </div>
-                {err && <div style={{ color: '#f87171', fontSize: 13 }}>{err}</div>}
-                <button className="btn" onClick={pay} disabled={busy}>
-                  {busy ? 'Processando...' : 'Simular pagamento aprovado'}
-                </button>
-                <button className="btn ghost" onClick={() => setStep('form')} disabled={busy}>Voltar</button>
-              </div>
-            )}
+      {/* PROBABILIDADES */}
+      <section className="section feat">
+        <div className="feat-copy">
+          <span className="feat-tag" style={{ background: 'var(--blue-bg)', color: 'var(--ink-2)' }}>Probabilidades</span>
+          <h2 className="display">Menos concorrência, <span className="accent">mais chances</span>.</h2>
+          <p className="copy">Priorizamos sorteios com menos concorrência para aumentar suas chances.</p>
+          <div className="checks">
+            {['+500 sorteios monitorados', '24h inscrições automáticas', '100% acompanhamento em tempo real'].map((c) => (
+              <div key={c}><span>✓</span>{c}</div>
+            ))}
           </div>
-        </section>
+        </div>
+        <div className="feat-stage hide-m" style={{ height: 520, background: 'radial-gradient(120% 90% at 0% 0%,#e3f0ff 0%,#f1f7ff 45%,rgba(241,247,255,0) 100%)' }}>
+          <div className="stage-card" style={{ width: 380, padding: 26, gap: 18, justifyItems: 'center', textAlign: 'center' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, font: '600 14px var(--f-body)', color: 'var(--txt-2)' }}>
+              <SiteIcon name="GanheJá" size={22} />GanheJá
+            </span>
+            <span style={{ font: '600 22px var(--f-display)', letterSpacing: '-.03em', color: 'var(--ink)' }}>Sorteio R$ 10.000 no PIX</span>
+            <span className="demo-timer">{fmtRemaining(demoMs)}</span>
+            <span style={{ font: '500 14px var(--f-body)', color: 'var(--mut)', marginTop: -8 }}>termina em</span>
+            <div style={{ width: '100%', display: 'grid', gap: 8 }}>
+              <div className="demo-row"><span>Participantes</span><b style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{(233901 + tick * 3).toLocaleString('pt-BR')}</b></div>
+              <div className="demo-row"><span>Sua inscrição</span><span className="pill green" style={{ fontSize: 13, padding: '2px 8px', borderRadius: 6 }}>Confirmada</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-        <section className="stats" style={{ marginBottom: 40 }}>
-          <div className="card stat"><b>+500</b><span>sorteios monitorados</span></div>
-          <div className="card stat"><b>+40</b><span>sites parceiros</span></div>
-          <div className="card stat"><b>24h</b><span>inscrições automáticas</span></div>
-          <div className="card stat"><b>100%</b><span>acompanhamento em tempo real</span></div>
-        </section>
+      {/* RESULTADO AO VIVO */}
+      <section className="scatter">
+        {SITES.map(([n, c], i) => (
+          <span key={n} className="chip" style={{ left: SCATTER[i][0], top: SCATTER[i][1], transform: `rotate(${SCATTER[i][2]})` }}>
+            <SiteIcon name={n} color={c} size={30} />{n}
+          </span>
+        ))}
+        <div className="center">
+          <span style={{ font: '500 16px var(--f-body)', color: 'var(--mut)' }}>Resultado ao vivo</span>
+          <h2 className="display">Veja o ganhador assim que o <span className="accent">sorteio termina</span>.</h2>
+          <p style={{ maxWidth: 480, font: '400 18px/1.5 var(--f-body)', color: 'var(--ink-soft)' }}>Acompanhe contadores e veja o ganhador assim que o sorteio termina.</p>
+          <a href="#planos" className="btn-dark" style={{ marginTop: 8 }}>Comece agora</a>
+        </div>
+      </section>
 
-        <section className="steps" style={{ margin: '0 0 40px' }}>
-          {[
-            ['⚡ Automático', 'Você cadastra uma vez e o robô inscreve você em novos sorteios o dia todo.'],
-            ['📊 Probabilidades', 'Priorizamos sorteios com menos concorrência para aumentar suas chances.'],
-            ['🔔 Resultado ao vivo', 'Acompanhe contadores e veja o ganhador assim que o sorteio termina.'],
-          ].map(([t, d]) => (
-            <div key={t} className="card"><b>{t}</b><p style={{ fontSize: 15, margin: '8px 0 0' }}>{d}</p></div>
+      {/* PLANOS / CADASTRO */}
+      <section id="planos" className="section plans-sec" style={{ paddingTop: 110, scrollMarginTop: 20 }}>
+        <div className="intro" style={{ display: 'grid', gap: 20, paddingTop: 24, alignContent: 'start' }}>
+          <span style={{ font: '500 16px var(--f-body)', color: 'var(--mut)' }} className="hide-m">Planos</span>
+          <h2 className="display" style={{ fontSize: 56 }}>Comece agora</h2>
+          <p style={{ font: '400 18px/1.55 var(--f-body)', color: 'var(--ink-soft)', maxWidth: 400 }}>Após o pagamento você já é inscrito e acompanha tudo pelo painel.</p>
+        </div>
+        <div className="plans-card">
+          {step === 'form' ? (
+            <form className="form-grid" onSubmit={(e) => { e.preventDefault(); setStep('checkout'); }}>
+              <div className="plan-pick">
+                {PLANS.map((p) => (
+                  <button type="button" key={p.id} className={`plan-opt ${f.plan === p.id ? 'on' : ''}`} onClick={() => setF({ ...f, plan: p.id })}>
+                    <span className="top"><b>{p.name}</b>{p.id === 'pro' && <span className="badge-pop" style={{ fontSize: 9.5 }}>POPULAR</span>}</span>
+                    <span className="desc">{p.desc}</span>
+                    <span className="price">{p.price}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="field"><label>Nome completo</label><input required minLength={2} value={f.name} onChange={set('name')} autoComplete="name" /></div>
+              <div className="field"><label>E-mail</label><input required type="email" value={f.email} onChange={set('email')} autoComplete="email" /></div>
+              <div className="row2">
+                <div className="field"><label>CPF</label><input required minLength={11} inputMode="numeric" value={f.cpf} onChange={set('cpf')} placeholder="000.000.000-00" /></div>
+                <div className="field"><label>Telefone</label><input required minLength={8} type="tel" value={f.phone} onChange={set('phone')} placeholder="(11) 99999-9999" autoComplete="tel" /></div>
+              </div>
+              <div className="field"><label>Cidade</label><input required value={f.city} onChange={set('city')} autoComplete="address-level2" /></div>
+              <button className="btn-rainbow" style={{ marginTop: 6 }}>Continuar para o pagamento</button>
+            </form>
+          ) : (
+            <div className="form-grid">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <h3 className="display" style={{ fontSize: 32, letterSpacing: '-.04em' }}>Pagamento</h3>
+                <span className="pill blue" style={{ fontSize: 14, padding: '6px 12px' }}>Plano {plan.name} · {plan.price}</span>
+              </div>
+              <div className="checkout-ph">Espaço reservado para o checkout.</div>
+              {err && <div className="err">{err}</div>}
+              <button className="btn-rainbow" onClick={pay} disabled={busy}>{busy ? 'Processando...' : 'Simular pagamento aprovado'}</button>
+              <button className="btn-ghost" onClick={() => setStep('form')} disabled={busy}>Voltar</button>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="section faq-sec">
+        <h2 className="display">Perguntas frequentes</h2>
+        <div className="faq-list">
+          {FAQ.map(([q, a]) => (
+            <details key={q}><summary>{q}<span>+</span></summary><p>{a}</p></details>
           ))}
-        </section>
+        </div>
+      </section>
 
-        <section style={{ marginBottom: 50 }}>
-          <h2>Perguntas frequentes</h2>
-          {[
-            ['Preciso fazer algo depois de pagar?', 'Não. Após o pagamento você já é inscrito e acompanha tudo pelo painel.'],
-            ['Quantos sorteios posso participar?', 'Depende do plano: 50, 200 ou ilimitados, com novos sorteios entrando o tempo todo.'],
-            ['Como sei se ganhei?', 'O painel mostra o ganhador de cada sorteio quando o contador termina.'],
-          ].map(([q, a]) => (
-            <details key={q} className="card" style={{ marginBottom: 8 }}>
-              <summary style={{ cursor: 'pointer', fontWeight: 700 }}>{q}</summary>
-              <p style={{ color: 'var(--mut)', marginBottom: 0 }}>{a}</p>
-            </details>
-          ))}
-        </section>
-      </main>
-      <footer className="wrap" style={{ color: 'var(--mut)', padding: '20px 0 40px', fontSize: 13 }}>
-        © SorteioPilot · ambiente de teste com dados fictícios
+      <footer className="foot">
+        <span>© SorteioPilot · ambiente de teste com dados fictícios</span>
+        <a href="/login">Já sou cliente</a>
       </footer>
-    </>
+    </div>
   );
 }
