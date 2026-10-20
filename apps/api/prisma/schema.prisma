@@ -18,9 +18,10 @@ model User {
   plan          String
   role          String    @default("USER") // USER | ADMIN
   password      String?   // hash bcrypt; definido quando o pagamento é confirmado (envia por e-mail)
-  status        String    @default("PENDING") // PENDING até o webhook de pagamento confirmar
+  status        String    @default("PENDING") // PENDING | ACTIVE | EXPIRED
   paidAt        DateTime?
-  simpayOrderId String?   @unique // orderId do webhook simpay que ativou o plano (idempotência)
+  expiresAt     DateTime? // paidAt + 1 ano; vencido sem renovar = volta pra tela de assinatura expirada
+  simpayOrderId String?   @unique // orderId da última cobrança aprovada (idempotência por renovação)
   phoneVerified Boolean   @default(false) // validado por OTP reverso via WhatsApp
   otpCode       String?   // código que o usuário precisa mandar pro WhatsApp do rastrewin
   createdAt     DateTime  @default(now())

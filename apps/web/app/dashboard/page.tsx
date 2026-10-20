@@ -111,6 +111,17 @@ export default function Dashboard() {
 
   if (!user) return null;
 
+  if (user.status === 'EXPIRED') {
+    return (
+      <div className="app" style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', textAlign: 'center', gap: 12, padding: 24 }}>
+        <Logo />
+        <h1 className="display" style={{ fontSize: 28 }}>Sua assinatura venceu</h1>
+        <p style={{ color: 'var(--mut)', maxWidth: 420 }}>Renove para continuar participando dos sorteios. Seu histórico e inscrições continuam salvos.</p>
+        {user.checkoutUrl && <a href={user.checkoutUrl} target="_blank" rel="noopener noreferrer" className="btn-rainbow" style={{ marginTop: 8, textDecoration: 'none' }}>Renovar assinatura</a>}
+      </div>
+    );
+  }
+
   if (user.status !== 'ACTIVE') {
     return (
       <div className="app" style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', textAlign: 'center', gap: 12, padding: 24 }}>

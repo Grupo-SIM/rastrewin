@@ -1,7 +1,7 @@
 import { Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { Raffle } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { enroll } from '../plans';
+import { enroll, expireIfPastDue } from '../plans';
 import { freeEndTime, makeRaffleData, maskedUser, normalize, participantAt, pickFreePrize, uniqueWinnerName, userIndex } from '../mock';
 
 /** Sorteios encerrados continuam visíveis por esse tempo; depois viram histórico. */
@@ -153,8 +153,10 @@ export class RafflesController {
     await replenish(this.prisma);
     await ensureWinners(this.prisma);
     if (!userId) return [];
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, plan: true, status: true } });
-    if (!user || user.status !== 'ACTIVE') return [];
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, plan: true, status: true, expiresAt: true } });
+    if (!user) return [];
+    const status = await expireIfPastDue(this.prisma, user);
+    if (status !== 'ACTIVE') return [];
     const visible = await this.prisma.raffle.findMany({ where: { endsAt: { gt: this.visibleSince() } }, orderBy: { endsAt: 'asc' } });
     const added = new Set(await enroll(this.prisma, user, visible.map((r) => r.id)));
     return visible.filter((r) => added.has(r.id)).map((r) => toPublic(r, true));

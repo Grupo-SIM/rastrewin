@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
 import { IsEmail, IsIn, IsString, MinLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
-import { PLAN_IDS, checkoutUrlFor } from '../plans';
+import { PLAN_IDS, checkoutUrlFor, expireIfPastDue } from '../plans';
 import { toPublicUser } from './user.view';
 import { generateOtpCode } from '../auth/phone.util';
 
@@ -38,7 +38,8 @@ export class UsersController {
   async get(@Param('id') id: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
-    return toPublicUser(user);
+    const status = await expireIfPastDue(this.prisma, user);
+    return { ...toPublicUser({ ...user, status }), checkoutUrl: checkoutUrlFor(user.plan) };
   }
 
   /** Gera (ou reaproveita) o código que o usuário precisa mandar pro WhatsApp do rastrewin
