@@ -19,7 +19,7 @@ export default function Login() {
       const { token, user } = await api<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
       localStorage.setItem('userToken', token);
       localStorage.setItem('userId', user.id);
-      router.push(user.role === 'ADMIN' ? '/admin' : '/dashboard');
+      router.push('/dashboard');
     } catch {
       setErr('E-mail ou senha inválidos.');
       setBusy(false);

@@ -146,8 +146,8 @@ export default function Dashboard() {
           </div>
           <div className="app-user">
             <span className="hi">Olá, {first} · plano {user.plan}</span>
-            <a href="/admin" className="lnk">Admin</a>
-            <button className="btn-outline" onClick={() => { localStorage.removeItem('userId'); router.push('/'); }}>Sair</button>
+            {user.role === 'ADMIN' && <a href="/admin" className="lnk">Admin</a>}
+            <button className="btn-outline" onClick={() => { localStorage.removeItem('userId'); localStorage.removeItem('userToken'); router.push('/'); }}>Sair</button>
           </div>
         </nav>
       </div>
