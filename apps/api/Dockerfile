@@ -14,9 +14,13 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json* ./
 COPY apps/api/package.json apps/api/package.json
 RUN npm install --workspace api --include-workspace-root --omit=dev
+RUN npm install --workspace api prisma --no-save
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/prisma apps/api/prisma
 COPY --from=build /app/node_modules/.prisma node_modules/.prisma
 EXPOSE 3011
 WORKDIR /app/apps/api
-CMD ["node", "dist/main"]
+# "db push" cria/sincroniza o schema (tabelas/colunas que faltam) sem apagar dados
+# existentes — o estado dos sorteios sobrevive a restart/redeploy. Sem --accept-data-loss
+# de propósito: uma mudança destrutiva no schema falha aqui em vez de apagar dados sozinha.
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/main"]

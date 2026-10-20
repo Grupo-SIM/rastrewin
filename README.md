@@ -1,4 +1,4 @@
-# SorteioPilot (mock)
+# Rastrewin
 
 Monorepo: **Next.js** (apps/web) + **NestJS** (apps/api) + **Prisma/PostgreSQL**. Dados 100% mockados.
 

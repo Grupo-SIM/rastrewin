@@ -263,7 +263,7 @@ export default function Landing() {
       </section>
 
       <footer className="foot">
-        <span>© SorteioPilot · ambiente de teste com dados fictícios</span>
+        <span>© Rastrewin</span>
         <a href="/login">Já sou cliente</a>
       </footer>
     </div>
