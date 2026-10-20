@@ -38,7 +38,6 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const clock = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
 export default function Landing() {
-  const [step, setStep] = useState<'form' | 'checkout'>('form');
   const [f, setF] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -62,23 +61,29 @@ export default function Landing() {
     if (k === 'cpf') setCpfErr('');
     setF({ ...f, [k]: v });
   };
-  const plan = PLANS.find((p) => p.id === f.plan)!;
-
   function start(e: React.FormEvent) {
     e.preventDefault();
     if (heroEmail) setF((x) => ({ ...x, email: heroEmail }));
     document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  async function pay() {
+  async function submitAndCheckout(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isValidCpf(f.cpf)) return void setCpfErr('CPF inválido.');
     setBusy(true);
     setErr('');
+    // abre a aba já no clique (gesto do usuário), senão o navegador bloqueia o popup
+    // depois que a resposta da API chegar.
+    const checkoutTab = window.open('', '_blank');
     try {
       const user = await api<User & { checkoutUrl: string }>('/users', { method: 'POST', body: JSON.stringify(f) });
       localStorage.setItem('userId', user.id);
-      window.location.href = user.checkoutUrl;
+      if (checkoutTab) checkoutTab.location.href = user.checkoutUrl;
+      else window.location.href = user.checkoutUrl;
     } catch (e) {
+      checkoutTab?.close();
       setErr('Não foi possível concluir. A API está rodando? ' + (e as Error).message);
+    } finally {
       setBusy(false);
     }
   }
@@ -223,47 +228,31 @@ export default function Landing() {
           <p style={{ font: '400 18px/1.55 var(--f-body)', color: 'var(--ink-soft)', maxWidth: 400 }}>Após o pagamento você já é inscrito e acompanha tudo pelo painel.</p>
         </div>
         <div className="plans-card">
-          {step === 'form' ? (
-            <form className="form-grid" onSubmit={(e) => {
-              e.preventDefault();
-              if (!isValidCpf(f.cpf)) return void setCpfErr('CPF inválido.');
-              setStep('checkout');
-            }}>
-              <div className="plan-pick">
-                {PLANS.map((p) => (
-                  <button type="button" key={p.id} className={`plan-opt ${f.plan === p.id ? 'on' : ''}`} onClick={() => setF({ ...f, plan: p.id })}>
-                    <span className="top"><b>{p.name}</b>{p.id === 'pro' && <span className="badge-pop" style={{ fontSize: 9.5 }}>POPULAR</span>}</span>
-                    <span className="desc">{p.desc}</span>
-                    <span className="price">{p.price}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="field"><label>Nome completo</label><input required minLength={2} value={f.name} onChange={set('name')} autoComplete="name" /></div>
-              <div className="field"><label>E-mail</label><input required type="email" value={f.email} onChange={set('email')} autoComplete="email" /></div>
-              <div className="row2">
-                <div className="field">
-                  <label>CPF</label>
-                  <input required minLength={14} inputMode="numeric" value={f.cpf} onChange={set('cpf')} placeholder="000.000.000-00" />
-                  {cpfErr && <span className="err" style={{ fontSize: 13 }}>{cpfErr}</span>}
-                </div>
-                <div className="field"><label>Telefone</label><input required minLength={14} type="tel" value={f.phone} onChange={set('phone')} placeholder="(11) 99999-9999" autoComplete="tel" /></div>
-              </div>
-              <div className="field"><label>Chave Pix <span style={{ color: 'var(--mut)', fontWeight: 500 }}>(para receber prêmios em dinheiro)</span></label><input required minLength={3} value={f.pix} onChange={set('pix')} placeholder="CPF, e-mail, telefone ou chave aleatória" /></div>
-              <div className="field"><label>Cidade</label><input required value={f.city} onChange={set('city')} autoComplete="address-level2" /></div>
-              <button className="btn-rainbow" style={{ marginTop: 6 }}>Continuar para o pagamento</button>
-            </form>
-          ) : (
-            <div className="form-grid">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <h3 className="display" style={{ fontSize: 32, letterSpacing: '-.04em' }}>Pagamento</h3>
-                <span className="pill blue" style={{ fontSize: 14, padding: '6px 12px' }}>Plano {plan.name} · {plan.price}</span>
-              </div>
-              <div className="checkout-ph">Você será redirecionado para o checkout seguro. Assim que o pagamento for aprovado, seu plano é liberado automaticamente.</div>
-              {err && <div className="err">{err}</div>}
-              <button className="btn-rainbow" onClick={pay} disabled={busy}>{busy ? 'Redirecionando...' : 'Ir para o pagamento'}</button>
-              <button className="btn-ghost" onClick={() => setStep('form')} disabled={busy}>Voltar</button>
+          <form className="form-grid" onSubmit={submitAndCheckout}>
+            <div className="plan-pick">
+              {PLANS.map((p) => (
+                <button type="button" key={p.id} className={`plan-opt ${f.plan === p.id ? 'on' : ''}`} onClick={() => setF({ ...f, plan: p.id })}>
+                  <span className="top"><b>{p.name}</b>{p.id === 'pro' && <span className="badge-pop" style={{ fontSize: 9.5 }}>POPULAR</span>}</span>
+                  <span className="desc">{p.desc}</span>
+                  <span className="price">{p.price}</span>
+                </button>
+              ))}
             </div>
-          )}
+            <div className="field"><label>Nome completo</label><input required minLength={2} value={f.name} onChange={set('name')} autoComplete="name" /></div>
+            <div className="field"><label>E-mail</label><input required type="email" value={f.email} onChange={set('email')} autoComplete="email" /></div>
+            <div className="row2">
+              <div className="field">
+                <label>CPF</label>
+                <input required minLength={14} inputMode="numeric" value={f.cpf} onChange={set('cpf')} placeholder="000.000.000-00" />
+                {cpfErr && <span className="err" style={{ fontSize: 13 }}>{cpfErr}</span>}
+              </div>
+              <div className="field"><label>Telefone</label><input required minLength={14} type="tel" value={f.phone} onChange={set('phone')} placeholder="(11) 99999-9999" autoComplete="tel" /></div>
+            </div>
+            <div className="field"><label>Chave Pix <span style={{ color: 'var(--mut)', fontWeight: 500 }}>(para receber prêmios em dinheiro)</span></label><input required minLength={3} value={f.pix} onChange={set('pix')} placeholder="CPF, e-mail, telefone ou chave aleatória" /></div>
+            <div className="field"><label>Cidade</label><input required value={f.city} onChange={set('city')} autoComplete="address-level2" /></div>
+            {err && <div className="err">{err}</div>}
+            <button className="btn-rainbow" style={{ marginTop: 6 }} disabled={busy}>{busy ? 'Abrindo pagamento...' : 'Continuar para o pagamento'}</button>
+          </form>
         </div>
       </section>
 
