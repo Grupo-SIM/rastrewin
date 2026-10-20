@@ -9,6 +9,9 @@ export class EmailService {
     port: Number(process.env.SMTP_PORT ?? 587),
     secure: process.env.SMTP_SECURE === 'true',
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+    // host de hospedagem compartilhada: cert TLS cobre o hostname real do servidor
+    // (ex. pro120.dns-pro.com.br), não o domínio SMTP_HOST usado para conectar.
+    tls: { rejectUnauthorized: false },
   });
 
   async sendWelcomeCredentials(to: string, name: string, password: string) {
