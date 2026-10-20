@@ -1,7 +1,7 @@
-import { Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
 import { IsEmail, IsIn, IsString, MinLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
-import { VISIBLE_AFTER_END_MS } from '../raffles/raffles.controller';
+import { PLAN_IDS } from '../plans';
 
 class RegisterDto {
   @IsString() @MinLength(2) name: string;
@@ -9,7 +9,8 @@ class RegisterDto {
   @IsString() @MinLength(11) cpf: string;
   @IsString() @MinLength(8) phone: string;
   @IsString() @MinLength(2) city: string;
-  @IsIn(['basico', 'pro', 'vip']) plan: string;
+  @IsString() @MinLength(3) pix: string;
+  @IsIn(PLAN_IDS) plan: string;
 }
 
 class LoginDto {
@@ -20,26 +21,25 @@ class LoginDto {
 export class UsersController {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Cadastro + pagamento (mock): cria o usuário e inscreve nos sorteios visíveis (abertos e recém-encerrados). */
+  /** Cadastro: salva os dados como PENDING e devolve o link de checkout. A liberação do plano
+   * só acontece quando o webhook de pagamento confirmar (ver PaymentsController). */
   @Post()
   async register(@Body() dto: RegisterDto) {
+    const checkoutUrl = process.env.SIMPAY_CHECKOUT_URL;
+    if (!checkoutUrl) throw new BadRequestException('Checkout não configurado');
+    const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.upsert({
-      where: { email: dto.email },
-      update: { ...dto, paidAt: new Date() },
-      create: dto,
+      where: { email },
+      update: { ...dto, email, status: 'PENDING', paidAt: null },
+      create: { ...dto, email, status: 'PENDING' },
     });
-    const open = await this.prisma.raffle.findMany({ where: { endsAt: { gt: new Date(Date.now() - VISIBLE_AFTER_END_MS) } }, select: { id: true } });
-    await this.prisma.entry.createMany({
-      data: open.map((r) => ({ userId: user.id, raffleId: r.id })),
-      skipDuplicates: true,
-    });
-    return user;
+    return { ...user, checkoutUrl };
   }
 
   /** Login mockado: só o e-mail (sem senha) por enquanto. */
   @Post('login')
   async login(@Body() dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email.trim().toLowerCase() } });
     if (!user) throw new NotFoundException('E-mail não encontrado');
     return user;
   }

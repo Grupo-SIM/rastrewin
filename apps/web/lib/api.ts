@@ -1,4 +1,4 @@
-export const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+export const API = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
 export type Raffle = {
   id: string; title: string; prize: string; site: string; siteColor: string; siteEmoji: string;
@@ -6,7 +6,7 @@ export type Raffle = {
   winnerName: string | null; winnerUserId: string | null; entered: boolean;
 };
 
-export type User = { id: string; name: string; email: string; plan: string };
+export type User = { id: string; name: string; email: string; plan: string; status: string };
 
 export async function api<T>(path: string, init?: RequestInit & { admin?: boolean }): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };

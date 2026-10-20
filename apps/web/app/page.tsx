@@ -1,20 +1,19 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { api, fmtRemaining, User } from '@/lib/api';
 import { Logo } from '@/components/Logo';
 import { SiteIcon } from '@/components/SiteIcon';
 import { SITES as ALL_SITES } from '@/lib/sites';
 
 const PLANS = [
-  { id: 'basico', name: 'Básico', price: 'R$ 19/mês', desc: '50 sorteios' },
-  { id: 'pro', name: 'Pro', price: 'R$ 39/mês', desc: '200 sorteios' },
-  { id: 'vip', name: 'VIP', price: 'R$ 79/mês', desc: 'Ilimitado' },
+  { id: 'basico', name: 'Básico', price: 'R$ 150/mês', desc: 'até 500 sorteios/mês' },
+  { id: 'pro', name: 'Pro', price: 'R$ 500/mês', desc: 'até 2.000 sorteios/mês' },
+  { id: 'vip', name: 'VIP', price: 'R$ 1000/mês', desc: 'até 5.000 sorteios/mês' },
 ];
 
 const STEPS = [
-  { n: '01', t: 'Você preenche seus dados', bg: 'radial-gradient(120% 90% at 100% 0%,#e3f0ff 0%,#f1f7ff 45%,rgba(241,247,255,0) 100%)', c: '#3b82f6' },
-  { n: '02', t: 'Nós buscamos e inscrevemos você nos sorteios', bg: 'radial-gradient(120% 90% at 100% 0%,#ffe9d4 0%,#fff5ec 45%,rgba(255,245,236,0) 100%)', c: '#ff8a1f' },
+  { n: '01', t: 'Você se cadastra uma vez', bg: 'radial-gradient(120% 90% at 100% 0%,#e3f0ff 0%,#f1f7ff 45%,rgba(241,247,255,0) 100%)', c: '#3b82f6' },
+  { n: '02', t: 'A IA te inscreve todos os dias', bg: 'radial-gradient(120% 90% at 100% 0%,#ffe9d4 0%,#fff5ec 45%,rgba(255,245,236,0) 100%)', c: '#ff8a1f' },
   { n: '03', t: 'Você acompanha tudo em tempo real', bg: 'radial-gradient(120% 90% at 100% 0%,#dcfbe6 0%,#effdf3 45%,rgba(239,253,243,0) 100%)', c: '#16a34a' },
 ];
 
@@ -29,16 +28,15 @@ const LOG = [
 
 const FAQ = [
   ['Preciso fazer algo depois de pagar?', 'Não. Após o pagamento você já é inscrito e acompanha tudo pelo painel.'],
-  ['Quantos sorteios posso participar?', 'Depende do plano: 50, 200 ou ilimitados, com novos sorteios entrando o tempo todo.'],
+  ['Quantos sorteios posso participar?', 'Depende do plano: até 500, 2.000 ou 5.000 sorteios por mês, com novos sorteios entrando o tempo todo.'],
   ['Como sei se ganhei?', 'O painel mostra o ganhador de cada sorteio quando o contador termina.'],
 ];
 
-const empty = { name: '', email: '', cpf: '', phone: '', city: '', plan: 'pro' };
+const empty = { name: '', email: '', cpf: '', phone: '', pix: '', city: '', plan: 'pro' };
 const pad = (n: number) => String(n).padStart(2, '0');
 const clock = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
 export default function Landing() {
-  const router = useRouter();
   const [step, setStep] = useState<'form' | 'checkout'>('form');
   const [f, setF] = useState(empty);
   const [busy, setBusy] = useState(false);
@@ -69,10 +67,9 @@ export default function Landing() {
     setBusy(true);
     setErr('');
     try {
-      // MOCK: aqui entra o checkout real depois. Por ora, "pagamento aprovado" cria o usuário.
-      const user = await api<User>('/users', { method: 'POST', body: JSON.stringify(f) });
+      const user = await api<User & { checkoutUrl: string }>('/users', { method: 'POST', body: JSON.stringify(f) });
       localStorage.setItem('userId', user.id);
-      router.push('/dashboard');
+      window.location.href = user.checkoutUrl;
     } catch (e) {
       setErr('Não foi possível concluir. A API está rodando? ' + (e as Error).message);
       setBusy(false);
@@ -95,7 +92,7 @@ export default function Landing() {
         <nav className="nav">
           <a href="/"><Logo /></a>
           <a href="#planos" className="nav-hide" style={{ display: 'flex', alignItems: 'center', gap: 10, font: '600 15px var(--f-body)', color: 'var(--ink-2)' }}>
-            <span className="pill blue" style={{ fontSize: 13 }}>Novo</span>+500 sorteios monitorados ↓
+            <span className="pill blue" style={{ fontSize: 13 }}>Novo</span>+149.000 sorteios monitorados ↓
           </a>
           <div className="nav-links">
             <a href="/login" className="plain"><span className="nav-hide">Já sou cliente</span><span className="m-only">Entrar</span></a>
@@ -104,8 +101,8 @@ export default function Landing() {
         </nav>
 
         <div className="hero-body">
-          <span className="tag">Cadastre uma vez. Nós inscrevemos você.</span>
-          <h1 className="display">Entre em <span className="accent">centenas</span> de sorteios sem mover um dedo.</h1>
+          <span className="tag">Nós inscrevemos você.</span>
+          <h1 className="display">Entre em <span className="accent">milhares</span> de sorteios sem mover um dedo.</h1>
           <p className="lead">Cadastre seus dados uma única vez. Nossa plataforma encontra os melhores sorteios, inscreve você automaticamente e avisa quando houver resultado.</p>
           <form className="hero-input" onSubmit={start}>
             <input type="email" placeholder="seu melhor e-mail" value={heroEmail} onChange={(e) => setHeroEmail(e.target.value)} aria-label="E-mail" />
@@ -115,7 +112,7 @@ export default function Landing() {
             <span className="pro">Pro</span>
             <span style={{ display: 'grid', gap: 3 }}>
               <span className="t">Plano Pro<span className="badge-pop">POPULAR</span></span>
-              <span className="s">200 sorteios · R$ 39/mês</span>
+              <span className="s">até 2.000 sorteios/mês · R$ 500/mês</span>
             </span>
             <span style={{ fontSize: 22, color: 'var(--txt-2)', marginLeft: 18 }}>→</span>
           </a>
@@ -129,7 +126,7 @@ export default function Landing() {
       <section className="section">
         <div className="sec-head">
           <span className="eyebrow">Como funciona</span>
-          <h2 className="display">Três passos. Depois é com o robô.</h2>
+          <h2 className="display">Três passos. Depois é com a IA.</h2>
         </div>
         <div className="steps3">
           {STEPS.map((s) => (
@@ -143,18 +140,18 @@ export default function Landing() {
       {/* AUTOMÁTICO */}
       <section className="section feat stage-left">
         <div className="feat-copy">
-          <span className="feat-tag" style={{ background: 'var(--orange-bg)', color: 'var(--orange-fg)' }}>Automático</span>
-          <h2 className="display">Você cadastra <span className="accent">uma vez</span>.</h2>
-          <p className="copy">Você cadastra uma vez e o robô inscreve você em novos sorteios o dia todo.</p>
+          <span className="feat-tag" style={{ background: 'var(--orange-bg)', color: 'var(--orange-fg)' }}>Oportunidades</span>
+          <h2 className="display">Mais de <span className="accent">4 milhões</span> de sorteios acontecem todos os meses.</h2>
+          <p className="copy">Nossa IA varre as principais redes sociais e o Google para monitorar, verificar regulamentos e inscrever você nas melhores oportunidades do mercado.</p>
           <div className="dots-wrap" style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
-            <div className="dots">{ALL_SITES.slice(0, 5).map((s) => <SiteIcon key={s.name} name={s.name} size={34} />)}</div>
-            <span style={{ font: '500 15px var(--f-body)', color: 'var(--mut)' }}>+40 sites parceiros</span>
+            <div className="dots">{['Instagram', 'Facebook', 'TikTok', ...ALL_SITES.map((s) => s.name).filter((n) => !['Instagram', 'Facebook', 'TikTok'].includes(n))].slice(0, 5).map((n) => <SiteIcon key={n} name={n} size={34} />)}</div>
+            <span style={{ font: '500 15px var(--f-body)', color: 'var(--mut)' }}>15 sites e redes mapeados</span>
           </div>
         </div>
         <div className="feat-stage" style={{ background: 'radial-gradient(120% 90% at 100% 0%,#ffe9d4 0%,#fff5ec 45%,rgba(255,245,236,0) 100%)' }}>
           <div className="stage-card" style={{ width: 420 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ font: '600 18px var(--f-body)', color: 'var(--txt-2)' }}>Robô em execução</span>
+              <span style={{ font: '600 18px var(--f-body)', color: 'var(--txt-2)' }}>IA em execução</span>
               <span className="pill orange" style={{ fontSize: 13 }}><i className="dot orange" />Ao vivo</span>
             </div>
             <div style={{ display: 'grid', gap: 2 }}>
@@ -171,11 +168,11 @@ export default function Landing() {
       {/* PROBABILIDADES */}
       <section className="section feat">
         <div className="feat-copy">
-          <span className="feat-tag" style={{ background: 'var(--blue-bg)', color: 'var(--ink-2)' }}>Probabilidades</span>
-          <h2 className="display">Menos concorrência, <span className="accent">mais chances</span>.</h2>
-          <p className="copy">Priorizamos sorteios com menos concorrência para aumentar suas chances.</p>
+          <span className="feat-tag" style={{ background: 'var(--blue-bg)', color: 'var(--ink-2)' }}>Chance real</span>
+          <h2 className="display">A IA entra onde você tem <span className="accent">mais probabilidade</span>.</h2>
+          <p className="copy">Enquanto a maioria das pessoas disputa sorteios de influenciadores com milhões de comentários, nós encontramos as oportunidades escondidas que ninguém está vendo.</p>
           <div className="checks">
-            {['+500 sorteios monitorados', '24h inscrições automáticas', '100% acompanhamento em tempo real'].map((c) => (
+            {['Foco em prêmios de alto valor (PIX, carros, motos, eletrônicos, viagens, etc)', '+100 mil sorteios analisados diariamente', 'Acompanhamento 100% transparente e em tempo real'].map((c) => (
               <div key={c}><span>✓</span>{c}</div>
             ))}
           </div>
@@ -206,7 +203,7 @@ export default function Landing() {
         <div className="center">
           <span style={{ font: '500 16px var(--f-body)', color: 'var(--mut)' }}>Resultado ao vivo</span>
           <h2 className="display">Veja o ganhador assim que o <span className="accent">sorteio termina</span>.</h2>
-          <p style={{ maxWidth: 480, font: '400 18px/1.5 var(--f-body)', color: 'var(--ink-soft)' }}>Acompanhe contadores e veja o ganhador assim que o sorteio termina.</p>
+          <p style={{ maxWidth: 480, font: '400 18px/1.5 var(--f-body)', color: 'var(--ink-soft)' }}>Monitoramos dezenas de portais e redes em paralelo para que você acompanhe o status e os vencedores de cada inscrição.</p>
           <a href="#planos" className="btn-dark" style={{ marginTop: 8 }}>Comece agora</a>
         </div>
       </section>
@@ -236,6 +233,7 @@ export default function Landing() {
                 <div className="field"><label>CPF</label><input required minLength={11} inputMode="numeric" value={f.cpf} onChange={set('cpf')} placeholder="000.000.000-00" /></div>
                 <div className="field"><label>Telefone</label><input required minLength={8} type="tel" value={f.phone} onChange={set('phone')} placeholder="(11) 99999-9999" autoComplete="tel" /></div>
               </div>
+              <div className="field"><label>Chave Pix <span style={{ color: 'var(--mut)', fontWeight: 500 }}>(para receber prêmios em dinheiro)</span></label><input required minLength={3} value={f.pix} onChange={set('pix')} placeholder="CPF, e-mail, telefone ou chave aleatória" /></div>
               <div className="field"><label>Cidade</label><input required value={f.city} onChange={set('city')} autoComplete="address-level2" /></div>
               <button className="btn-rainbow" style={{ marginTop: 6 }}>Continuar para o pagamento</button>
             </form>
@@ -245,9 +243,9 @@ export default function Landing() {
                 <h3 className="display" style={{ fontSize: 32, letterSpacing: '-.04em' }}>Pagamento</h3>
                 <span className="pill blue" style={{ fontSize: 14, padding: '6px 12px' }}>Plano {plan.name} · {plan.price}</span>
               </div>
-              <div className="checkout-ph">Espaço reservado para o checkout.</div>
+              <div className="checkout-ph">Você será redirecionado para o checkout seguro. Assim que o pagamento for aprovado, seu plano é liberado automaticamente.</div>
               {err && <div className="err">{err}</div>}
-              <button className="btn-rainbow" onClick={pay} disabled={busy}>{busy ? 'Processando...' : 'Simular pagamento aprovado'}</button>
+              <button className="btn-rainbow" onClick={pay} disabled={busy}>{busy ? 'Redirecionando...' : 'Ir para o pagamento'}</button>
               <button className="btn-ghost" onClick={() => setStep('form')} disabled={busy}>Voltar</button>
             </div>
           )}

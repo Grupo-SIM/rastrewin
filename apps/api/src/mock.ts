@@ -15,14 +15,15 @@ export const SITES = [
   { name: 'Swagbucks', color: '#0284c7', emoji: '💵' },
   { name: 'MOBROG', color: '#ea580c', emoji: '🎯' },
   { name: 'PrizeRebel', color: '#ff5a36', emoji: '🏅' },
-  // sites fictícios
-  { name: 'SorteioMax', color: '#ff5a36', emoji: '🎯' },
-  { name: 'LuckyBR', color: '#16a34a', emoji: '🍀' },
-  { name: 'GanheJá', color: '#0ea5e9', emoji: '⚡' },
-  { name: 'MegaRifa', color: '#e11d48', emoji: '🎰' },
-  { name: 'SorteiaAí', color: '#14b8a6', emoji: '🎲' },
-  { name: 'PremiaMais', color: '#ec4899', emoji: '💎' },
+  // redes sociais (sorteios de perfis/marcas mapeados nessas redes)
+  { name: 'Instagram', color: '#E1306C', emoji: '📷' },
+  { name: 'Facebook', color: '#1877F2', emoji: '👍' },
+  { name: 'TikTok', color: '#000000', emoji: '🎵' },
 ];
+
+/** Instagram, Facebook e TikTok concentram boa parte dos sorteios mapeados (peso 6x cada; os demais, peso 1x). */
+const SOCIAL = new Set(['Instagram', 'Facebook', 'TikTok']);
+const SITE_WEIGHTS = SITES.flatMap((s) => Array(SOCIAL.has(s.name) ? 6 : 1).fill(s));
 
 const rnd = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 const pick = <T,>(a: T[]) => a[rnd(0, a.length - 1)];
@@ -38,14 +39,29 @@ function buildCatalog(): string[] {
   const out: string[] = [];
   const add = (...xs: string[]) => out.push(...xs);
 
-  const money = [300, 500, 750, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7500, 8000, 10000, 12000, 15000, 20000, 25000, 30000, 40000, 50000, 75000, 100000];
-  for (const v of money) add(`${brl(v)} no PIX`, `${brl(v)} em dinheiro`, `Vale-compras de ${brl(v)}`, `${brl(v)} para sua viagem dos sonhos`, `${brl(v)} direto na conta`, `Prêmio de ${brl(v)}`, `${brl(v)} de crédito para compras`);
+  const money = [250, 300, 400, 500, 600, 750, 800, 900, 1000, 1200, 1500, 1800, 2000, 2200, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, 10000, 11000, 12000, 13000, 15000, 17000, 20000, 22000, 25000, 28000, 30000, 35000, 40000, 45000, 50000, 60000, 75000, 85000, 100000];
+  const moneyPhr = [
+    (v: string) => `${v} no PIX`, (v: string) => `${v} em dinheiro`, (v: string) => `Vale-compras de ${v}`,
+    (v: string) => `${v} para sua viagem dos sonhos`, (v: string) => `${v} direto na conta`, (v: string) => `Prêmio de ${v}`,
+    (v: string) => `${v} de crédito para compras`, (v: string) => `${v} para gastar como quiser`, (v: string) => `${v} em prêmio surpresa`,
+    (v: string) => `${v} na conta em até 24h`,
+  ];
+  for (const v of money) add(...moneyPhr.map((f) => f(brl(v))));
 
-  const stores = ['Magazine Luiza', 'Casas Bahia', 'Amazon', 'Mercado Livre', 'Americanas', 'Shopee', 'iFood', 'Netshoes', 'Renner', 'C&A', 'Riachuelo', 'Carrefour', 'Pão de Açúcar', 'Leroy Merlin', 'Kabum', 'Fast Shop', 'Centauro', 'Decathlon', 'Sephora', 'O Boticário', 'Natura', 'Uber', 'Spotify', 'Netflix'];
-  add(...cross(stores, ['50', '100', '150', '200', '300', '500', '750', '1.000', '1.500', '2.000', '3.000', '5.000', '10.000'], (s, v) => `Gift card ${s} R$ ${v}`));
+  // dinheiro por ocasião: mesma faixa de valores, vinculada a uma data/tema do calendário comercial
+  const occasions = ['de Natal', 'de Ano Novo', 'do Dia das Mães', 'do Dia dos Pais', 'do Dia dos Namorados', 'da Black Friday', 'de aniversário da marca', 'de Páscoa', 'do Dia das Crianças', 'de Carnaval', 'de volta às aulas', 'de São João', 'do Dia do Consumidor', 'de inverno', 'de verão'];
+  for (const v of money) add(...occasions.map((o) => `${brl(v)} em dinheiro — Promoção ${o}`));
+
+  const stores = ['Magazine Luiza', 'Casas Bahia', 'Amazon', 'Mercado Livre', 'Americanas', 'Shopee', 'AliExpress', 'iFood', 'Rappi', 'Netshoes', 'Renner', 'C&A', 'Riachuelo', 'Marisa', 'Carrefour', 'Pão de Açúcar', 'Extra', 'Leroy Merlin', 'Telhanorte', 'Kabum', 'Fast Shop', 'Centauro', 'Decathlon', 'Sephora', 'O Boticário', 'Natura', 'Uber', 'Spotify', 'Netflix', 'Disney+', 'Steam', 'PlayStation Store', 'Google Play', 'App Store', 'Vivara', 'Lojas Americanas', 'Submarino', 'Ponto Frio', 'Drogasil', 'Petz'];
+  const giftValues = ['30', '50', '75', '100', '150', '200', '250', '300', '400', '500', '600', '750', '1.000', '1.200', '1.500', '2.000', '2.500', '3.000', '4.000', '5.000', '7.500', '10.000'];
+  add(...cross(stores, giftValues, (s, v) => `Gift card ${s} R$ ${v}`));
+  // mesma base, com rótulo "promoção <loja>" e valores reduzidos (sorteios menores, mais frequentes)
+  const giftValuesSmall = ['15', '20', '25', '35', '40', '60', '80', '90', '120', '180'];
+  add(...cross(stores, giftValuesSmall, (s, v) => `Promoção ${s}: Gift card R$ ${v}`));
 
   const phones = ['iPhone 15', 'iPhone 15 Plus', 'iPhone 15 Pro', 'iPhone 15 Pro Max', 'iPhone 14', 'iPhone 13', 'Galaxy S24', 'Galaxy S24+', 'Galaxy S24 Ultra', 'Galaxy A55', 'Galaxy A35', 'Galaxy Z Flip5', 'Galaxy Z Fold5', 'Xiaomi 13T', 'Redmi Note 13 Pro', 'Moto G84', 'Motorola Edge 40', 'Pixel 8'];
-  add(...cross(phones, ['128GB', '256GB', '512GB'], (p, s) => `${p} ${s}`));
+  const phoneColors = ['Preto', 'Branco', 'Azul', 'Prata', 'Dourado', 'Verde', 'Roxo'];
+  add(...cross(cross(phones, ['128GB', '256GB', '512GB'], (p, s) => `${p} ${s}`), phoneColors, (p, c) => `${p} ${c}`));
   add(...cross(phones, [' + fone sem fio', ' + carregador turbo e capa'], (p, x) => `${p}${x}`));
 
   const notes = ['MacBook Air M2', 'MacBook Air M3', 'MacBook Pro 14"', 'Dell Inspiron 15', 'Dell XPS 13', 'Lenovo IdeaPad 3', 'Lenovo Legion 5', 'Acer Nitro 5', 'Acer Aspire 5', 'ASUS TUF Gaming F15', 'ASUS Vivobook 15', 'Samsung Galaxy Book3', 'HP Pavilion 15', 'HP Victus 15', 'Positivo Vision'];
@@ -60,7 +76,17 @@ function buildCatalog(): string[] {
   add('Setup gamer completo', 'Cadeira gamer ergonômica', 'Monitor gamer 27" 165Hz', 'Monitor ultrawide 34"', 'Kit teclado e mouse gamer', 'Headset gamer sem fio', 'PC gamer RTX 4060', 'PC gamer RTX 4070', 'Placa de vídeo RTX 4070 Super');
 
   const eletro = ['Geladeira Brastemp Frost Free 375L', 'Geladeira Electrolux Inverse 480L', 'Geladeira Consul Duplex 340L', 'Geladeira Samsung Side by Side', 'Máquina de lavar Brastemp 12kg', 'Máquina de lavar Electrolux 15kg', 'Lava e seca LG 11kg', 'Lava-louças Brastemp 14 serviços', 'Fogão Atlas 5 bocas', 'Cooktop Fischer 5 bocas', 'Forno elétrico Oster 44L', 'Micro-ondas Panasonic 32L', 'Micro-ondas Electrolux 30L', 'Air Fryer Philips Walita 6,2L', 'Air Fryer Mondial 12L', 'Air Fryer + Cooktop', 'Robô aspirador Xiaomi', 'Robô aspirador Electrolux', 'Ar-condicionado Samsung 12000 BTUs', 'Ar-condicionado LG Dual Inverter 18000 BTUs', 'Cafeteira Nespresso Vertuo', 'Cafeteira Dolce Gusto', 'Batedeira planetária Britânia', 'Purificador de água Electrolux', 'Ventilador Arno 40cm', 'Aspirador de pó Wap', 'Liquidificador Oster', 'Fritadeira elétrica Philco', 'Churrasqueira elétrica', 'Adega climatizada 12 garrafas'];
-  add(...eletro, ...eletro.map((e) => `${e} com instalação grátis`));
+  add(...eletro, ...eletro.map((e) => `${e} com instalação grátis`), ...eletro.map((e) => `${e} com frete grátis`));
+
+  // combinações marca × linha para ampliar eletros sem perder plausibilidade
+  const eletroKinds: [string, string[], string[]][] = [
+    ['Geladeira', ['Brastemp', 'Electrolux', 'Consul', 'Samsung', 'LG', 'Panasonic'], ['310L', '340L', '375L', '400L', '450L', '480L', '540L']],
+    ['Máquina de lavar', ['Brastemp', 'Electrolux', 'Samsung', 'LG', 'Consul', 'Midea'], ['10kg', '11kg', '12kg', '13kg', '15kg', '17kg']],
+    ['Ar-condicionado', ['Samsung', 'LG', 'Midea', 'Electrolux', 'Springer', 'Gree'], ['9000 BTUs', '12000 BTUs', '18000 BTUs', '24000 BTUs']],
+  ];
+  for (const [kind, brands, sizes] of eletroKinds) add(...cross(brands, sizes, (b, s) => `${kind} ${b} ${s}`));
+
+  add(...cross(['Netflix', 'Amazon Prime Video', 'Disney+', 'HBO Max', 'Spotify Premium', 'YouTube Premium', 'Globoplay', 'Paramount+', 'Deezer', 'Apple Music'], ['3 meses', '6 meses', '1 ano', '2 anos'], (s, t) => `Assinatura ${s} por ${t}`));
 
   const cars = ['Fiat Mobi', 'Fiat Argo', 'Fiat Cronos', 'Fiat Strada', 'Fiat Toro', 'Fiat Pulse', 'Volkswagen Polo', 'Volkswagen Virtus', 'Volkswagen T-Cross', 'Volkswagen Nivus', 'Volkswagen Saveiro', 'Chevrolet Onix', 'Chevrolet Onix Plus', 'Chevrolet Tracker', 'Chevrolet Montana', 'Hyundai HB20', 'Hyundai Creta', 'Renault Kwid', 'Renault Duster', 'Toyota Yaris', 'Toyota Corolla Cross', 'Honda City', 'Honda HR-V', 'Jeep Renegade', 'Jeep Compass', 'Nissan Kicks', 'Peugeot 208', 'Citroën C3', 'BYD Dolphin', 'Caoa Chery Tiggo 5x'];
   add(...cross(cars, ['0km', '0km com IPVA pago', '0km + R$ 5.000 para documentação', '0km versão topo de linha'], (c, x) => `${c} ${x}`));
@@ -69,7 +95,8 @@ function buildCatalog(): string[] {
   add('Bicicleta Elétrica', 'Bicicleta Caloi Explorer', 'Bicicleta Specialized Rockhopper', 'Bicicleta Oggi aro 29', 'Bike Trek Marlin 5', 'Scooter elétrica Xiaomi', 'Patinete elétrico Xiaomi Pro 4', 'Triciclo elétrico', 'Kit capacete e acessórios para moto', 'Jet ski Sea-Doo Spark');
 
   const dest = ['Cancún', 'Punta Cana', 'Orlando', 'Miami', 'Nova York', 'Paris', 'Roma', 'Lisboa', 'Madri', 'Londres', 'Santiago', 'Buenos Aires', 'Bariloche', 'Cartagena', 'Aruba', 'Fernando de Noronha', 'Porto de Galinhas', 'Maceió', 'Jericoacoara', 'Gramado', 'Foz do Iguaçu', 'Bonito', 'Florianópolis', 'Salvador', 'Rio de Janeiro', 'Natal', 'Fortaleza', 'Lençóis Maranhenses', 'Búzios', 'Campos do Jordão', 'Balneário Camboriú', 'Ilhabela', 'Paraty', 'Curitiba', 'Recife', 'Ouro Preto', 'Chapada Diamantina', 'Santa Catarina', 'Maragogi', 'Morro de São Paulo'];
-  add(...cross(dest, ['Viagem para {d} para 2 pessoas', 'Pacote {d} com hospedagem', 'Viagem para {d} com passagem aérea', 'Fim de semana em {d}', 'Lua de mel em {d}', 'Viagem em família para {d}'], (d, f) => f.replace('{d}', d)));
+  const destTrips = cross(dest, ['Viagem para {d} para 2 pessoas', 'Pacote {d} com hospedagem', 'Viagem para {d} com passagem aérea', 'Fim de semana em {d}', 'Lua de mel em {d}', 'Viagem em família para {d}'], (d, f) => f.replace('{d}', d));
+  add(...cross(destTrips, ['', ' (4 diárias)', ' (7 diárias)', ' (10 diárias)', ' com café da manhã incluso', ' em resort all-inclusive'], (t, x) => `${t}${x}`));
   add('Cruzeiro pelo Caribe', 'Cruzeiro pela Costa Brasileira', 'Cruzeiro pelo Mediterrâneo', 'Cruzeiro pelo litoral do Nordeste', 'Cruzeiro MSC 7 noites');
 
   add(...cross(['Apple Watch Series 9 41mm', 'Apple Watch Series 9 45mm', 'Apple Watch Ultra 2', 'Galaxy Watch6', 'Garmin Forerunner 265', 'Garmin Venu 3', 'Amazfit GTR 4'], ['', ' + pulseira extra'], (w, x) => `${w}${x}`));
@@ -78,6 +105,14 @@ function buildCatalog(): string[] {
   add('GoPro Hero 12', 'Canon EOS R50 com lente', 'Sony ZV-E10', 'Sony Alpha a6400', 'DJI Mini 4 Pro', 'DJI Osmo Pocket 3', 'Câmera Instax Mini 12', 'Kindle Paperwhite', 'Kindle Scribe', 'Projetor Epson 4K', 'Tablet Wacom Intuos');
   add('Kit Home Office', 'Kit Home Office premium', 'Kit Churrasqueira completo', 'Kit Ferramentas Bosch', 'Kit Cozinha Tramontina', 'Kit Cama, mesa e banho', 'Sofá retrátil 3 lugares', 'Guarda-roupa casal 6 portas', 'Cama box queen', 'Colchão ortopédico king', 'Mesa de jantar 6 lugares', 'Kit sala de estar', 'Cesta de Natal premium', 'Kit Skin Care', 'Kit Cafe da Manhã', 'Smart Lock + câmeras de segurança', 'Kit Fitness em casa', 'Esteira elétrica Movement', 'Bicicleta ergométrica', 'Estação de musculação');
   add('Ingressos para show + hospedagem', 'Ingressos para a final do campeonato', 'Camarote em festival de música', 'Curso de idiomas por 1 ano', 'Graduação com bolsa integral', 'Plano de saúde por 12 meses', 'Assinatura de streaming por 1 ano', 'Mensalidade de academia por 1 ano', 'Day use em resort', 'Jantar para 2 em restaurante premiado');
+
+  // sorteios locais (comuns em redes sociais): valor em dinheiro + cidade do participante
+  const cities = ['São Paulo', 'Rio de Janeiro', 'Belo Horizonte', 'Porto Alegre', 'Curitiba', 'Salvador', 'Recife', 'Fortaleza', 'Brasília', 'Goiânia', 'Manaus', 'Belém', 'Campinas', 'Santos', 'Sorocaba', 'Ribeirão Preto', 'Uberlândia', 'Joinville', 'Florianópolis', 'Vitória', 'Natal', 'João Pessoa', 'Maceió', 'Aracaju', 'Teresina', 'São Luís', 'Cuiabá', 'Campo Grande', 'Londrina', 'Maringá', 'Caxias do Sul', 'Niterói', 'Juiz de Fora', 'Feira de Santana', 'Blumenau', 'Piracicaba', 'Bauru', 'Anápolis', 'Montes Claros', 'Petrópolis'];
+  const localMoney = [100, 150, 200, 250, 300, 400, 500, 600, 750, 1000].map(brl);
+  add(...cross(cities, localMoney, (c, v) => `${v} no PIX para seguidores de ${c}`));
+  add(...cross(cities, localMoney, (c, v) => `${v} em dinheiro — sorteio especial ${c}`));
+  const localGiftValues = ['50', '100', '150', '200'];
+  add(...cross(cities, cross(stores, localGiftValues, (s, v) => `${s} R$ ${v}`), (c, sv) => `Gift card ${sv} — promoção ${c}`));
 
   const seen = new Set<string>();
   return out.filter((t) => !seen.has(t) && seen.add(t));
@@ -92,7 +127,7 @@ export const titleOf = (prize: string) => `Sorteio ${prize}`;
 /* ------------------------------------------------------------------ */
 
 export function makeRaffleData(prize: string, endsAt: Date, durationMs: number) {
-  const site = pick(SITES);
+  const site = pick(SITE_WEIGHTS);
   return {
     title: titleOf(prize),
     prize,

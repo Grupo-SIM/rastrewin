@@ -79,7 +79,7 @@ export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId:
       </div>
       <div>
         <h3>{r.title}</h3>
-        <div className="meta">{r.participants.toLocaleString('pt-BR')} participantes · você está dentro ✔</div>
+        <div className="meta">{r.participants.toLocaleString('pt-BR')} participantes · {isMe ? 'você ganhou' : 'você está dentro ✔'}</div>
       </div>
       {!ended && (
         <>
@@ -124,7 +124,7 @@ export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId:
         </>
       )}
       {ended && isMe && (
-        <div className="res-me"><div><span className="big">Você ganhou!</span><span className="sub">{r.winnerName}</span></div></div>
+        <div className="res-me"><div><span className="big">Você ganhou!</span></div></div>
       )}
       {ended && !isMe && r.winnerName && (
         <div className="win-wrap">

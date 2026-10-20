@@ -6,9 +6,45 @@ services:
       POSTGRES_USER: sorteio
       POSTGRES_PASSWORD: sorteio
       POSTGRES_DB: sorteio
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+
+  api:
+    build: ./apps/api
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://sorteio:sorteio@db:5432/sorteio?schema=public
+      - WEB_ORIGIN=https://rastrewin.com
+    depends_on:
+      - db
+    networks:
+      - internal
+      - proxy
+    restart: unless-stopped
+    labels:
+      caddy: api.rastrewin.com
+      caddy.import: cloudflare
+      caddy.reverse_proxy: "{{upstreams 3011}}"
+
+  web:
+    build: ./apps/web
+    environment:
+      - PORT=3000
+      - API_INTERNAL_URL=http://api:3011
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      caddy: rastrewin.com
+      caddy.import: cloudflare
+      caddy.reverse_proxy: "{{upstreams 3000}}"
+
 volumes:
   pgdata:
+
+networks:
+  internal:
+  proxy:
+    external: true

@@ -14,12 +14,10 @@ export const SITES: SiteInfo[] = [
   { name: 'Swagbucks', color: '#0284c7', logo: '/logos/swagbucks.png' },
   { name: 'MOBROG', color: '#ea580c', logo: '/logos/mobrog.png' },
   { name: 'PrizeRebel', color: '#ff5a36', logo: '/logos/prizerebel.png' },
-  { name: 'SorteioMax', color: '#ff5a36', logo: '/logos/sorteiomax.svg', full: true },
-  { name: 'LuckyBR', color: '#16a34a', logo: '/logos/luckybr.svg', full: true },
-  { name: 'GanheJá', color: '#0ea5e9', logo: '/logos/ganheja.svg', full: true },
-  { name: 'MegaRifa', color: '#e11d48', logo: '/logos/megarifa.svg', full: true },
-  { name: 'SorteiaAí', color: '#14b8a6', logo: '/logos/sorteiaai.svg', full: true },
-  { name: 'PremiaMais', color: '#ec4899', logo: '/logos/premiamais.svg', full: true },
+  // redes sociais: sorteios de perfis/marcas mapeados nessas redes (concentram boa parte do catálogo)
+  { name: 'Instagram', color: '#E1306C', logo: '/logos/instagram.svg', full: true },
+  { name: 'Facebook', color: '#1877F2', logo: '/logos/facebook.svg', full: true },
+  { name: 'TikTok', color: '#000000', logo: '/logos/tiktok.svg', full: true },
 ];
 
 export const siteInfo = (name: string, fallbackColor = '#6366f1'): SiteInfo =>

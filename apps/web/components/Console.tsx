@@ -13,7 +13,7 @@ export type RobotLine = { s: string; t: string };
 const pad = (n: number) => String(n).padStart(2, '0');
 const clock = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
 
-/** Linhas do "robô": mensagens genéricas rotativas, com horário. */
+/** Linhas da "IA": mensagens genéricas rotativas, com horário. */
 export function useRobotLines(): RobotLine[] {
   const [lines, setLines] = useState<RobotLine[]>([]);
 
@@ -37,10 +37,10 @@ export function Console({ lines }: { lines: RobotLine[] }) {
     <>
       <div className={`console ${min ? 'min' : ''}`}>
         <div className="hd">
-          <span>Atividade do robô</span>
+          <span>Atividade da IA</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="pill orange"><i className="dot orange" />Ao vivo</span>
-            <button className="con-toggle" onClick={() => setMin((m) => !m)} aria-label={min ? 'Expandir robô' : 'Minimizar robô'} aria-expanded={!min}>
+            <button className="con-toggle" onClick={() => setMin((m) => !m)} aria-label={min ? 'Expandir IA' : 'Minimizar IA'} aria-expanded={!min}>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5l4 4 4-4" /></svg>
             </button>
           </span>
@@ -62,7 +62,7 @@ export function Console({ lines }: { lines: RobotLine[] }) {
       </div>
       <div className="console-m" onClick={() => setOpen((o) => !o)} role="button" aria-expanded={open}>
         <div className="bar">
-          <span className="pill green" style={{ fontSize: 11.5 }}><i className="dot green" />robô</span>
+          <span className="pill green" style={{ fontSize: 11.5 }}><i className="dot green" />IA</span>
           <span key={lastKey} className="s tick">{last}</span>
           <span className="ar">{open ? '▾' : '▴'}</span>
         </div>

@@ -8,32 +8,40 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  cpf       String
-  phone     String
-  city      String
-  plan      String
-  paidAt    DateTime @default(now())
-  createdAt DateTime @default(now())
-  entries   Entry[]
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  cpf           String
+  phone         String
+  city          String
+  pix           String?
+  plan          String
+  status        String    @default("PENDING") // PENDING até o webhook de pagamento confirmar
+  paidAt        DateTime?
+  simpayOrderId String?   @unique // orderId do webhook simpay que ativou o plano (idempotência)
+  createdAt     DateTime  @default(now())
+  entries       Entry[]
+}
+
+model Setting {
+  key   String @id
+  value String
 }
 
 model Raffle {
-  id          String   @id @default(cuid())
-  title       String
-  prize       String
-  site        String
-  siteColor   String
-  siteEmoji   String
-  seed        Int
-  baseCount   Int
-  endsAt      DateTime
-  winnerName  String?
+  id           String   @id @default(cuid())
+  title        String
+  prize        String
+  site         String
+  siteColor    String
+  siteEmoji    String
+  seed         Int
+  baseCount    Int
+  endsAt       DateTime
+  winnerName   String?
   winnerUserId String?
-  createdAt   DateTime @default(now())
-  entries     Entry[]
+  createdAt    DateTime @default(now())
+  entries      Entry[]
 
   @@index([endsAt])
 }

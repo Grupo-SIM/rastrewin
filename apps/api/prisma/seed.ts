@@ -3,7 +3,7 @@ import { CATALOG, freeEndTime, makeRaffleData, uniqueWinnerName } from '../src/m
 
 const prisma = new PrismaClient();
 const rnd = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
-const TOTAL = 1000;
+const TOTAL = 10000;
 const OPEN = 70; // abertos agora (8 deles terminando em poucos minutos)
 const RECENT_ENDED = 14; // encerrados nos últimos 25 min (ainda visíveis no painel)
 
@@ -40,7 +40,11 @@ async function main() {
     return { ...r, winnerName: w };
   });
 
-  await prisma.raffle.createMany({ data: withWinner });
+  // createMany em lotes (postgres tem limite de parâmetros por query)
+  const BATCH = 2000;
+  for (let i = 0; i < withWinner.length; i += BATCH) {
+    await prisma.raffle.createMany({ data: withWinner.slice(i, i + BATCH) });
+  }
   console.log(`Seed ok: ${TOTAL} sorteios (catálogo: ${CATALOG.length} prêmios), ${OPEN} abertos, ${usedWinners.size} ganhadores únicos`);
 }
 

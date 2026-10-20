@@ -1,6 +1,7 @@
 import { Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { Raffle } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { enroll } from '../plans';
 import { freeEndTime, makeRaffleData, maskedUser, normalize, participantAt, pickFreePrize, uniqueWinnerName, userIndex } from '../mock';
 
 /** Sorteios encerrados continuam visíveis por esse tempo; depois viram histórico. */
@@ -152,12 +153,10 @@ export class RafflesController {
     await replenish(this.prisma);
     await ensureWinners(this.prisma);
     if (!userId) return [];
-    const visible = await this.prisma.raffle.findMany({ where: { endsAt: { gt: this.visibleSince() } } });
-    const have = new Set((await this.prisma.entry.findMany({ where: { userId }, select: { raffleId: true } })).map((e) => e.raffleId));
-    const missing = visible.filter((r) => !have.has(r.id));
-    if (missing.length) {
-      await this.prisma.entry.createMany({ data: missing.map((r) => ({ userId, raffleId: r.id })), skipDuplicates: true });
-    }
-    return missing.map((r) => toPublic(r, true));
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, plan: true, status: true } });
+    if (!user || user.status !== 'ACTIVE') return [];
+    const visible = await this.prisma.raffle.findMany({ where: { endsAt: { gt: this.visibleSince() } }, orderBy: { endsAt: 'asc' } });
+    const added = new Set(await enroll(this.prisma, user, visible.map((r) => r.id)));
+    return visible.filter((r) => added.has(r.id)).map((r) => toPublic(r, true));
   }
 }
