@@ -20,8 +20,8 @@ export class PaymentsController {
     private readonly email: EmailService,
   ) {}
 
-  /** Libera o plano básico quando o simpay confirma o pagamento do link de checkout.
-   * No primeiro pagamento também cria a senha de acesso e envia por e-mail. */
+  /** Libera o plano escolhido no cadastro quando o simpay confirma o pagamento do link de
+   * checkout. No primeiro pagamento também cria a senha de acesso e envia por e-mail. */
   @Post('webhook')
   async webhook(@Body() dto: SimpayWebhookDto, @Headers('x-simpay-token') token?: string) {
     const expected = process.env.SIMPAY_WEBHOOK_TOKEN;
@@ -44,7 +44,6 @@ export class PaymentsController {
       where: { id: user.id },
       data: {
         status: 'ACTIVE',
-        plan: 'basico',
         paidAt: new Date(),
         simpayOrderId: dto.orderId,
         ...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
@@ -58,7 +57,7 @@ export class PaymentsController {
       orderBy: { endsAt: 'asc' },
       select: { id: true },
     });
-    await enroll(this.prisma, { id: user.id, plan: 'basico' }, open.map((r) => r.id));
+    await enroll(this.prisma, { id: user.id, plan: user.plan }, open.map((r) => r.id));
 
     return { ok: true };
   }

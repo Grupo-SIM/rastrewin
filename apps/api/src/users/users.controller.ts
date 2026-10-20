@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
 import { IsEmail, IsIn, IsString, MinLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
-import { PLAN_IDS } from '../plans';
+import { PLAN_IDS, checkoutUrlFor } from '../plans';
 import { toPublicUser } from './user.view';
 
 class RegisterDto {
@@ -22,8 +22,8 @@ export class UsersController {
    * (e a senha de acesso) só acontece quando o webhook de pagamento confirmar (ver PaymentsController). */
   @Post()
   async register(@Body() dto: RegisterDto) {
-    const checkoutUrl = process.env.SIMPAY_CHECKOUT_URL;
-    if (!checkoutUrl) throw new BadRequestException('Checkout não configurado');
+    const checkoutUrl = checkoutUrlFor(dto.plan);
+    if (!checkoutUrl) throw new BadRequestException('Checkout não configurado para este plano');
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.upsert({
       where: { email },

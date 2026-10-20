@@ -11,6 +11,9 @@ export const PLAN_IDS = Object.keys(PLANS) as PlanId[];
 
 export const planLimit = (plan: string) => PLANS[plan as PlanId]?.limit ?? 0;
 
+/** Link de checkout do plano, configurável por ambiente (ex.: SIMPAY_CHECKOUT_URL_PRO). */
+export const checkoutUrlFor = (plan: string) => process.env[`SIMPAY_CHECKOUT_URL_${plan.toUpperCase()}`];
+
 export function monthStart(now = new Date()) {
   return new Date(now.getFullYear(), now.getMonth(), 1);
 }
