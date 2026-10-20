@@ -1,8 +1,14 @@
-/** Normaliza um telefone para comparação: só dígitos, com DDI 55 se vier sem (padrão BR). */
+/** Normaliza um telefone para comparação: só dígitos, com DDI 55 (padrão BR) e SEM o 9º dígito
+ * do celular — o WhatsApp às vezes manda o JID sem esse 9 (formato antigo), então removê-lo dos
+ * dois lados evita falso-negativo na comparação entre o cadastro e o remetente do OTP. */
 export function normalizePhone(raw: string) {
-  const digits = raw.replace(/\D/g, '');
-  if (digits.startsWith('55') && digits.length >= 12) return digits;
-  return `55${digits}`;
+  let digits = raw.replace(/\D/g, '');
+  if (!digits.startsWith('55')) digits = `55${digits}`;
+  // 55 + DDD(2) + 9 + número(8) = 13 dígitos → remove o 9 extra, fica 55 + DDD + número(8) = 12
+  if (digits.length === 13 && digits[4] === '9') {
+    digits = digits.slice(0, 4) + digits.slice(5);
+  }
+  return digits;
 }
 
 /** Gera um código numérico de 6 dígitos para o OTP reverso. */
