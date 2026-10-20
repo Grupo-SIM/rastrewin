@@ -6,8 +6,9 @@ import { RafflesModule } from './raffles/raffles.module';
 import { AdminModule } from './admin/admin.module';
 import { PaymentsModule } from './payments/payments.module';
 import { AuthModule } from './auth/auth.module';
+import { WhatsappModule } from './whatsapp/whatsapp.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, UsersModule, RafflesModule, AdminModule, PaymentsModule, AuthModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, UsersModule, RafflesModule, AdminModule, PaymentsModule, AuthModule, WhatsappModule],
 })
 export class AppModule {}

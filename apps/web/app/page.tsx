@@ -4,6 +4,7 @@ import { api, fmtRemaining, User } from '@/lib/api';
 import { Logo } from '@/components/Logo';
 import { SiteIcon } from '@/components/SiteIcon';
 import { SITES as ALL_SITES } from '@/lib/sites';
+import { isValidCpf, maskCpf, maskPhone } from '@/lib/mask';
 
 const PLANS = [
   { id: 'basico', name: 'Básico', price: 'R$ 150/mês', desc: 'até 500 sorteios/mês' },
@@ -54,7 +55,13 @@ export default function Landing() {
     return () => { clearInterval(a); clearInterval(b); };
   }, []);
 
-  const set = (k: keyof typeof empty) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  const [cpfErr, setCpfErr] = useState('');
+  const set = (k: keyof typeof empty) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const v = k === 'cpf' ? maskCpf(raw) : k === 'phone' ? maskPhone(raw) : raw;
+    if (k === 'cpf') setCpfErr('');
+    setF({ ...f, [k]: v });
+  };
   const plan = PLANS.find((p) => p.id === f.plan)!;
 
   function start(e: React.FormEvent) {
@@ -217,7 +224,11 @@ export default function Landing() {
         </div>
         <div className="plans-card">
           {step === 'form' ? (
-            <form className="form-grid" onSubmit={(e) => { e.preventDefault(); setStep('checkout'); }}>
+            <form className="form-grid" onSubmit={(e) => {
+              e.preventDefault();
+              if (!isValidCpf(f.cpf)) return void setCpfErr('CPF inválido.');
+              setStep('checkout');
+            }}>
               <div className="plan-pick">
                 {PLANS.map((p) => (
                   <button type="button" key={p.id} className={`plan-opt ${f.plan === p.id ? 'on' : ''}`} onClick={() => setF({ ...f, plan: p.id })}>
@@ -230,8 +241,12 @@ export default function Landing() {
               <div className="field"><label>Nome completo</label><input required minLength={2} value={f.name} onChange={set('name')} autoComplete="name" /></div>
               <div className="field"><label>E-mail</label><input required type="email" value={f.email} onChange={set('email')} autoComplete="email" /></div>
               <div className="row2">
-                <div className="field"><label>CPF</label><input required minLength={11} inputMode="numeric" value={f.cpf} onChange={set('cpf')} placeholder="000.000.000-00" /></div>
-                <div className="field"><label>Telefone</label><input required minLength={8} type="tel" value={f.phone} onChange={set('phone')} placeholder="(11) 99999-9999" autoComplete="tel" /></div>
+                <div className="field">
+                  <label>CPF</label>
+                  <input required minLength={14} inputMode="numeric" value={f.cpf} onChange={set('cpf')} placeholder="000.000.000-00" />
+                  {cpfErr && <span className="err" style={{ fontSize: 13 }}>{cpfErr}</span>}
+                </div>
+                <div className="field"><label>Telefone</label><input required minLength={14} type="tel" value={f.phone} onChange={set('phone')} placeholder="(11) 99999-9999" autoComplete="tel" /></div>
               </div>
               <div className="field"><label>Chave Pix <span style={{ color: 'var(--mut)', fontWeight: 500 }}>(para receber prêmios em dinheiro)</span></label><input required minLength={3} value={f.pix} onChange={set('pix')} placeholder="CPF, e-mail, telefone ou chave aleatória" /></div>
               <div className="field"><label>Cidade</label><input required value={f.city} onChange={set('city')} autoComplete="address-level2" /></div>

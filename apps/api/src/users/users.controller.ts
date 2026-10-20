@@ -3,6 +3,7 @@ import { IsEmail, IsIn, IsString, MinLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { PLAN_IDS, checkoutUrlFor } from '../plans';
 import { toPublicUser } from './user.view';
+import { generateOtpCode } from '../auth/phone.util';
 
 class RegisterDto {
   @IsString() @MinLength(2) name: string;
@@ -38,5 +39,18 @@ export class UsersController {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
     return toPublicUser(user);
+  }
+
+  /** Gera (ou reaproveita) o código que o usuário precisa mandar pro WhatsApp do rastrewin
+   * para validar o telefone. Idempotente enquanto não verificado, pra não mudar o código
+   * a cada tela aberta. */
+  @Post(':id/otp')
+  async requestOtp(@Param('id') id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+    if (user.phoneVerified) return { phoneVerified: true, code: null };
+    const code = user.otpCode ?? generateOtpCode();
+    if (!user.otpCode) await this.prisma.user.update({ where: { id }, data: { otpCode: code } });
+    return { phoneVerified: false, code, whatsappNumber: process.env.WHATSAPP_OTP_NUMBER ?? '' };
   }
 }

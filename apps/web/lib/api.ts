@@ -6,7 +6,7 @@ export type Raffle = {
   winnerName: string | null; winnerUserId: string | null; entered: boolean;
 };
 
-export type User = { id: string; name: string; email: string; plan: string; status: string; role: string };
+export type User = { id: string; name: string; email: string; plan: string; status: string; role: string; phoneVerified: boolean };
 
 export async function api<T>(path: string, init?: RequestInit & { admin?: boolean }): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };

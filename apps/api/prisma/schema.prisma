@@ -21,6 +21,8 @@ model User {
   status        String    @default("PENDING") // PENDING até o webhook de pagamento confirmar
   paidAt        DateTime?
   simpayOrderId String?   @unique // orderId do webhook simpay que ativou o plano (idempotência)
+  phoneVerified Boolean   @default(false) // validado por OTP reverso via WhatsApp
+  otpCode       String?   // código que o usuário precisa mandar pro WhatsApp do rastrewin
   createdAt     DateTime  @default(now())
   entries       Entry[]
 }

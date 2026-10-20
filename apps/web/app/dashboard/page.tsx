@@ -8,6 +8,7 @@ import { Logo } from '@/components/Logo';
 import { Tabs } from '@/components/Tabs';
 import { Toast, ToastData } from '@/components/Toast';
 import { RaffleCard } from '@/components/RaffleCard';
+import { PhoneVerifyModal } from '@/components/PhoneVerifyModal';
 
 type Tab = 'all' | 'open' | 'ended' | 'won';
 const PAGE = 12;
@@ -137,6 +138,9 @@ export default function Dashboard() {
 
   return (
     <div className="app">
+      {!user.phoneVerified && (
+        <PhoneVerifyModal userId={user.id} onVerified={() => setUser((u) => (u ? { ...u, phoneVerified: true } : u))} />
+      )}
       <div className="app-top">
         <nav className="nav">
           <a href="/dashboard"><Logo /></a>
