@@ -34,7 +34,11 @@ export class WhatsappController {
   }
 
   private async handleMessage(msg: EvolutionMessage) {
-    if (!msg || msg.key?.fromMe) return;
+    // Não filtra fromMe: quando a instância está logada no mesmo número que o usuário
+    // usa para mandar o OTP (ex.: testes, "Mensagens para mim"), o Baileys sempre marca
+    // fromMe=true nesse chat — não há como diferenciar de uma mensagem "recebida" ali.
+    // Sem risco de loop: o bot nunca envia mensagens de texto de volta nesse webhook.
+    if (!msg) return;
     const remoteJid = msg.key?.remoteJid ?? '';
     const senderPhone = remoteJid.split('@')[0]?.replace(/\D/g, '');
     const text = (msg.message?.conversation ?? msg.message?.extendedTextMessage?.text ?? '').trim();
