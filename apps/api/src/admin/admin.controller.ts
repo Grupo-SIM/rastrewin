@@ -1,17 +1,11 @@
-import { Body, CanActivate, Controller, ExecutionContext, Get, Injectable, NotFoundException, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { uniqueWinnerName } from '../mock';
 import { ensureWinners } from '../raffles/raffles.controller';
 import { planLimit, usedThisMonth } from '../plans';
-
-@Injectable()
-class AdminGuard implements CanActivate {
-  canActivate(ctx: ExecutionContext) {
-    const req = ctx.switchToHttp().getRequest();
-    return req.headers['x-admin-key'] === (process.env.ADMIN_KEY ?? 'admin123');
-  }
-}
+import { AdminGuard } from '../auth/auth.guard';
+import { toPublicUser } from '../users/user.view';
 
 class UpdateRaffleDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(200) title?: string;
@@ -62,7 +56,7 @@ export class AdminController {
       include: { _count: { select: { entries: true } } },
     });
     const used = await usedThisMonth(this.prisma);
-    return users.map((u) => ({ ...u, usedThisMonth: used.get(u.id) ?? 0, limit: planLimit(u.plan) }));
+    return users.map((u) => ({ ...toPublicUser(u), usedThisMonth: used.get(u.id) ?? 0, limit: planLimit(u.plan) }));
   }
 
   private async find(id: string) {

@@ -16,6 +16,8 @@ model User {
   city          String
   pix           String?
   plan          String
+  role          String    @default("USER") // USER | ADMIN
+  password      String?   // hash bcrypt; definido quando o pagamento é confirmado (envia por e-mail)
   status        String    @default("PENDING") // PENDING até o webhook de pagamento confirmar
   paidAt        DateTime?
   simpayOrderId String?   @unique // orderId do webhook simpay que ativou o plano (idempotência)

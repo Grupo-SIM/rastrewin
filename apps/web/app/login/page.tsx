@@ -7,6 +7,7 @@ import { Logo } from '@/components/Logo';
 export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -15,11 +16,12 @@ export default function Login() {
     setBusy(true);
     setErr('');
     try {
-      const user = await api<User>('/users/login', { method: 'POST', body: JSON.stringify({ email }) });
+      const { token, user } = await api<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      localStorage.setItem('userToken', token);
       localStorage.setItem('userId', user.id);
-      router.push('/dashboard');
+      router.push(user.role === 'ADMIN' ? '/admin' : '/dashboard');
     } catch {
-      setErr('E-mail não encontrado. Faça seu cadastro na página inicial.');
+      setErr('E-mail ou senha inválidos.');
       setBusy(false);
     }
   }
@@ -38,6 +40,10 @@ export default function Login() {
               <label className="auth-mobile-label" htmlFor="email">E-mail cadastrado</label>
               <div className="auth-input">
                 <input id="email" type="email" required autoFocus placeholder="E-mail cadastrado" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <label className="auth-mobile-label" htmlFor="password">Senha</label>
+              <div className="auth-input">
+                <input id="password" type="password" required placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} />
                 <button className="btn-dark" disabled={busy}>{busy ? 'Entrando...' : 'Entrar'}</button>
               </div>
               {err && <div className="err">{err}</div>}

@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api, fmtRemaining } from '@/lib/api';
 import { Logo } from '@/components/Logo';
 import { SiteIcon } from '@/components/SiteIcon';
@@ -63,6 +64,7 @@ function waLink(tpl: string, u: AdminUser, r: AdminRaffle) {
 }
 
 export default function Admin() {
+  const router = useRouter();
   const [raffles, setRaffles] = useState<AdminRaffle[]>([]);
   const order = useRef<string[]>([]); // posição das linhas fica fixa entre recargas (evita "pulos" ao editar)
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -114,10 +116,11 @@ export default function Admin() {
   }
 
   useEffect(() => {
+    if (!localStorage.getItem('userToken')) return void router.replace('/login');
     load();
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, router]);
 
   async function act(path: string, method: string, body?: object) {
     try {

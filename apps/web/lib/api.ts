@@ -6,11 +6,14 @@ export type Raffle = {
   winnerName: string | null; winnerUserId: string | null; entered: boolean;
 };
 
-export type User = { id: string; name: string; email: string; plan: string; status: string };
+export type User = { id: string; name: string; email: string; plan: string; status: string; role: string };
 
 export async function api<T>(path: string, init?: RequestInit & { admin?: boolean }): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (init?.admin) headers['x-admin-key'] = localStorage.getItem('adminKey') ?? 'admin123';
+  if (init?.admin) {
+    const token = localStorage.getItem('userToken');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+  }
   const res = await fetch(`${API}${path}`, { ...init, headers: { ...headers, ...(init?.headers as object) } });
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
   return res.json();
