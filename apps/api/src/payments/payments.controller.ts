@@ -8,9 +8,11 @@ import { EmailService } from '../email/email.service';
 const ONE_YEAR_MS = 365 * 24 * 3600 * 1000;
 
 /** Payload do webhook enviado pelo simpay. "purchase_approved" vem de payment-link avulso;
- * "subscription_renewed" cobre tanto a 1ª cobrança quanto cada renovação anual da assinatura
+ * "subscription_activated" é a 1ª cobrança de um link de assinatura paga via PIX;
+ * "subscription_renewed" cobre tanto a 1ª cobrança via cartão quanto cada renovação anual
  * (mesmo payload para ambas); "subscription_expired" quando a assinatura é cancelada no gateway.
- * (ver back-simpay charge-payment-link.use-case.ts e subscription-webhook.service.ts) */
+ * (ver back-simpay charge-payment-link.use-case.ts, process-dom-webhook.use-case.ts
+ * [handleSubscriptionLinkPix] e subscription-webhook.service.ts) */
 type SimpayWebhookDto = {
   event: string;
   customerEmail: string;
@@ -29,7 +31,7 @@ export class PaymentsController {
     const expected = process.env.SIMPAY_WEBHOOK_TOKEN;
     if (!expected || token !== expected) throw new UnauthorizedException('Token inválido');
 
-    if (dto.event === 'purchase_approved' || dto.event === 'subscription_renewed') {
+    if (dto.event === 'purchase_approved' || dto.event === 'subscription_renewed' || dto.event === 'subscription_activated') {
       return this.activate(dto);
     }
     if (dto.event === 'subscription_expired') {
