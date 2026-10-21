@@ -7,9 +7,9 @@ import { SITES as ALL_SITES } from '@/lib/sites';
 import { isValidCpf, maskCpf, maskPhone } from '@/lib/mask';
 
 const PLANS = [
-  { id: 'basico', name: 'Básico', price: 'R$ 150/mês', desc: 'até 500 sorteios/mês' },
-  { id: 'pro', name: 'Pro', price: 'R$ 500/mês', desc: 'até 2.000 sorteios/mês' },
-  { id: 'vip', name: 'VIP', price: 'R$ 1000/mês', desc: 'até 5.000 sorteios/mês' },
+  { id: 'basico', name: 'Básico', price: 'R$ 150/ano', desc: 'até 500 sorteios/mês' },
+  { id: 'pro', name: 'Pro', price: 'R$ 500/ano', desc: 'até 2.000 sorteios/mês' },
+  { id: 'vip', name: 'VIP', price: 'R$ 1000/ano', desc: 'até 5.000 sorteios/mês' },
 ];
 
 const STEPS = [
@@ -124,7 +124,7 @@ export default function Landing() {
             <span className="pro">Pro</span>
             <span style={{ display: 'grid', gap: 3 }}>
               <span className="t">Plano Pro<span className="badge-pop">POPULAR</span></span>
-              <span className="s">até 2.000 sorteios/mês · R$ 500/mês</span>
+              <span className="s">até 2.000 sorteios/mês · R$ 500/ano</span>
             </span>
             <span style={{ fontSize: 22, color: 'var(--txt-2)', marginLeft: 18 }}>→</span>
           </a>
@@ -224,8 +224,14 @@ export default function Landing() {
       <section id="planos" className="section plans-sec" style={{ paddingTop: 110, scrollMarginTop: 20 }}>
         <div className="intro" style={{ display: 'grid', gap: 20, paddingTop: 24, alignContent: 'start' }}>
           <span style={{ font: '500 16px var(--f-body)', color: 'var(--mut)' }} className="hide-m">Planos</span>
-          <h2 className="display" style={{ fontSize: 56 }}>Comece agora</h2>
-          <p style={{ font: '400 18px/1.55 var(--f-body)', color: 'var(--ink-soft)', maxWidth: 400 }}>Após o pagamento você já é inscrito e acompanha tudo pelo painel.</p>
+          <h2 className="display" style={{ fontSize: 56 }}>Bônus Exclusivo</h2>
+          <p style={{ font: '400 18px/1.55 var(--f-body)', color: 'var(--ink-soft)', maxWidth: 400 }}>Assine a IA e receba até 100% em cashback.</p>
+          <p style={{ font: '400 16px/1.55 var(--f-body)', color: 'var(--ink-soft)', maxWidth: 400, marginTop: -10 }}>Assine agora e receba até R$ 250 de volta instantaneamente para utilizar como quiser no app Vale Bônus.</p>
+          <div style={{ display: 'grid', gap: 14, color: 'var(--ink-2)', font: '500 18px/1.35 var(--f-body)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}><span style={{ display: 'grid', placeItems: 'center', width: 30, height: 30, borderRadius: '50%', background: 'var(--blue-bg)', fontSize: 18 }}>✓</span><span><strong>Básico:</strong> R$ 150 de <strong style={{ color: '#2f9e5b' }}>cashback</strong> (100% de volta)</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}><span style={{ display: 'grid', placeItems: 'center', width: 30, height: 30, borderRadius: '50%', background: 'var(--blue-bg)', fontSize: 18 }}>✓</span><span><strong>Pro:</strong> R$ 250 de <strong style={{ color: '#2f9e5b' }}>cashback</strong> na hora</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}><span style={{ display: 'grid', placeItems: 'center', width: 30, height: 30, borderRadius: '50%', background: 'var(--blue-bg)', fontSize: 18 }}>✓</span><span><strong>VIP:</strong> R$ 250 de <strong style={{ color: '#2f9e5b' }}>cashback</strong> na hora</span></div>
+          </div>
         </div>
         <div className="plans-card">
           <form className="form-grid" onSubmit={submitAndCheckout}>
