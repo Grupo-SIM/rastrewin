@@ -48,6 +48,7 @@ export default function Login() {
               </div>
               {err && <div className="err">{err}</div>}
             </form>
+            <a href="/esqueci-senha" className="auth-link">Esqueci minha senha</a>
             <a href="/" className="auth-link">Ainda não sou cliente</a>
           </div>
         </main>

@@ -273,8 +273,14 @@ export default function Landing() {
       </section>
 
       <footer className="foot">
-        <span>© Rastrewin</span>
-        <a href="/login">Já sou cliente</a>
+        <span className="foot-brand">
+          <Logo />
+          <span>© Rastrewin</span>
+        </span>
+        <span style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          <a href="/termos">Termos de Uso</a>
+          <a href="/login">Já sou cliente</a>
+        </span>
       </footer>
     </div>
   );

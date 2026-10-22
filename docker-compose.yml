@@ -1,24 +1,9 @@
 services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: sorteio
-      POSTGRES_PASSWORD: sorteio
-      POSTGRES_DB: sorteio
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - internal
-
   api:
     build: ./apps/api
     env_file: .env
     environment:
-      - DATABASE_URL=postgresql://sorteio:sorteio@db:5432/sorteio?schema=public
       - WEB_ORIGIN=https://rastrewin.com
-    depends_on:
-      - db
     networks:
       - internal
       - proxy
@@ -40,9 +25,6 @@ services:
       caddy: rastrewin.com
       caddy.import: cloudflare
       caddy.reverse_proxy: "{{upstreams 3000}}"
-
-volumes:
-  pgdata:
 
 networks:
   internal:

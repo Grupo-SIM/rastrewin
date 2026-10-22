@@ -24,6 +24,9 @@ model User {
   simpayOrderId String?   @unique // orderId da última cobrança aprovada (idempotência por renovação)
   phoneVerified Boolean   @default(false) // validado por OTP reverso via WhatsApp
   otpCode       String?   // código que o usuário precisa mandar pro WhatsApp do rastrewin
+  resetCodeHash      String?   // HMAC do código de 6 dígitos enviado por e-mail na recuperação de senha
+  resetCodeExpiresAt DateTime?
+  resetAttempts      Int       @default(0)
   createdAt     DateTime  @default(now())
   entries       Entry[]
 }

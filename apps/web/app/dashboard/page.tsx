@@ -9,6 +9,7 @@ import { Tabs } from '@/components/Tabs';
 import { Toast, ToastData } from '@/components/Toast';
 import { RaffleCard } from '@/components/RaffleCard';
 import { PhoneVerifyModal } from '@/components/PhoneVerifyModal';
+import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 
 type Tab = 'all' | 'open' | 'ended' | 'won';
 const PAGE = 12;
@@ -21,6 +22,7 @@ export default function Dashboard() {
   const [tab, setTab] = useState<Tab>('all');
   const [shown, setShown] = useState(PAGE);
   const [toasts, setToasts] = useState<ToastData[]>([]);
+  const [pwOpen, setPwOpen] = useState(false);
   const notified = useRef<Set<string> | null>(null);
   const lines = useRobotLines();
 
@@ -152,6 +154,7 @@ export default function Dashboard() {
       {!user.phoneVerified && (
         <PhoneVerifyModal userId={user.id} onVerified={() => setUser((u) => (u ? { ...u, phoneVerified: true } : u))} />
       )}
+      {pwOpen && <ChangePasswordModal onClose={() => setPwOpen(false)} />}
       <div className="app-top">
         <nav className="nav">
           <a href="/dashboard"><Logo /></a>
@@ -162,6 +165,7 @@ export default function Dashboard() {
           <div className="app-user">
             <span className="hi">Olá, {first} · plano {user.plan}</span>
             {user.role === 'ADMIN' && <a href="/admin" className="lnk">Admin</a>}
+            <button className="lnk" onClick={() => setPwOpen(true)} style={{ background: 'none', border: 0, cursor: 'pointer' }}>Alterar senha</button>
             <button className="btn-outline" onClick={() => { localStorage.removeItem('userId'); localStorage.removeItem('userToken'); router.push('/'); }}>Sair</button>
           </div>
         </nav>
