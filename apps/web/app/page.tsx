@@ -96,10 +96,10 @@ export default function Landing() {
       {/* HERO */}
       <div className="hero-frame">
         <div className="hero-photos" aria-hidden>
-          <div className="ph a cut" style={{ backgroundImage: "url(/prizes/iphone.png)" }} />
-          <div className="ph b cut" style={{ backgroundImage: "url(/prizes/viagem.png)" }} />
-          <div className="ph c cut" style={{ backgroundImage: "url(/prizes/moto.png)" }} />
-          <div className="ph d cut" style={{ backgroundImage: "url(/prizes/pix.png)" }} />
+          <div className="ph a cut" style={{ backgroundImage: "url(/prizes/iphone.webp)" }} />
+          <div className="ph b cut" style={{ backgroundImage: "url(/prizes/viagem.webp)" }} />
+          <div className="ph c cut" style={{ backgroundImage: "url(/prizes/moto.webp)" }} />
+          <div className="ph d cut" style={{ backgroundImage: "url(/prizes/pix.webp)" }} />
         </div>
         <nav className="nav">
           <a href="/"><Logo /></a>
@@ -130,7 +130,7 @@ export default function Landing() {
           </a>
         </div>
         <div className="hero-photos" aria-hidden>
-          <div className="mob"><div className="ph a cut" style={{ backgroundImage: "url(/prizes/iphone.png)" }} /><div className="ph b cut" style={{ backgroundImage: "url(/prizes/viagem.png)" }} /></div>
+          <div className="mob"><div className="ph a cut" style={{ backgroundImage: "url(/prizes/iphone.webp)" }} /><div className="ph b cut" style={{ backgroundImage: "url(/prizes/viagem.webp)" }} /><div className="ph c cut" style={{ backgroundImage: "url(/prizes/moto.webp)" }} /><div className="ph d cut" style={{ backgroundImage: "url(/prizes/pix.webp)" }} /></div>
         </div>
       </div>
 
@@ -274,7 +274,7 @@ export default function Landing() {
 
       <footer className="foot">
         <span className="foot-brand">
-          <Logo />
+          <Logo src="/logos/Logo%20Rastrewin%2001.png" />
           <span>© Rastrewin</span>
         </span>
         <span style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>

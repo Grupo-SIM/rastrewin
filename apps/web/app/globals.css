@@ -565,11 +565,20 @@ button { cursor: pointer; }
   .hero-photos .mob .ph.a.cut { width: 145px; height: 187px; }
 }
 .hero-photos .ph.c.cut { width: 340px; height: 303px; right: -70px; top: 130px; }
-.hero-photos .ph.b.cut { width: 310px; height: 266px; left: -80px; top: 560px; }
+.hero-photos .ph.b.cut { width: 210px; height: 304px; left: -50px; top: 540px; }
 @media (max-width: 860px) {
-  .hero-photos .mob .ph.b.cut { width: 175px; height: 150px; }
+  .hero-photos .mob .ph.b.cut { width: 115px; height: 167px; }
 }
-.hero-photos .ph.d.cut { width: 280px; height: 239px; right: -50px; top: 540px; }
+.hero-photos .ph.d.cut { width: 230px; height: 291px; right: -30px; top: 520px; }
+/* mobile: as 4 imagens numa fila; zera left/right/top do desktop (em position: relative empurravam as imagens pra fora da tela) */
+@media (max-width: 860px) {
+  .hero-photos .mob { gap: 4px; align-items: center; margin-top: 30px; }
+  .hero-photos .mob .ph.cut { left: auto; right: auto; top: auto; flex: 1 1 0; min-width: 0; filter: drop-shadow(0 8px 10px rgba(8, 48, 76, .25)); }
+  .hero-photos .mob .ph.a.cut { height: 130px; transform: rotate(-6deg); }
+  .hero-photos .mob .ph.b.cut { height: 130px; transform: rotate(4deg); }
+  .hero-photos .mob .ph.c.cut { height: 100px; transform: rotate(-3deg); }
+  .hero-photos .mob .ph.d.cut { height: 120px; transform: rotate(6deg); }
+}
 
 /* seletor de sorteio com busca (admin) */
 .rp-btn { display: inline-flex; align-items: center; gap: 8px; width: 240px; max-width: 100%; background: #fff; border: 0; box-shadow: 0 0 0 1px var(--line-2); color: var(--ink); padding: 8px 12px; border-radius: 28px; font: 600 13px var(--f-body); text-align: left; cursor: pointer; transition: box-shadow .15s; }
