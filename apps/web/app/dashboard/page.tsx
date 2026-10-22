@@ -23,6 +23,13 @@ export default function Dashboard() {
   const [shown, setShown] = useState(PAGE);
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const [pwOpen, setPwOpen] = useState(false);
+  // o modal de verificação abre a cada entrada na página, pode ser fechado e volta 1h depois de fechado
+  const [verifyOpen, setVerifyOpen] = useState(true);
+  useEffect(() => {
+    if (verifyOpen) return;
+    const t = setTimeout(() => setVerifyOpen(true), 60 * 60 * 1000);
+    return () => clearTimeout(t);
+  }, [verifyOpen]);
   const notified = useRef<Set<string> | null>(null);
   const lines = useRobotLines();
 
@@ -152,7 +159,7 @@ export default function Dashboard() {
   return (
     <div className="app">
       {!user.phoneVerified && (
-        <PhoneVerifyModal userId={user.id} onVerified={() => setUser((u) => (u ? { ...u, phoneVerified: true } : u))} />
+        <PhoneVerifyModal userId={user.id} open={verifyOpen} onClose={() => setVerifyOpen(false)} onVerified={() => setUser((u) => (u ? { ...u, phoneVerified: true } : u))} />
       )}
       {pwOpen && <ChangePasswordModal onClose={() => setPwOpen(false)} />}
       <div className="app-top">

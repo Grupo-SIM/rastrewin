@@ -4,9 +4,9 @@ import { api } from '@/lib/api';
 
 type OtpResponse = { phoneVerified: boolean; code: string | null; whatsappNumber?: string };
 
-/** Bloqueia a plataforma até o usuário provar que o telefone é dele: manda o código
+/** Pede ao usuário que prove que o telefone é dele: manda o código
  * gerado para o WhatsApp do rastrewin, nosso webhook confere remetente + código. */
-export function PhoneVerifyModal({ userId, onVerified }: { userId: string; onVerified: () => void }) {
+export function PhoneVerifyModal({ userId, open, onClose, onVerified }: { userId: string; open: boolean; onClose: () => void; onVerified: () => void }) {
   const [data, setData] = useState<OtpResponse | null>(null);
   const [err, setErr] = useState('');
 
@@ -30,11 +30,19 @@ export function PhoneVerifyModal({ userId, onVerified }: { userId: string; onVer
     : null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,12,20,.72)', display: 'grid', placeItems: 'center', zIndex: 1000, padding: 20 }}>
-      <div style={{ background: '#fff', borderRadius: 20, padding: 32, maxWidth: 420, width: '100%', display: 'grid', gap: 16, textAlign: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,12,20,.72)', display: open ? 'grid' : 'none', placeItems: 'center', zIndex: 1000, padding: 20 }}>
+      <div style={{ position: 'relative', background: '#fff', borderRadius: 20, padding: 32, maxWidth: 420, width: '100%', display: 'grid', gap: 16, textAlign: 'center' }}>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar"
+          style={{ position: 'absolute', top: 12, right: 14, width: 32, height: 32, border: 0, background: 'transparent', borderRadius: 999, fontSize: 24, lineHeight: 1, color: 'var(--mut)', cursor: 'pointer' }}
+        >
+          ×
+        </button>
         <h2 className="display" style={{ fontSize: 24 }}>Confirme seu WhatsApp</h2>
         <p style={{ color: 'var(--mut)', fontSize: 15 }}>
-          Para liberar o acesso, envie o código abaixo pelo WhatsApp para o número {data?.whatsappNumber || 'do rastrewin'}.
+          Para liberar o acesso, envie o código abaixo pelo WhatsApp para o número {data?.whatsappNumber || 'do rastrewin'}. É por esse número que avisamos você, com uma notificação, assim que ganhar um sorteio.
         </p>
         {err && <div className="err">{err}</div>}
         {data && (
