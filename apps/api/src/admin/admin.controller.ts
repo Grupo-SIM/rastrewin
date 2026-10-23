@@ -3,7 +3,7 @@ import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-va
 import { PrismaService } from '../prisma/prisma.service';
 import { uniqueWinnerName } from '../mock';
 import { ensureWinners } from '../raffles/raffles.controller';
-import { planLimit, usedThisMonth } from '../plans';
+import { planLimit, usedToday } from '../plans';
 import { AdminGuard } from '../auth/auth.guard';
 import { toPublicUser } from '../users/user.view';
 
@@ -55,8 +55,8 @@ export class AdminController {
       orderBy: { paidAt: 'desc' },
       include: { _count: { select: { entries: true } } },
     });
-    const used = await usedThisMonth(this.prisma);
-    return users.map((u) => ({ ...toPublicUser(u), usedThisMonth: used.get(u.id) ?? 0, limit: planLimit(u.plan) }));
+    const used = await usedToday(this.prisma);
+    return users.map((u) => ({ ...toPublicUser(u), usedToday: used.get(u.id) ?? 0, limit: planLimit(u.plan) }));
   }
 
   private async find(id: string) {

@@ -8,6 +8,7 @@ import { Logo } from '@/components/Logo';
 import { Tabs } from '@/components/Tabs';
 import { Toast, ToastData } from '@/components/Toast';
 import { RaffleCard } from '@/components/RaffleCard';
+import { shownParticipation } from '@/lib/participation';
 import { PhoneVerifyModal } from '@/components/PhoneVerifyModal';
 import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 
@@ -148,7 +149,7 @@ export default function Dashboard() {
     return true;
   }).length;
   const stats = [
-    { l: 'sorteios que você participa', v: mine.length, c: 'var(--ink)', bg: '#fff' },
+    { l: 'sorteios que você participa', v: shownParticipation(user.plan, now) ?? mine.length, c: 'var(--ink)', bg: '#fff' },
     { l: 'em andamento', v: open, c: 'var(--ink)', bg: 'var(--blue-bg)' },
     { l: 'encerrados', v: mine.length - open, c: 'var(--ink)', bg: 'var(--line)' },
     { l: 'prêmios ganhos', v: won, c: 'var(--green-fg)', bg: 'var(--green-bg)' },
@@ -204,7 +205,7 @@ export default function Dashboard() {
             <b>Você ainda não ganhou nenhum sorteio</b>
             {boost ? (
               <span>
-                mas sua probabilidade de ganhar aumentou em <em>{boost.pct.toLocaleString('pt-BR')}%</em> por participar de {boost.n} sorteios ao mesmo tempo, em vez de apenas 1.
+                mas sua probabilidade de ganhar aumentou em <em>{boost.pct.toLocaleString('pt-BR')}%</em> por participar de {shownParticipation(user.plan, now) ?? boost.n} sorteios ao mesmo tempo, em vez de apenas 1.
               </span>
             ) : (
               <span>continue participando: quanto mais sorteios, maior a sua chance.</span>

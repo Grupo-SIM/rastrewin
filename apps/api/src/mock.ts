@@ -119,8 +119,8 @@ export const titleOf = (prize: string) => `Sorteio ${prize}`;
 /* Raffles                                                            */
 /* ------------------------------------------------------------------ */
 
-export function makeRaffleData(prize: string, endsAt: Date, durationMs: number) {
-  const site = pick(SITE_WEIGHTS);
+export function makeRaffleData(prize: string, endsAt: Date, durationMs: number, siteName?: string) {
+  const site = SITES.find((s) => s.name === siteName) ?? pick(SITE_WEIGHTS);
   return {
     title: titleOf(prize),
     prize,

@@ -54,6 +54,13 @@ model Raffle {
   @@index([endsAt])
 }
 
+/// Posição atual na lista data/raffles.json (20 mil sorteios, percorrida em ciclo).
+model FeedState {
+  key       String   @id
+  position  Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
 model Entry {
   id        String   @id @default(cuid())
   userId    String

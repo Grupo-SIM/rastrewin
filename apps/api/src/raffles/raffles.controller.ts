@@ -1,14 +1,18 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { Raffle } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { enroll, expireIfPastDue } from '../plans';
-import { freeEndTime, makeRaffleData, maskedUser, normalize, participantAt, pickFreePrize, uniqueWinnerName, userIndex } from '../mock';
+import { freeEndTime, makeRaffleData, maskedUser, normalize, participantAt, uniqueWinnerName, userIndex } from '../mock';
 
 /** Sorteios encerrados continuam visíveis por esse tempo; depois viram histórico. */
 export const VISIBLE_AFTER_END_MS = 30 * 60 * 1000;
 /** Quantidade de sorteios abertos que a plataforma mantém (proporção exibida ao usuário). */
 const TARGET_OPEN = 70;
-const RECENT_MS = 7 * 24 * 3600 * 1000;
+const FEED_KEY = 'raffles';
+/** 20 mil sorteios diferentes (prêmio + site); a posição atual fica gravada no banco (FeedState). */
+const FEED: { prize: string; site: string }[] = JSON.parse(readFileSync(join(__dirname, '../../data/raffles.json'), 'utf8'));
 const DEMO_EVERY_MS = 4 * 60 * 1000;
 let lastDemo = 0;
 
@@ -58,7 +62,7 @@ export function ensureWinners(prisma: PrismaService) {
   });
 }
 
-/** Repõe sorteios novos para manter ~TARGET_OPEN abertos, sem repetir prêmio recente nem terminar junto de outro. */
+/** Repõe sorteios novos para manter ~TARGET_OPEN abertos, na ordem do feed (data/raffles.json), sem terminar junto de outro. */
 function replenish(prisma: PrismaService) {
   return serialized(async () => {
     const now = Date.now();
@@ -71,22 +75,19 @@ function replenish(prisma: PrismaService) {
     }
     if (!wanted.length) return [] as Raffle[];
 
-    const all = await prisma.raffle.findMany({ select: { prize: true, endsAt: true } });
-    const usedAny = new Map<string, number>();
-    const recent = new Set<string>();
-    for (const r of all) {
-      usedAny.set(r.prize, Math.max(usedAny.get(r.prize) ?? 0, r.endsAt.getTime()));
-      if (r.endsAt.getTime() > now - RECENT_MS) recent.add(r.prize);
-    }
     const taken = open.map((o) => o.endsAt.getTime());
     const created: Raffle[] = [];
+    let position = (await prisma.feedState.findUnique({ where: { key: FEED_KEY } }))?.position ?? 0;
     for (const dur of wanted) {
-      const prize = pickFreePrize(recent, usedAny);
-      recent.add(prize);
-      usedAny.set(prize, now + dur);
+      const item = FEED[position % FEED.length];
+      position = (position + 1) % FEED.length;
       const end = freeEndTime(now + dur, taken);
       taken.push(end);
-      created.push(await prisma.raffle.create({ data: makeRaffleData(prize, new Date(end), Math.max(dur, 60_000)) }));
+      const [raffle] = await prisma.$transaction([
+        prisma.raffle.create({ data: makeRaffleData(item.prize, new Date(end), Math.max(dur, 60_000), item.site) }),
+        prisma.feedState.upsert({ where: { key: FEED_KEY }, create: { key: FEED_KEY, position }, update: { position } }),
+      ]);
+      created.push(raffle);
     }
     return created;
   });

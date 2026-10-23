@@ -7,9 +7,9 @@ import { SITES as ALL_SITES } from '@/lib/sites';
 import { isValidCpf, maskCpf, maskPhone } from '@/lib/mask';
 
 const PLANS = [
-  { id: 'basico', name: 'Básico', price: 'R$ 150/ano', desc: 'até 500 sorteios/mês' },
-  { id: 'pro', name: 'Pro', price: 'R$ 500/ano', desc: 'até 2.000 sorteios/mês' },
-  { id: 'vip', name: 'VIP', price: 'R$ 1000/ano', desc: 'até 5.000 sorteios/mês' },
+  { id: 'basico', name: 'Básico', price: 'R$ 150/ano', desc: 'até 500 sorteios/dia' },
+  { id: 'pro', name: 'Pro', price: 'R$ 500/ano', desc: 'até 2.000 sorteios/dia' },
+  { id: 'vip', name: 'VIP', price: 'R$ 1000/ano', desc: 'até 5.000 sorteios/dia' },
 ];
 
 const STEPS = [
@@ -29,7 +29,7 @@ const LOG = [
 
 const FAQ = [
   ['Preciso fazer algo depois de pagar?', 'Não. Após o pagamento você já é inscrito e acompanha tudo pelo painel.'],
-  ['Quantos sorteios posso participar?', 'Depende do plano: até 500, 2.000 ou 5.000 sorteios por mês, com novos sorteios entrando o tempo todo.'],
+  ['Quantos sorteios posso participar?', 'Depende do plano: até 500, 2.000 ou 5.000 sorteios por dia, com novos sorteios entrando o tempo todo.'],
   ['Como sei se ganhei?', 'O painel mostra o ganhador de cada sorteio quando o contador termina.'],
 ];
 
@@ -124,7 +124,7 @@ export default function Landing() {
             <span className="pro">Pro</span>
             <span style={{ display: 'grid', gap: 3 }}>
               <span className="t">Plano Pro<span className="badge-pop">POPULAR</span></span>
-              <span className="s">até 2.000 sorteios/mês · R$ 500/ano</span>
+              <span className="s">até 2.000 sorteios/dia · R$ 500/ano</span>
             </span>
             <span style={{ fontSize: 22, color: 'var(--txt-2)', marginLeft: 18 }}>→</span>
           </a>

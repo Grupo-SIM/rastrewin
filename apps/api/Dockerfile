@@ -18,6 +18,7 @@ RUN npm install --no-save prisma@5.22.0 tsx@4.19.0
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/prisma apps/api/prisma
 COPY --from=build /app/apps/api/src apps/api/src
+COPY --from=build /app/apps/api/data apps/api/data
 COPY --from=build /app/node_modules/.prisma node_modules/.prisma
 EXPOSE 3011
 WORKDIR /app/apps/api
