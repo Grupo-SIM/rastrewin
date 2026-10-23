@@ -516,6 +516,13 @@ button { cursor: pointer; }
 @keyframes sp-toast { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: none; } }
 
 /* ganhador (Card Sorteio Encerrado.dc.html) */
+.win-wrap.bad { background: radial-gradient(120% 140% at 100% 0%, #fbc9c9 0%, #fde6e6 50%, #fdf6f6 100%); }
+.win-wrap.bad .win { box-shadow: 0 0 0 1px rgba(0, 0, 0, .04), 0 6px 14px -8px rgba(185, 28, 28, .28); }
+.win-wrap.bad .win-av { background: #fee2e2; box-shadow: 0 0 0 2px #ef4444; color: #b91c1c; }
+.win-wrap.bad .win-txt .k { color: #b91c1c; }
+.win-wrap.bad .win-tag { background: #fee2e2; color: #b91c1c; }
+.win-why { margin: 8px 8px 4px; font: 500 13px/1.4 var(--f-body); color: #b91c1c; }
+.pill.red { background: #fee2e2; color: #b91c1c; }
 .win-wrap { border-radius: 20px; padding: 6px; background: radial-gradient(120% 140% at 100% 0%, #c9f5d6 0%, #e6fbec 50%, #f6fdf8 100%); }
 .win { background: #fff; border-radius: 15px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .04), 0 6px 14px -8px rgba(10, 122, 53, .28); }
 .win-av { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; background: var(--green-bg); box-shadow: 0 0 0 2px #22c55e; display: grid; place-items: center; font: 700 16px var(--f-display); color: var(--green-fg); }
@@ -646,3 +653,5 @@ button { cursor: pointer; }
 /* aba "Ganhei": cartões mais estreitos */
 .raffles.compact { grid-template-columns: repeat(auto-fill, minmax(280px, 400px)); }
 @media (max-width: 720px) { .raffles.compact { grid-template-columns: 1fr; } }
+
+.elig-sel { flex-shrink: 0; border: 0; border-radius: 999px; padding: 6px 10px; font: 600 12px var(--f-body); background: var(--green-bg); color: var(--green-fg); cursor: pointer; box-shadow: 0 0 0 1px rgba(0, 0, 0, .06); }

@@ -12,7 +12,7 @@ import { shownParticipation } from '@/lib/participation';
 import { PhoneVerifyModal } from '@/components/PhoneVerifyModal';
 import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 
-type Tab = 'all' | 'open' | 'ended' | 'won';
+type Tab = 'all' | 'open' | 'ended' | 'won' | 'ineligible';
 const PAGE = 12;
 
 export default function Dashboard() {
@@ -80,7 +80,7 @@ export default function Dashboard() {
     setToasts((t) => [
       ...t,
       ...fresh.map((r): ToastData => ({
-        id: r.id, me: r.winnerUserId === user.id, winner: r.winnerName ?? '', prize: r.title, site: r.site, color: r.siteColor,
+        id: r.id, me: r.winnerUserId === user.id && !r.winnerIneligible, winner: r.winnerName ?? '', prize: r.title, site: r.site, color: r.siteColor,
       })),
     ]);
   }, [mine, user]);
@@ -89,26 +89,31 @@ export default function Dashboard() {
     const list = mine.filter((r) => {
       if (tab === 'open') return isOpen(r);
       if (tab === 'ended') return !isOpen(r);
-      if (tab === 'won') return !isOpen(r) && r.winnerUserId === user?.id;
+      if (tab === 'won') return !isOpen(r) && r.winnerUserId === user?.id && !r.winnerIneligible;
+      if (tab === 'ineligible') return !isOpen(r) && r.winnerUserId === user?.id && r.winnerIneligible;
       return true;
     });
-    // em andamento primeiro (por tempo restante), depois encerrados
-    return list.sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || +new Date(a.endsAt) - +new Date(b.endsAt));
+    // em andamento primeiro (por tempo restante), depois encerrados (mais recentes primeiro)
+    return list.sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || (isOpen(a) ? +new Date(a.endsAt) - +new Date(b.endsAt) : +new Date(b.endsAt) - +new Date(a.endsAt)));
     // eslint-disable-next-line
   }, [mine, tab, user, Math.floor(now / 5000)]);
 
   const open = mine.filter(isOpen).length;
-  const won = mine.filter((r) => !isOpen(r) && r.winnerUserId === user?.id).length;
+  const won = mine.filter((r) => !isOpen(r) && r.winnerUserId === user?.id && !r.winnerIneligible).length;
 
-  // chance de ganhar ao menos um prêmio: 1 - Π(1 - 1/participantes), contra participar de um único sorteio (chance média)
+  // chance de ganhar ao menos um prêmio participando de N sorteios no dia: 1 - (1 - p)^N, onde p é a
+  // chance média de um sorteio (média de 1/participantes dos abertos) e N é o mesmo número exibido em
+  // "sorteios que você participa hoje". O aumento é comparado com participar de um único sorteio (chance p).
   const boost = useMemo(() => {
     const ps = mine.filter(isOpen).map((r) => 1 / Math.max(1, r.participants));
     if (ps.length < 2) return null;
-    const all = 1 - ps.reduce((a, p) => a * (1 - p), 1);
-    const single = ps.reduce((a, p) => a + p, 0) / ps.length;
-    return { pct: Math.round((all / single - 1) * 100), n: ps.length };
+    const p = ps.reduce((a, x) => a + x, 0) / ps.length;
+    const n = shownParticipation(user?.plan ?? '', now) ?? ps.length;
+    if (n < 2) return null;
+    const all = -Math.expm1(n * Math.log1p(-p));
+    return { pct: (all / p - 1) * 100, n };
     // eslint-disable-next-line
-  }, [mine, Math.floor(now / 5000)]);
+  }, [mine, user, Math.floor(now / 5000)]);
 
   // scroll infinito da lista de sorteios
   useEffect(() => {
@@ -145,11 +150,12 @@ export default function Dashboard() {
   const countOf = (k: Tab) => mine.filter((r) => {
     if (k === 'open') return isOpen(r);
     if (k === 'ended') return !isOpen(r);
-    if (k === 'won') return !isOpen(r) && r.winnerUserId === user.id;
+    if (k === 'won') return !isOpen(r) && r.winnerUserId === user.id && !r.winnerIneligible;
+    if (k === 'ineligible') return !isOpen(r) && r.winnerUserId === user.id && r.winnerIneligible;
     return true;
   }).length;
   const stats = [
-    { l: 'sorteios que você participa', v: shownParticipation(user.plan, now) ?? mine.length, c: 'var(--ink)', bg: '#fff' },
+    { l: 'sorteios que você participa hoje', v: shownParticipation(user.plan, now) ?? mine.length, c: 'var(--ink)', bg: '#fff' },
     { l: 'em andamento', v: open, c: 'var(--ink)', bg: 'var(--blue-bg)' },
     { l: 'encerrados', v: mine.length - open, c: 'var(--ink)', bg: 'var(--line)' },
     { l: 'prêmios ganhos', v: won, c: 'var(--green-fg)', bg: 'var(--green-bg)' },
@@ -195,7 +201,7 @@ export default function Dashboard() {
           <Tabs
             value={tab}
             onChange={(k) => { setTab(k); setShown(PAGE); }}
-            items={(['all', 'open', 'ended', 'won'] as Tab[]).map((k) => ({ key: k, label: { all: 'Todos', open: 'Em andamento', ended: 'Encerrados', won: 'Ganhei' }[k], count: countOf(k) }))}
+            items={(['all', 'open', 'ended', 'won', 'ineligible'] as Tab[]).map((k) => ({ key: k, label: { all: 'Todos', open: 'Em andamento', ended: 'Encerrados', won: 'Ganhei', ineligible: 'Inelegíveis' }[k], count: countOf(k) }))}
           />
           <LogoStrip />
         </div>
@@ -205,7 +211,7 @@ export default function Dashboard() {
             <b>Você ainda não ganhou nenhum sorteio</b>
             {boost ? (
               <span>
-                mas sua probabilidade de ganhar aumentou em <em>{boost.pct.toLocaleString('pt-BR')}%</em> por participar de {shownParticipation(user.plan, now) ?? boost.n} sorteios ao mesmo tempo, em vez de apenas 1.
+                mas sua probabilidade de ganhar aumentou em <em>{boost.pct.toLocaleString('pt-BR', { notation: 'compact', maximumFractionDigits: 1 })}%</em> por participar de {boost.n} sorteios hoje, em vez de apenas 1.
               </span>
             ) : (
               <span>continue participando: quanto mais sorteios, maior a sua chance.</span>
@@ -213,7 +219,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className={`raffles ${tab === 'won' ? 'compact' : ''}`}>
+        <div className={`raffles ${tab === 'won' || tab === 'ineligible' ? 'compact' : ''}`}>
           {visible.slice(0, shown).map((r) => <RaffleCard key={r.id} r={r} now={now} userId={user.id} />)}
         </div>
       </main>

@@ -48,6 +48,8 @@ model Raffle {
   endsAt       DateTime
   winnerName   String?
   winnerUserId String?
+  winnerIneligible Boolean @default(false) // ganhou mas não recebe: algum critério não foi cumprido
+  ineligibleReason String?
   createdAt    DateTime @default(now())
   entries      Entry[]
 

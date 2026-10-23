@@ -3,7 +3,7 @@ export const API = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 export type Raffle = {
   id: string; title: string; prize: string; site: string; siteColor: string; siteEmoji: string;
   seed: number; endsAt: string; participants: number; ended: boolean;
-  winnerName: string | null; winnerUserId: string | null; entered: boolean;
+  winnerName: string | null; winnerUserId: string | null; winnerIneligible: boolean; ineligibleReason: string | null; entered: boolean;
 };
 
 export type User = {

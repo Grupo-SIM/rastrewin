@@ -36,6 +36,8 @@ export function toPublic(r: Raffle, entered: boolean) {
     ended,
     winnerName: ended ? r.winnerName : null,
     winnerUserId: ended ? r.winnerUserId : null,
+    winnerIneligible: ended ? r.winnerIneligible : false,
+    ineligibleReason: ended && r.winnerIneligible ? r.ineligibleReason : null,
     entered,
   };
 }
@@ -104,7 +106,11 @@ export class RafflesController {
   @Get()
   async list(@Query('userId') userId?: string) {
     await ensureWinners(this.prisma);
-    const raffles = await this.prisma.raffle.findMany({ where: { endsAt: { gt: this.visibleSince() } }, orderBy: { endsAt: 'asc' } });
+    // abertos + recém-encerrados para todos; o histórico de encerrados do usuário nunca some (fica no banco)
+    const raffles = await this.prisma.raffle.findMany({
+      where: { OR: [{ endsAt: { gt: this.visibleSince() } }, ...(userId ? [{ entries: { some: { userId } } }] : [])] },
+      orderBy: { endsAt: 'asc' },
+    });
     const mine = userId
       ? new Set((await this.prisma.entry.findMany({ where: { userId }, select: { raffleId: true } })).map((e) => e.raffleId))
       : new Set<string>();
