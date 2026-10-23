@@ -14,7 +14,7 @@ const PLANS = [
 
 const STEPS = [
   { n: '01', t: 'Você se cadastra uma vez', bg: 'radial-gradient(120% 90% at 100% 0%,#e3f0ff 0%,#f1f7ff 45%,rgba(241,247,255,0) 100%)', c: '#3b82f6' },
-  { n: '02', t: 'A IA te inscreve todos os dias', bg: 'radial-gradient(120% 90% at 100% 0%,#ffe9d4 0%,#fff5ec 45%,rgba(255,245,236,0) 100%)', c: '#ff8a1f' },
+  { n: '02', t: 'A IA te inscreve em sorteios todos os dias', bg: 'radial-gradient(120% 90% at 100% 0%,#ffe9d4 0%,#fff5ec 45%,rgba(255,245,236,0) 100%)', c: '#ff8a1f' },
   { n: '03', t: 'Você acompanha tudo em tempo real', bg: 'radial-gradient(120% 90% at 100% 0%,#dcfbe6 0%,#effdf3 45%,rgba(239,253,243,0) 100%)', c: '#16a34a' },
 ];
 
@@ -225,7 +225,6 @@ export default function Landing() {
         <div className="intro" style={{ display: 'grid', gap: 20, paddingTop: 24, alignContent: 'start' }}>
           <span style={{ font: '500 16px var(--f-body)', color: 'var(--mut)' }} className="hide-m">Planos</span>
           <h2 className="display" style={{ fontSize: 56 }}>Bônus Exclusivo</h2>
-          <p style={{ font: '400 18px/1.55 var(--f-body)', color: 'var(--ink-soft)', maxWidth: 400 }}>Assine a IA e receba até 100% em cashback.</p>
           <p style={{ font: '400 16px/1.55 var(--f-body)', color: 'var(--ink-soft)', maxWidth: 400, marginTop: -10 }}>Assine agora e receba até R$ 250 de volta instantaneamente para utilizar como quiser no app Vale Bônus.</p>
           <div style={{ display: 'grid', gap: 14, color: 'var(--ink-2)', font: '500 18px/1.35 var(--f-body)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}><span style={{ display: 'grid', placeItems: 'center', width: 30, height: 30, borderRadius: '50%', background: 'var(--blue-bg)', fontSize: 18 }}>✓</span><span><strong>Básico:</strong> R$ 150 de <strong style={{ color: '#2f9e5b' }}>cashback</strong> (100% de volta)</span></div>
