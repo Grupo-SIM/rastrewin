@@ -16,8 +16,8 @@ type Summary = { open: number; ended: number; total: number; won: number };
 type Page = { items: Raffle[]; total: number; nextOffset: number | null };
 const PAGE = 24; // sorteios por página
 const REFRESH_MS = 5000; // contagens e páginas já carregadas
-const RESULTS_MS = 15000; // checagem de resultados novos (avisos)
-const TOAST_GAP_MS = 45 * 1000; // intervalo mínimo entre dois avisos de resultado
+const RESULTS_MS = 5000; // checagem de resultados novos (avisos)
+const TOAST_GAP_MS = 4 * 1000; // intervalo mínimo entre dois avisos (só espaça rajadas; cada sorteio encerrado gera o seu)
 
 export default function Dashboard() {
   const router = useRouter();
@@ -30,8 +30,7 @@ export default function Dashboard() {
   const [tab, setTab] = useState<Tab>('all');
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const [queue, setQueue] = useState<ToastData[]>([]);
-  // o primeiro aviso espera 20 segundos depois de entrar na plataforma
-  const lastToast = useRef(Date.now() - TOAST_GAP_MS + 20_000);
+  const lastToast = useRef(0);
   const [pwOpen, setPwOpen] = useState(false);
   // o modal de verificação abre a cada entrada na página, pode ser fechado e volta 1h depois de fechado
   const [verifyOpen, setVerifyOpen] = useState(true);
@@ -129,7 +128,7 @@ export default function Dashboard() {
     refresh();
   }, [tab, refresh]);
 
-  // avisos de resultado: olha só os 8 encerrados mais recentes, de tempos em tempos
+  // avisos de resultado: a cada 5 s olha os 8 encerrados mais recentes; todo sorteio que acabou ganha o seu aviso
   useEffect(() => {
     if (!user || user.status !== 'ACTIVE') return;
     const check = async () => {
@@ -144,13 +143,13 @@ export default function Dashboard() {
         const fresh = done.filter((r) => !notified.current!.has(r.id));
         if (!fresh.length) return;
         fresh.forEach((r) => notified.current!.add(r.id));
-        // entram numa fila: os do próprio usuário vão na frente e a fila guarda no máximo 3 avisos
+        // entram numa fila: os do próprio usuário vão na frente e a fila guarda no máximo 8 avisos
         setQueue((q) => {
           const add = fresh.map((r): ToastData => ({
             id: r.id, me: r.winnerUserId === user.id, winner: r.winnerName ?? '', prize: r.title, site: r.site, color: r.siteColor,
           }));
           const all = [...q, ...add];
-          return [...all.filter((x) => x.me), ...all.filter((x) => !x.me)].slice(0, 3);
+          return [...all.filter((x) => x.me), ...all.filter((x) => !x.me)].slice(0, 8);
         });
       } catch {
         /* idem */
@@ -161,7 +160,7 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [user?.id, user?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // libera um aviso por vez, 1 a cada 45 segundos; no máximo 2 na tela no celular (3 no desktop)
+  // libera um aviso por vez, com pelo menos 4 s entre eles; no máximo 2 na tela no celular (3 no desktop)
   useEffect(() => {
     if (!queue.length) return;
     const mobile = window.matchMedia('(max-width: 860px)').matches;
