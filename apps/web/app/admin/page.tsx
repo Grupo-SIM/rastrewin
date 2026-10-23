@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { api, fmtRemaining } from '@/lib/api';
 import { Logo } from '@/components/Logo';
 import { SiteIcon } from '@/components/SiteIcon';
+import { Dropdown } from '@/components/Dropdown';
 import { UserPicker } from '@/components/UserPicker';
 
 type AdminRaffle = {
@@ -79,6 +80,7 @@ export default function Admin() {
   const [now, setNow] = useState(Date.now());
   const [q, setQ] = useState('');
   const [onlyWinners, setOnlyWinners] = useState(false);
+  const [planFilter, setPlanFilter] = useState('all');
   const [openWins, setOpenWins] = useState<string | null>(null);
   const [error, setError] = useState('');
 
@@ -138,8 +140,9 @@ export default function Admin() {
   const needle = q.toLowerCase();
   const isEnded = (r: AdminRaffle) => new Date(r.endsAt).getTime() <= now;
   const filtered = raffles.filter((r) => !isEnded(r) && (r.title + r.site).toLowerCase().includes(needle));
-  const clients = users.filter((u) => (!onlyWinners || u.wins.length > 0) && (u.name + u.email + u.cpf + u.phone + (u.pix ?? '')).toLowerCase().includes(needle));
-  const totalWins = users.reduce((a, u) => a + u.wins.length, 0);
+  const clients = users.filter((u) => (!onlyWinners || u.wins.length > 0) && (planFilter === 'all' || u.plan === planFilter) && (u.name + u.email + u.cpf + u.phone + (u.pix ?? '')).toLowerCase().includes(needle));
+  // ganhadores dentro do plano escolhido
+  const winners = users.filter((u) => u.wins.length > 0 && (planFilter === 'all' || u.plan === planFilter));
 
   return (
     <div className="app admin-page">
@@ -162,9 +165,19 @@ export default function Admin() {
           <button className={tab === 'clients' ? 'on' : ''} onClick={() => setTab('clients')}>Clientes ({users.length})</button>
           {tab === 'clients' && (
             <span className="atabs-sum">
+              <Dropdown
+                label="Filtrar por plano"
+                value={planFilter}
+                onChange={setPlanFilter}
+                width={190}
+                options={[
+                  { value: 'all', label: `Todos os planos (${users.length})` },
+                  ...Object.entries(PLAN_NAME).map(([id, name]) => ({ value: id, label: `${name} (${users.filter((u) => u.plan === id).length})` })),
+                ]}
+              />
               <label className="win-filter">
                 <input type="checkbox" checked={onlyWinners} onChange={(e) => setOnlyWinners(e.target.checked)} />
-                Só quem ganhou ({users.filter((u) => u.wins.length > 0).length} clientes · {totalWins} prêmios)
+                Só quem ganhou ({winners.length} clientes · {winners.reduce((a, u) => a + u.wins.length, 0)} prêmios)
               </label>
               <button className="abtn o" style={{ marginLeft: 12 }} onClick={() => exportClientsCsv(clients)}>Exportar CSV</button>
             </span>

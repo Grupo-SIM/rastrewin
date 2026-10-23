@@ -14,6 +14,7 @@ import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 
 type Tab = 'all' | 'open' | 'ended' | 'won';
 const PAGE = 12;
+const TOAST_GAP_MS = 2 * 60 * 1000; // intervalo mínimo entre dois avisos de resultado
 
 export default function Dashboard() {
   const router = useRouter();
@@ -23,6 +24,9 @@ export default function Dashboard() {
   const [tab, setTab] = useState<Tab>('all');
   const [shown, setShown] = useState(PAGE);
   const [toasts, setToasts] = useState<ToastData[]>([]);
+  const [queue, setQueue] = useState<ToastData[]>([]);
+  // o primeiro aviso espera 1 minuto depois de entrar na plataforma
+  const lastToast = useRef(Date.now() - TOAST_GAP_MS + 60_000);
   const [pwOpen, setPwOpen] = useState(false);
   // o modal de verificação abre a cada entrada na página, pode ser fechado e volta 1h depois de fechado
   const [verifyOpen, setVerifyOpen] = useState(true);
@@ -83,13 +87,29 @@ export default function Dashboard() {
     const fresh = done.filter((r) => !notified.current!.has(r.id));
     if (!fresh.length) return;
     fresh.forEach((r) => notified.current!.add(r.id));
-    setToasts((t) => [
-      ...t,
-      ...fresh.map((r): ToastData => ({
+    // entram numa fila: os do próprio usuário vão na frente e a fila guarda no máximo 3 avisos
+    setQueue((q) => {
+      const add = fresh.map((r): ToastData => ({
         id: r.id, me: r.winnerUserId === user.id, winner: r.winnerName ?? '', prize: r.title, site: r.site, color: r.siteColor,
-      })),
-    ]);
+      }));
+      const all = [...q, ...add];
+      return [...all.filter((x) => x.me), ...all.filter((x) => !x.me)].slice(0, 3);
+    });
   }, [mine, user]);
+
+  // libera um aviso por vez, 1 a cada 2 minutos; no máximo 2 na tela no celular (3 no desktop)
+  useEffect(() => {
+    if (!queue.length) return;
+    const mobile = window.matchMedia('(max-width: 860px)').matches;
+    if (toasts.length >= (mobile ? 2 : 3)) return; // volta a rodar quando um aviso some
+    const wait = Math.max(0, lastToast.current + TOAST_GAP_MS - Date.now());
+    const t = setTimeout(() => {
+      lastToast.current = Date.now();
+      setToasts((x) => [...x, queue[0]]);
+      setQueue((q) => q.slice(1));
+    }, wait);
+    return () => clearTimeout(t);
+  }, [queue, toasts]);
   const isOpen = (r: Raffle) => new Date(r.endsAt).getTime() > now;
   const visible = useMemo(() => {
     const list = mine.filter((r) => {
@@ -208,7 +228,7 @@ export default function Dashboard() {
         </div>
       </main>
       <div className="toasts">
-        {toasts.slice(-3).map((t) => (
+        {toasts.map((t) => (
           <Toast key={t.id} t={t} onClose={() => setToasts((x) => x.filter((y) => y.id !== t.id))} />
         ))}
       </div>
