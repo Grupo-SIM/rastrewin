@@ -3,7 +3,7 @@ import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-va
 import { PrismaService } from '../prisma/prisma.service';
 import { uniqueWinnerName } from '../mock';
 import { ensureWinners } from '../raffles/raffles.controller';
-import { planLimit, usedToday } from '../plans';
+import { planLimit } from '../plans';
 import { AdminGuard } from '../auth/auth.guard';
 import { toPublicUser } from '../users/user.view';
 
@@ -32,7 +32,8 @@ export class AdminController {
   @Get('raffles')
   async list() {
     await ensureWinners(this.prisma);
-    return this.prisma.raffle.findMany({ where: { endsAt: { gt: new Date(Date.now() - 48 * 3600 * 1000) } }, orderBy: { endsAt: 'asc' }, include: { _count: { select: { entries: true } } } });
+    // abertos e recém-encerrados (a agenda abre 5.000 por dia; não dá para listar tudo)
+    return this.prisma.raffle.findMany({ where: { endsAt: { gt: new Date(Date.now() - 30 * 60 * 1000) } }, orderBy: { endsAt: 'asc' }, include: { _count: { select: { entries: true } } } });
   }
 
   /** Modelo da mensagem de WhatsApp enviada ao ganhador. Variáveis: {nome} {sorteio} {site} {premio}. */
@@ -55,7 +56,6 @@ export class AdminController {
       orderBy: { paidAt: 'desc' },
       include: { _count: { select: { entries: true } } },
     });
-    const used = await usedToday(this.prisma);
     // sorteios já encerrados em que o usuário foi o ganhador
     const won = await this.prisma.raffle.findMany({
       where: { winnerUserId: { not: null }, endsAt: { lte: new Date() } },
@@ -64,7 +64,7 @@ export class AdminController {
     });
     const winsOf = new Map<string, typeof won>();
     for (const w of won) winsOf.set(w.winnerUserId as string, [...(winsOf.get(w.winnerUserId as string) ?? []), w]);
-    return users.map((u) => ({ ...toPublicUser(u), usedToday: used.get(u.id) ?? 0, limit: planLimit(u.plan), wins: winsOf.get(u.id) ?? [] }));
+    return users.map((u) => ({ ...toPublicUser(u), limit: planLimit(u.plan), wins: winsOf.get(u.id) ?? [] }));
   }
 
   private async find(id: string) {

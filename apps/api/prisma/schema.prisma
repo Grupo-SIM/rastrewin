@@ -53,11 +53,14 @@ model Raffle {
   ineligibleReason String?
   createdAt    DateTime @default(now())
   entries      Entry[]
+  slot         Int?     @unique // posição na agenda de sorteios (ver src/schedule.ts); nula nos criados antes dela
+  bucket       Int      @default(0) // 0..4999: o plano enxerga o sorteio se bucket < limite diário do plano
 
   @@index([endsAt])
+  @@index([createdAt])
 }
 
-/// Posição atual na lista data/raffles.json (20 mil sorteios, percorrida em ciclo).
+/// Estado do feed. key 'slot' = última posição da agenda já gravada como sorteio (src/schedule.ts).
 model FeedState {
   key       String   @id
   position  Int      @default(0)

@@ -24,31 +24,3 @@ export async function expireIfPastDue(prisma: PrismaService, user: { id: string;
   await prisma.user.update({ where: { id: user.id }, data: { status: 'EXPIRED' } });
   return 'EXPIRED';
 }
-
-export function dayStart(now = new Date()) {
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
-/** Inscrições feitas hoje, por usuário. */
-export async function usedToday(prisma: PrismaService, userIds?: string[]) {
-  const rows = await prisma.entry.groupBy({
-    by: ['userId'],
-    where: { createdAt: { gte: dayStart() }, ...(userIds ? { userId: { in: userIds } } : {}) },
-    _count: { _all: true },
-  });
-  return new Map(rows.map((r) => [r.userId, r._count._all]));
-}
-
-/**
- * Inscreve o usuário nos sorteios (na ordem recebida) respeitando o limite diário do plano.
- * Devolve os ids em que realmente entrou.
- */
-export async function enroll(prisma: PrismaService, user: { id: string; plan: string }, raffleIds: string[]) {
-  const have = new Set((await prisma.entry.findMany({ where: { userId: user.id, raffleId: { in: raffleIds } }, select: { raffleId: true } })).map((e) => e.raffleId));
-  const fresh = raffleIds.filter((id) => !have.has(id));
-  if (!fresh.length) return [];
-  const used = (await usedToday(prisma, [user.id])).get(user.id) ?? 0;
-  const take = fresh.slice(0, Math.max(0, planLimit(user.plan) - used));
-  if (take.length) await prisma.entry.createMany({ data: take.map((raffleId) => ({ userId: user.id, raffleId })), skipDuplicates: true });
-  return take;
-}

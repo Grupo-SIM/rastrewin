@@ -8,13 +8,12 @@ import { Logo } from '@/components/Logo';
 import { Tabs } from '@/components/Tabs';
 import { Toast, ToastData } from '@/components/Toast';
 import { RaffleCard } from '@/components/RaffleCard';
-import { shownParticipation } from '@/lib/participation';
 import { PhoneVerifyModal } from '@/components/PhoneVerifyModal';
 import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 
 type Tab = 'all' | 'open' | 'ended' | 'won';
 const PAGE = 12;
-const TOAST_GAP_MS = 2 * 60 * 1000; // intervalo mínimo entre dois avisos de resultado
+const TOAST_GAP_MS = 45 * 1000; // intervalo mínimo entre dois avisos de resultado
 
 export default function Dashboard() {
   const router = useRouter();
@@ -25,8 +24,8 @@ export default function Dashboard() {
   const [shown, setShown] = useState(PAGE);
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const [queue, setQueue] = useState<ToastData[]>([]);
-  // o primeiro aviso espera 1 minuto depois de entrar na plataforma
-  const lastToast = useRef(Date.now() - TOAST_GAP_MS + 60_000);
+  // o primeiro aviso espera 20 segundos depois de entrar na plataforma
+  const lastToast = useRef(Date.now() - TOAST_GAP_MS + 20_000);
   const [pwOpen, setPwOpen] = useState(false);
   // o modal de verificação abre a cada entrada na página, pode ser fechado e volta 1h depois de fechado
   const [verifyOpen, setVerifyOpen] = useState(true);
@@ -38,8 +37,22 @@ export default function Dashboard() {
   const notified = useRef<Set<string> | null>(null);
   const lines = useRobotLines();
 
+  // 1ª chamada do dia baixa tudo desde a meia-noite do usuário; as seguintes só trazem o que mudou (sorteios novos
+  // ou recém-terminados) e juntam pelo id: a plataforma abre até 5.000 sorteios por dia, não dá para rebaixar a lista a cada 3 s
+  const cursor = useRef<{ day: number; at: number } | null>(null);
   const load = useCallback(async (uid: string) => {
-    setRaffles(await api<Raffle[]>(`/raffles?userId=${uid}`));
+    const d = new Date();
+    const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const delta = cursor.current && cursor.current.day === midnight ? cursor.current.at - 15_000 : null;
+    const fetchedAt = Date.now();
+    const rows = await api<Raffle[]>(`/raffles?userId=${uid}&since=${new Date(midnight).toISOString()}${delta ? `&after=${delta}` : ''}`);
+    cursor.current = { day: midnight, at: fetchedAt };
+    setRaffles((prev) => {
+      if (!delta) return rows;
+      const byId = new Map(prev.map((r) => [r.id, r]));
+      rows.forEach((r) => byId.set(r.id, r));
+      return [...byId.values()];
+    });
   }, []);
 
   useEffect(() => {
@@ -62,11 +75,11 @@ export default function Dashboard() {
     return () => { clearInterval(poll); clearInterval(userPoll); clearInterval(tick); clearInterval(discover); };
   }, [router, load]);
 
-  // "Encerrados" zera a cada dia (meia-noite do usuário); os que ele ganhou ficam sempre
+  // Tudo zera à meia-noite do usuário: só entram os sorteios que começaram hoje (os que ele ganhou ficam sempre)
   const mine = useMemo(() => {
     const d = new Date(now);
     const today = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    return raffles.filter((r) => r.entered && (new Date(r.endsAt).getTime() >= today || r.winnerUserId === user?.id));
+    return raffles.filter((r) => r.entered && (new Date(r.startsAt).getTime() >= today || r.winnerUserId === user?.id));
     // eslint-disable-next-line
   }, [raffles, user, Math.floor(now / 60000)]);
 
@@ -97,7 +110,7 @@ export default function Dashboard() {
     });
   }, [mine, user]);
 
-  // libera um aviso por vez, 1 a cada 2 minutos; no máximo 2 na tela no celular (3 no desktop)
+  // libera um aviso por vez, 1 a cada 45 segundos; no máximo 2 na tela no celular (3 no desktop)
   useEffect(() => {
     if (!queue.length) return;
     const mobile = window.matchMedia('(max-width: 860px)').matches;
@@ -158,15 +171,14 @@ export default function Dashboard() {
     );
   }
 
-  const todayCount = shownParticipation(user.plan, now) ?? mine.length;
-  const countOf = (k: Tab) => k === 'all' ? todayCount : mine.filter((r) => {
+  const countOf = (k: Tab) => mine.filter((r) => {
     if (k === 'open') return isOpen(r);
     if (k === 'ended') return !isOpen(r);
     if (k === 'won') return !isOpen(r) && r.winnerUserId === user.id;
     return true;
   }).length;
   const stats = [
-    { l: 'sorteios que você participa hoje', v: todayCount, c: 'var(--ink)', bg: '#fff' },
+    { l: 'sorteios que você participa hoje', v: mine.length, c: 'var(--ink)', bg: '#fff' },
     { l: 'em andamento', v: open, c: 'var(--ink)', bg: 'var(--blue-bg)' },
     { l: 'encerrados', v: mine.length - open, c: 'var(--ink)', bg: 'var(--line)' },
     { l: 'prêmios ganhos', v: won, c: 'var(--green-fg)', bg: 'var(--green-bg)' },

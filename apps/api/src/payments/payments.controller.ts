@@ -1,7 +1,5 @@
 import { BadRequestException, Body, Controller, Headers, Post, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { VISIBLE_AFTER_END_MS } from '../raffles/raffles.controller';
-import { enroll } from '../plans';
 import { generatePassword, hashPassword } from '../auth/password.util';
 import { EmailService } from '../email/email.service';
 
@@ -72,13 +70,6 @@ export class PaymentsController {
     });
 
     if (plainPassword) void this.email.sendWelcomeCredentials(user.email, user.name, plainPassword);
-
-    const open = await this.prisma.raffle.findMany({
-      where: { endsAt: { gt: new Date(Date.now() - VISIBLE_AFTER_END_MS) } },
-      orderBy: { endsAt: 'asc' },
-      select: { id: true },
-    });
-    await enroll(this.prisma, { id: user.id, plan: user.plan }, open.map((r) => r.id));
 
     return { ok: true };
   }

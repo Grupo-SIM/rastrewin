@@ -1,33 +1,14 @@
 import { Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { Raffle } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { enroll, expireIfPastDue } from '../plans';
-import { feedItem, FEED_SIZE } from '../feed';
-import { freeEndTime, makeRaffleData, maskedUser, normalize, participantAt, uniqueWinnerName, userIndex } from '../mock';
+import { expireIfPastDue, planLimit } from '../plans';
+import { materializeSchedule } from '../schedule';
+import { maskedUser, normalize, participantAt, uniqueWinnerName, userIndex } from '../mock';
 
-/** Sorteios encerrados continuam visíveis por esse tempo; depois viram histórico. */
-export const VISIBLE_AFTER_END_MS = 30 * 60 * 1000;
-/** Quantidade de sorteios abertos que a plataforma mantém: oscila devagar entre MIN e MAX ao longo do dia. */
-const MIN_OPEN = 50;
-const MAX_OPEN = 120;
-const OPEN_STEP_MS = 45 * 60 * 1000; // a cada 45 min sorteia um novo alvo; entre eles interpola
-const hash01 = (n: number) => {
-  let h = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b);
-  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-};
-export function targetOpen(nowMs: number) {
-  const b = Math.floor(nowMs / OPEN_STEP_MS);
-  const t = (nowMs % OPEN_STEP_MS) / OPEN_STEP_MS;
-  return Math.round(MIN_OPEN + (MAX_OPEN - MIN_OPEN) * (hash01(b) * (1 - t) + hash01(b + 1) * t));
-}
-/** Encerrados ficam disponíveis por 48h; o front mostra só os de "hoje" (virada de dia no fuso do usuário). */
-const ENDED_KEEP_MS = 48 * 3600 * 1000;
-const FEED_KEY = 'raffles';
-const DEMO_EVERY_MS = 4 * 60 * 1000;
-let lastDemo = 0;
-
-const rnd = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+/** Janela máxima que a lista devolve (cobre qualquer fuso: o front pede desde a meia-noite do usuário). */
+const MAX_LOOKBACK_MS = 36 * 3600 * 1000;
+/** Quantos ganhadores recentes entram na checagem de "não repetir ganhador". */
+const RECENT_WINNERS = 20_000;
 
 export function toPublic(r: Raffle, entered: boolean) {
   const nowMs = Date.now();
@@ -42,6 +23,7 @@ export function toPublic(r: Raffle, entered: boolean) {
     siteColor: r.siteColor,
     siteEmoji: r.siteEmoji,
     seed: r.seed,
+    startsAt: r.createdAt.toISOString(),
     endsAt: r.endsAt.toISOString(),
     participants: r.baseCount + Math.floor(elapsed / 1500),
     ended,
@@ -58,49 +40,24 @@ const serialized = <T,>(fn: () => Promise<T>) => {
   return run;
 };
 
-/** Todo sorteio encerrado ganha ganhador na hora (do pool de usuários, nunca repetido). */
+/** Todo sorteio encerrado ganha ganhador na hora (do pool de usuários, sem repetir os ganhadores recentes). */
 export function ensureWinners(prisma: PrismaService) {
   return serialized(async () => {
-    const pending = await prisma.raffle.findMany({ where: { endsAt: { lte: new Date() }, winnerName: null } });
+    const pending = await prisma.raffle.findMany({ where: { endsAt: { lte: new Date() }, winnerName: null }, select: { id: true, seed: true } });
     if (!pending.length) return;
-    const taken = await prisma.raffle.findMany({ where: { winnerName: { not: null } }, select: { winnerName: true } });
+    const taken = await prisma.raffle.findMany({
+      where: { winnerName: { not: null } }, orderBy: { endsAt: 'desc' }, take: RECENT_WINNERS, select: { winnerName: true },
+    });
     const used = new Set(taken.map((t) => t.winnerName as string));
-    for (const r of pending) {
-      const name = uniqueWinnerName(r.seed, used);
-      used.add(name);
-      await prisma.raffle.update({ where: { id: r.id }, data: { winnerName: name } });
+    for (let i = 0; i < pending.length; i += 200) {
+      await prisma.$transaction(
+        pending.slice(i, i + 200).map((r) => {
+          const name = uniqueWinnerName(r.seed, used);
+          used.add(name);
+          return prisma.raffle.update({ where: { id: r.id }, data: { winnerName: name } });
+        }),
+      );
     }
-  });
-}
-
-/** Repõe sorteios novos para manter ~TARGET_OPEN abertos, na ordem do feed (data/raffles.json), sem terminar junto de outro. */
-function replenish(prisma: PrismaService) {
-  return serialized(async () => {
-    const now = Date.now();
-    const open = await prisma.raffle.findMany({ where: { endsAt: { gt: new Date(now) } }, select: { endsAt: true } });
-    const wanted: number[] = []; // duração (ms) de cada novo sorteio
-    for (let i = 0; i < Math.min(3, targetOpen(now) - open.length); i++) wanted.push(rnd(2 * 3600, 72 * 3600) * 1000);
-    if (now - lastDemo > DEMO_EVERY_MS) {
-      lastDemo = now;
-      wanted.push(rnd(40, 240) * 1000); // um sorteio curto de vez em quando, para o painel parecer vivo
-    }
-    if (!wanted.length) return [] as Raffle[];
-
-    const taken = open.map((o) => o.endsAt.getTime());
-    const created: Raffle[] = [];
-    let position = (await prisma.feedState.findUnique({ where: { key: FEED_KEY } }))?.position ?? 0;
-    for (const dur of wanted) {
-      const item = feedItem(position);
-      position = (position + 1) % FEED_SIZE;
-      const end = freeEndTime(now + dur, taken);
-      taken.push(end);
-      const [raffle] = await prisma.$transaction([
-        prisma.raffle.create({ data: makeRaffleData(item.prize, new Date(end), Math.max(dur, 60_000), item.site) }),
-        prisma.feedState.upsert({ where: { key: FEED_KEY }, create: { key: FEED_KEY, position }, update: { position } }),
-      ]);
-      created.push(raffle);
-    }
-    return created;
   });
 }
 
@@ -108,27 +65,42 @@ function replenish(prisma: PrismaService) {
 export class RafflesController {
   constructor(private readonly prisma: PrismaService) {}
 
-  private visibleSince() {
-    return new Date(Date.now() - VISIBLE_AFTER_END_MS);
-  }
-
+  /**
+   * Sorteios do plano do usuário (cada plano vê uma fração fixa da agenda: 500, 2.000 ou 5.000 por dia).
+   * `since` = início da janela (ISO; o front manda a meia-noite do usuário). `after` = só o que mudou desde
+   * esse instante (sorteios novos ou que acabaram de terminar); o front junta pelo id e evita baixar tudo a cada 3 s.
+   * Os sorteios que o usuário ganhou aparecem sempre.
+   */
   @Get()
-  async list(@Query('userId') userId?: string) {
+  async list(@Query('userId') userId?: string, @Query('since') since?: string, @Query('after') after?: string) {
+    await materializeSchedule(this.prisma);
     await ensureWinners(this.prisma);
-    // abertos + recém-encerrados para todos; do usuário: encerrados das últimas 48h e todos os que ele ganhou
+    if (!userId) return [];
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, plan: true, status: true, expiresAt: true } });
+    if (!user) return [];
+    if ((await expireIfPastDue(this.prisma, user)) !== 'ACTIVE') return [];
+
+    const now = Date.now();
+    const floor = now - MAX_LOOKBACK_MS;
+    const from = new Date(Math.max(floor, Number(new Date(since ?? '')) || floor));
+    const changedAfter = after ? new Date(Math.max(floor, Number(after) || 0)) : null;
     const raffles = await this.prisma.raffle.findMany({
       where: {
-        OR: [
-          { endsAt: { gt: this.visibleSince() } },
-          ...(userId ? [{ entries: { some: { userId } }, endsAt: { gt: new Date(Date.now() - ENDED_KEEP_MS) } }, { winnerUserId: userId }] : []),
+        AND: [
+          {
+            OR: [
+              { slot: { not: null }, bucket: { lt: planLimit(user.plan) }, createdAt: { gte: from, lte: new Date(now) } },
+              { winnerUserId: userId },
+            ],
+          },
+          ...(changedAfter
+            ? [{ OR: [{ createdAt: { gt: changedAfter } }, { endsAt: { gt: changedAfter, lte: new Date(now) } }] }]
+            : []),
         ],
       },
       orderBy: { endsAt: 'asc' },
     });
-    const mine = userId
-      ? new Set((await this.prisma.entry.findMany({ where: { userId }, select: { raffleId: true } })).map((e) => e.raffleId))
-      : new Set<string>();
-    return raffles.map((r) => toPublic(r, mine.has(r.id)));
+    return raffles.map((r) => toPublic(r, true));
   }
 
   /** Posição e nome do usuário logado dentro da lista deste sorteio. */
@@ -168,18 +140,11 @@ export class RafflesController {
     return { results: results.sort((x, y) => x.index - y.index) };
   }
 
-  /** "Buscando sorteios...": repõe sorteios e inscreve o usuário em tudo que está visível. */
+  /** "Buscando sorteios...": só garante que a agenda e os ganhadores estão em dia (a lista vem de GET /raffles). */
   @Post('discover')
-  async discover(@Query('userId') userId: string) {
-    await replenish(this.prisma);
+  async discover() {
+    await materializeSchedule(this.prisma);
     await ensureWinners(this.prisma);
-    if (!userId) return [];
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, plan: true, status: true, expiresAt: true } });
-    if (!user) return [];
-    const status = await expireIfPastDue(this.prisma, user);
-    if (status !== 'ACTIVE') return [];
-    const visible = await this.prisma.raffle.findMany({ where: { endsAt: { gt: this.visibleSince() } }, orderBy: { endsAt: 'asc' } });
-    const added = new Set(await enroll(this.prisma, user, visible.map((r) => r.id)));
-    return visible.filter((r) => added.has(r.id)).map((r) => toPublic(r, true));
+    return [];
   }
 }
