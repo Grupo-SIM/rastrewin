@@ -48,7 +48,8 @@ model Raffle {
   endsAt       DateTime
   winnerName   String?
   winnerUserId String?
-  winnerIneligible Boolean @default(false) // ganhou mas não recebe: algum critério não foi cumprido
+  // sem uso: eram da aba "inelegíveis" (removida). Mantidas para o `db push` não tentar apagar colunas que já existem em prod.
+  winnerIneligible Boolean @default(false)
   ineligibleReason String?
   createdAt    DateTime @default(now())
   entries      Entry[]

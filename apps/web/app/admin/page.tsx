@@ -7,7 +7,7 @@ import { SiteIcon } from '@/components/SiteIcon';
 import { UserPicker } from '@/components/UserPicker';
 
 type AdminRaffle = {
-  id: string; title: string; prize: string; site: string; endsAt: string; winnerName: string | null; winnerUserId: string | null; winnerIneligible: boolean; ineligibleReason: string | null;
+  id: string; title: string; prize: string; site: string; endsAt: string; winnerName: string | null; winnerUserId: string | null;
   _count: { entries: number };
 };
 type AdminUser = {
@@ -254,24 +254,6 @@ export default function Admin() {
                       </a>
                     ) : null;
                   })()}
-                  {r.winnerUserId && (
-                    <select
-                      className="elig-sel"
-                      value={r.winnerIneligible ? 'no' : 'yes'}
-                      title={r.winnerIneligible && r.ineligibleReason ? `Motivo: ${r.ineligibleReason}` : 'Situação do ganhador'}
-                      aria-label="Elegibilidade do ganhador"
-                      onChange={(e) => {
-                        if (e.target.value === 'yes') return act(`/admin/raffles/${r.id}`, 'PATCH', { winnerIneligible: false, ineligibleReason: '' });
-                        const why = window.prompt('Motivo da inelegibilidade (aparece para o usuário):', r.ineligibleReason ?? '');
-                        if (why === null) return;
-                        act(`/admin/raffles/${r.id}`, 'PATCH', { winnerIneligible: true, ineligibleReason: why });
-                      }}
-                      style={r.winnerIneligible ? { background: '#fee2e2', color: '#b91c1c' } : undefined}
-                    >
-                      <option value="yes">Elegível</option>
-                      <option value="no">Inelegível</option>
-                    </select>
-                  )}
                   {r.winnerName && (
                     <button className="wa-x" title="Remover ganhador" aria-label="Remover ganhador" onClick={() => act(`/admin/raffles/${r.id}`, 'PATCH', { winnerName: '', winnerUserId: '' })}>×</button>
                   )}

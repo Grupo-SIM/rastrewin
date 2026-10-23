@@ -1,5 +1,5 @@
 import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
-import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { uniqueWinnerName } from '../mock';
 import { ensureWinners } from '../raffles/raffles.controller';
@@ -11,8 +11,6 @@ class UpdateRaffleDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(200) title?: string;
   @IsOptional() @IsString() winnerName?: string;
   @IsOptional() @IsString() winnerUserId?: string;
-  @IsOptional() @IsBoolean() winnerIneligible?: boolean;
-  @IsOptional() @IsString() @MaxLength(300) ineligibleReason?: string;
 }
 
 const WA_KEY = 'whatsappMessage';
@@ -71,17 +69,10 @@ export class AdminController {
   @Patch('raffles/:id')
   async setWinner(@Param('id') id: string, @Body() dto: UpdateRaffleDto) {
     await this.find(id);
-    const data: { title?: string; winnerName?: string | null; winnerUserId?: string | null; winnerIneligible?: boolean; ineligibleReason?: string | null } = {};
+    const data: { title?: string; winnerName?: string | null; winnerUserId?: string | null } = {};
     if (dto.title !== undefined) data.title = dto.title.trim();
     if (dto.winnerName !== undefined) data.winnerName = dto.winnerName || null;
     if (dto.winnerUserId !== undefined) data.winnerUserId = dto.winnerUserId || null;
-    if (dto.winnerIneligible !== undefined) data.winnerIneligible = dto.winnerIneligible;
-    if (dto.ineligibleReason !== undefined) data.ineligibleReason = dto.ineligibleReason.trim() || null;
-    // trocar ou remover o ganhador zera a inelegibilidade, a não ser que ela tenha sido enviada junto
-    if ((dto.winnerName !== undefined || dto.winnerUserId !== undefined) && dto.winnerIneligible === undefined) {
-      data.winnerIneligible = false;
-      data.ineligibleReason = null;
-    }
     return this.prisma.raffle.update({ where: { id }, data });
   }
 
@@ -90,7 +81,7 @@ export class AdminController {
     const r = await this.find(id);
     const taken = await this.prisma.raffle.findMany({ where: { winnerName: { not: null }, NOT: { id } }, select: { winnerName: true } });
     const name = uniqueWinnerName(r.seed, new Set(taken.map((t) => t.winnerName as string)));
-    return this.prisma.raffle.update({ where: { id }, data: { winnerName: name, winnerUserId: null, winnerIneligible: false, ineligibleReason: null } });
+    return this.prisma.raffle.update({ where: { id }, data: { winnerName: name, winnerUserId: null } });
   }
 
   /** Útil para testes: faz o sorteio terminar em N segundos. */

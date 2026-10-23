@@ -65,12 +65,11 @@ export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId:
   const remaining = new Date(r.endsAt).getTime() - now;
   const ended = remaining <= 0;
   const urgent = !ended && remaining < 300000;
-  const isMe = ended && r.winnerUserId === userId && !!r.winnerName && !r.winnerIneligible;
-  const bad = ended && r.winnerUserId === userId && !!r.winnerName && r.winnerIneligible;
+  const isMe = ended && r.winnerUserId === userId && !!r.winnerName;
 
   const pill = !ended
     ? urgent ? { t: 'Termina já', c: 'orange' } : { t: 'Ao vivo', c: 'blue' }
-    : bad ? { t: 'Inelegível', c: 'red' } : isMe ? { t: 'Você ganhou', c: 'green' } : r.winnerName ? { t: 'Encerrado', c: 'grey' } : { t: 'Apurando', c: 'grey' };
+    : isMe ? { t: 'Você ganhou', c: 'green' } : r.winnerName ? { t: 'Encerrado', c: 'grey' } : { t: 'Apurando', c: 'grey' };
 
   return (
     <div className={`rcard ${urgent ? 'urgent' : ''}`}>
@@ -80,7 +79,7 @@ export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId:
       </div>
       <div>
         <h3>{r.title}</h3>
-        <div className="meta">{r.participants.toLocaleString('pt-BR')} participantes · {isMe ? 'você ganhou' : bad ? 'você ganhou, mas não é elegível' : 'você está dentro ✔'}</div>
+        <div className="meta">{r.participants.toLocaleString('pt-BR')} participantes · {isMe ? 'você ganhou' : 'você está dentro ✔'}</div>
       </div>
       {!ended && (
         <>
@@ -128,13 +127,12 @@ export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId:
         <div className="res-me"><div><span className="big">Você ganhou!</span></div></div>
       )}
       {ended && !isMe && r.winnerName && (
-        <div className={`win-wrap ${bad ? 'bad' : ''}`}>
+        <div className="win-wrap">
           <div className="win">
             <span className="win-av">{r.winnerName[0]}</span>
-            <div className="win-txt"><span className="k">{bad ? 'INELEGÍVEL' : 'GANHADOR'}</span><span className="v">{r.winnerName}</span></div>
-            <span className="win-tag">{bad ? 'Não recebe' : 'Sorteado'}</span>
+            <div className="win-txt"><span className="k">GANHADOR</span><span className="v">{r.winnerName}</span></div>
+            <span className="win-tag">Sorteado</span>
           </div>
-          {bad && r.ineligibleReason && <div className="win-why">{r.ineligibleReason}</div>}
         </div>
       )}
       {ended && !r.winnerName && (

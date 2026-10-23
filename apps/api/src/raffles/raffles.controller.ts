@@ -8,8 +8,22 @@ import { freeEndTime, makeRaffleData, maskedUser, normalize, participantAt, uniq
 
 /** Sorteios encerrados continuam visíveis por esse tempo; depois viram histórico. */
 export const VISIBLE_AFTER_END_MS = 30 * 60 * 1000;
-/** Quantidade de sorteios abertos que a plataforma mantém (proporção exibida ao usuário). */
-const TARGET_OPEN = 70;
+/** Quantidade de sorteios abertos que a plataforma mantém: oscila devagar entre MIN e MAX ao longo do dia. */
+const MIN_OPEN = 50;
+const MAX_OPEN = 120;
+const OPEN_STEP_MS = 45 * 60 * 1000; // a cada 45 min sorteia um novo alvo; entre eles interpola
+const hash01 = (n: number) => {
+  let h = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+export function targetOpen(nowMs: number) {
+  const b = Math.floor(nowMs / OPEN_STEP_MS);
+  const t = (nowMs % OPEN_STEP_MS) / OPEN_STEP_MS;
+  return Math.round(MIN_OPEN + (MAX_OPEN - MIN_OPEN) * (hash01(b) * (1 - t) + hash01(b + 1) * t));
+}
+/** Encerrados ficam disponíveis por 48h; o front mostra só os de "hoje" (virada de dia no fuso do usuário). */
+const ENDED_KEEP_MS = 48 * 3600 * 1000;
 const FEED_KEY = 'raffles';
 /** 20 mil sorteios diferentes (prêmio + site); a posição atual fica gravada no banco (FeedState). */
 const FEED: { prize: string; site: string }[] = JSON.parse(readFileSync(join(__dirname, '../../data/raffles.json'), 'utf8'));
@@ -36,8 +50,6 @@ export function toPublic(r: Raffle, entered: boolean) {
     ended,
     winnerName: ended ? r.winnerName : null,
     winnerUserId: ended ? r.winnerUserId : null,
-    winnerIneligible: ended ? r.winnerIneligible : false,
-    ineligibleReason: ended && r.winnerIneligible ? r.ineligibleReason : null,
     entered,
   };
 }
@@ -70,7 +82,7 @@ function replenish(prisma: PrismaService) {
     const now = Date.now();
     const open = await prisma.raffle.findMany({ where: { endsAt: { gt: new Date(now) } }, select: { endsAt: true } });
     const wanted: number[] = []; // duração (ms) de cada novo sorteio
-    for (let i = 0; i < Math.min(3, TARGET_OPEN - open.length); i++) wanted.push(rnd(2 * 3600, 72 * 3600) * 1000);
+    for (let i = 0; i < Math.min(3, targetOpen(now) - open.length); i++) wanted.push(rnd(2 * 3600, 72 * 3600) * 1000);
     if (now - lastDemo > DEMO_EVERY_MS) {
       lastDemo = now;
       wanted.push(rnd(40, 240) * 1000); // um sorteio curto de vez em quando, para o painel parecer vivo
@@ -106,9 +118,14 @@ export class RafflesController {
   @Get()
   async list(@Query('userId') userId?: string) {
     await ensureWinners(this.prisma);
-    // abertos + recém-encerrados para todos; o histórico de encerrados do usuário nunca some (fica no banco)
+    // abertos + recém-encerrados para todos; do usuário: encerrados das últimas 48h e todos os que ele ganhou
     const raffles = await this.prisma.raffle.findMany({
-      where: { OR: [{ endsAt: { gt: this.visibleSince() } }, ...(userId ? [{ entries: { some: { userId } } }] : [])] },
+      where: {
+        OR: [
+          { endsAt: { gt: this.visibleSince() } },
+          ...(userId ? [{ entries: { some: { userId } }, endsAt: { gt: new Date(Date.now() - ENDED_KEEP_MS) } }, { winnerUserId: userId }] : []),
+        ],
+      },
       orderBy: { endsAt: 'asc' },
     });
     const mine = userId
