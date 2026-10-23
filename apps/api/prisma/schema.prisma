@@ -53,11 +53,12 @@ model Raffle {
   ineligibleReason String?
   createdAt    DateTime @default(now())
   entries      Entry[]
-  slot         Int?     @unique // posição na agenda de sorteios (ver src/schedule.ts); nula nos criados antes dela
+  slot         Int?     // posição na agenda de sorteios (ver src/schedule.ts); nula nos criados antes dela. Sem @unique de propósito: o `db push` do deploy recusa constraint nova sem --accept-data-loss
   bucket       Int      @default(0) // 0..4999: o plano enxerga o sorteio se bucket < limite diário do plano
 
   @@index([endsAt])
   @@index([createdAt])
+  @@index([slot])
 }
 
 /// Estado do feed. key 'slot' = última posição da agenda já gravada como sorteio (src/schedule.ts).

@@ -47,7 +47,7 @@ export function raffleForSlot(slot: number) {
 }
 
 let lock: Promise<unknown> = Promise.resolve();
-/** Grava os sorteios da agenda que já começaram e ainda não existem no banco (idempotente: `slot` é único). */
+/** Grava os sorteios da agenda que já começaram e ainda não existem no banco. */
 export function materializeSchedule(prisma: PrismaService) {
   const run = lock.then(async () => {
     const nowSlot = Math.floor(Date.now() / SLOT_MS);
@@ -57,9 +57,12 @@ export function materializeSchedule(prisma: PrismaService) {
       : nowSlot - Math.floor(FIRST_RUN_BACKFILL_MS / SLOT_MS);
     if (from > nowSlot) return;
     for (let s = from; s <= nowSlot; s += 1000) {
+      const to = Math.min(nowSlot, s + 999);
+      // idempotente sem constraint única: pula as posições que já existem
+      const have = new Set((await prisma.raffle.findMany({ where: { slot: { gte: s, lte: to } }, select: { slot: true } })).map((r) => r.slot));
       const data = [];
-      for (let i = s; i <= Math.min(nowSlot, s + 999); i++) data.push(raffleForSlot(i));
-      await prisma.raffle.createMany({ data, skipDuplicates: true });
+      for (let i = s; i <= to; i++) if (!have.has(i)) data.push(raffleForSlot(i));
+      if (data.length) await prisma.raffle.createMany({ data });
     }
     await prisma.feedState.upsert({ where: { key: STATE_KEY }, create: { key: STATE_KEY, position: nowSlot }, update: { position: nowSlot } });
   });
