@@ -29,13 +29,13 @@ class EndDto {
 export class AdminController {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Sorteios abertos/recém-encerrados, paginados (`limit` até 100) e com busca por título ou site. */
+  /** Sorteios em andamento (o que termina antes vem primeiro), paginados (`limit` até 100) e com busca por título ou site. */
   @Get('raffles')
   async list(@Query('q') q = '', @Query('offset') offset = '0', @Query('limit') limit = '50') {
     await ensureWinners(this.prisma);
     const term = q.trim();
     const where = {
-      endsAt: { gt: new Date(Date.now() - 30 * 60 * 1000) },
+      endsAt: { gt: new Date() }, // só os em andamento (a tela esconde os encerrados, então não podem ocupar a página)
       ...(term ? { OR: [{ title: { contains: term, mode: 'insensitive' as const } }, { site: { contains: term, mode: 'insensitive' as const } }] } : {}),
     };
     const o = Math.max(0, Number(offset) || 0);
