@@ -12,16 +12,22 @@ import { PhoneVerifyModal } from '@/components/PhoneVerifyModal';
 import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 
 type Tab = 'all' | 'open' | 'ended' | 'won';
-const PAGE = 12;
+type Summary = { open: number; ended: number; total: number; won: number };
+type Page = { items: Raffle[]; total: number; nextOffset: number | null };
+const PAGE = 24; // sorteios por página
+const REFRESH_MS = 5000; // contagens e páginas já carregadas
+const RESULTS_MS = 15000; // checagem de resultados novos (avisos)
 const TOAST_GAP_MS = 45 * 1000; // intervalo mínimo entre dois avisos de resultado
 
 export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [raffles, setRaffles] = useState<Raffle[]>([]);
+  const [items, setItems] = useState<Raffle[]>([]); // só a(s) página(s) carregada(s) da aba atual
+  const [total, setTotal] = useState(0); // total de sorteios da aba atual
+  const [summary, setSummary] = useState<Summary>({ open: 0, ended: 0, total: 0, won: 0 });
+  const [loaded, setLoaded] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [tab, setTab] = useState<Tab>('all');
-  const [shown, setShown] = useState(PAGE);
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const [queue, setQueue] = useState<ToastData[]>([]);
   // o primeiro aviso espera 20 segundos depois de entrar na plataforma
@@ -37,78 +43,123 @@ export default function Dashboard() {
   const notified = useRef<Set<string> | null>(null);
   const lines = useRobotLines();
 
-  // 1ª chamada do dia baixa tudo desde a meia-noite do usuário; as seguintes só trazem o que mudou (sorteios novos
-  // ou recém-terminados) e juntam pelo id: a plataforma abre até 5.000 sorteios por dia, não dá para rebaixar a lista a cada 3 s
-  const cursor = useRef<{ day: number; at: number } | null>(null);
-  const load = useCallback(async (uid: string) => {
+  // A plataforma abre até 5.000 sorteios por dia: nada de baixar a lista inteira. Tudo é paginado e só o que está
+  // na tela é atualizado (contagens + páginas já carregadas), uma chamada por vez e pausando com a aba escondida.
+  const tabRef = useRef<Tab>('all');
+  const itemsRef = useRef<Raffle[]>([]);
+  const totalRef = useRef(0);
+  const busy = useRef(false);
+  const uidRef = useRef<string | null>(null);
+  itemsRef.current = items;
+  totalRef.current = total;
+
+  const midnightIso = () => {
     const d = new Date();
-    const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    const delta = cursor.current && cursor.current.day === midnight ? cursor.current.at - 15_000 : null;
-    const fetchedAt = Date.now();
-    const rows = await api<Raffle[]>(`/raffles?userId=${uid}&since=${new Date(midnight).toISOString()}${delta ? `&after=${delta}` : ''}`);
-    cursor.current = { day: midnight, at: fetchedAt };
-    setRaffles((prev) => {
-      if (!delta) return rows;
-      const byId = new Map(prev.map((r) => [r.id, r]));
-      rows.forEach((r) => byId.set(r.id, r));
-      return [...byId.values()];
-    });
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
+  };
+  const listUrl = (tab: Tab, offset: number, limit: number) =>
+    `/raffles?userId=${uidRef.current}&since=${midnightIso()}&tab=${tab}&offset=${offset}&limit=${limit}`;
+
+  const refresh = useCallback(async () => {
+    if (!uidRef.current || busy.current) return;
+    busy.current = true;
+    const tab = tabRef.current;
+    try {
+      const limit = Math.min(200, Math.max(PAGE, itemsRef.current.length));
+      const [sum, page] = await Promise.all([
+        api<Summary>(`/raffles/summary?userId=${uidRef.current}&since=${midnightIso()}`),
+        api<Page>(listUrl(tab, 0, limit)),
+      ]);
+      if (tabRef.current !== tab) return; // trocou de aba no meio da chamada
+      setSummary(sum);
+      setItems(page.items);
+      setTotal(page.total);
+      setLoaded(true);
+    } catch {
+      /* tenta de novo no próximo ciclo */
+    } finally {
+      busy.current = false;
+    }
+  }, []);
+
+  const loadMore = useCallback(async () => {
+    if (!uidRef.current || busy.current || itemsRef.current.length >= totalRef.current) return;
+    busy.current = true;
+    const tab = tabRef.current;
+    try {
+      const page = await api<Page>(listUrl(tab, itemsRef.current.length, PAGE));
+      if (tabRef.current !== tab) return;
+      setItems((prev) => {
+        const seen = new Set(prev.map((r) => r.id));
+        return [...prev, ...page.items.filter((r) => !seen.has(r.id))];
+      });
+      setTotal(page.total);
+    } catch {
+      /* idem */
+    } finally {
+      busy.current = false;
+    }
   }, []);
 
   useEffect(() => {
     const uid = localStorage.getItem('userId');
     if (!uid) return void router.replace('/');
+    uidRef.current = uid;
     api<User>(`/users/${uid}`).then(setUser).catch(() => router.replace('/'));
-    load(uid);
-    // reinscreve já na abertura (ex.: após o banco ser recriado), sem esperar o ciclo de 25s
-    api(`/raffles/discover?userId=${uid}`, { method: 'POST' }).then(() => load(uid)).catch(() => {});
-    const poll = setInterval(() => load(uid), 3000);
-    const userPoll = setInterval(() => api<User>(`/users/${uid}`).then(setUser).catch(() => {}), 3000);
+    refresh();
+    const onScreen = () => document.visibilityState === 'visible';
+    const poll = setInterval(() => onScreen() && refresh(), REFRESH_MS);
+    const userPoll = setInterval(() => onScreen() && api<User>(`/users/${uid}`).then(setUser).catch(() => {}), 20000);
     const tick = setInterval(() => setNow(Date.now()), 1000);
-    // "descoberta" periódica de novos sorteios
-    const discover = setInterval(async () => {
+    const onVisible = () => onScreen() && refresh();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(poll); clearInterval(userPoll); clearInterval(tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [router, refresh]);
+
+  // trocar de aba zera a lista e busca a primeira página dela
+  useEffect(() => {
+    tabRef.current = tab;
+    setItems([]);
+    setTotal(0);
+    setLoaded(false);
+    busy.current = false;
+    refresh();
+  }, [tab, refresh]);
+
+  // avisos de resultado: olha só os 8 encerrados mais recentes, de tempos em tempos
+  useEffect(() => {
+    if (!user || user.status !== 'ACTIVE') return;
+    const check = async () => {
+      if (document.visibilityState !== 'visible') return;
       try {
-        await api<Raffle[]>(`/raffles/discover?userId=${uid}`, { method: 'POST' });
-        load(uid);
-      } catch {}
-    }, 25000);
-    return () => { clearInterval(poll); clearInterval(userPoll); clearInterval(tick); clearInterval(discover); };
-  }, [router, load]);
-
-  // Tudo zera à meia-noite do usuário: só entram os sorteios que começaram hoje (os que ele ganhou ficam sempre)
-  const mine = useMemo(() => {
-    const d = new Date(now);
-    const today = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    return raffles.filter((r) => r.entered && (new Date(r.startsAt).getTime() >= today || r.winnerUserId === user?.id));
-    // eslint-disable-next-line
-  }, [raffles, user, Math.floor(now / 60000)]);
-
-  // o contador zerou mas o ganhador ainda não chegou: busca já, sem esperar o próximo ciclo
-  useEffect(() => {
-    const uid = localStorage.getItem('userId');
-    if (uid && mine.some((r) => new Date(r.endsAt).getTime() <= now && !r.winnerName)) load(uid);
-  }, [now, mine, load]);
-
-  // avisa quando um sorteio termina e tem ganhador definido
-  useEffect(() => {
-    if (!user) return;
-    const done = mine.filter((r) => r.ended && r.winnerName);
-    if (notified.current === null) {
-      notified.current = new Set(done.map((r) => r.id)); // não avisa o que já estava encerrado ao abrir
-      return;
-    }
-    const fresh = done.filter((r) => !notified.current!.has(r.id));
-    if (!fresh.length) return;
-    fresh.forEach((r) => notified.current!.add(r.id));
-    // entram numa fila: os do próprio usuário vão na frente e a fila guarda no máximo 3 avisos
-    setQueue((q) => {
-      const add = fresh.map((r): ToastData => ({
-        id: r.id, me: r.winnerUserId === user.id, winner: r.winnerName ?? '', prize: r.title, site: r.site, color: r.siteColor,
-      }));
-      const all = [...q, ...add];
-      return [...all.filter((x) => x.me), ...all.filter((x) => !x.me)].slice(0, 3);
-    });
-  }, [mine, user]);
+        const page = await api<Page>(`/raffles?userId=${user.id}&since=${midnightIso()}&tab=ended&offset=0&limit=8`);
+        const done = page.items.filter((r) => r.winnerName);
+        if (notified.current === null) {
+          notified.current = new Set(done.map((r) => r.id)); // não avisa o que já estava encerrado ao abrir
+          return;
+        }
+        const fresh = done.filter((r) => !notified.current!.has(r.id));
+        if (!fresh.length) return;
+        fresh.forEach((r) => notified.current!.add(r.id));
+        // entram numa fila: os do próprio usuário vão na frente e a fila guarda no máximo 3 avisos
+        setQueue((q) => {
+          const add = fresh.map((r): ToastData => ({
+            id: r.id, me: r.winnerUserId === user.id, winner: r.winnerName ?? '', prize: r.title, site: r.site, color: r.siteColor,
+          }));
+          const all = [...q, ...add];
+          return [...all.filter((x) => x.me), ...all.filter((x) => !x.me)].slice(0, 3);
+        });
+      } catch {
+        /* idem */
+      }
+    };
+    check();
+    const t = setInterval(check, RESULTS_MS);
+    return () => clearInterval(t);
+  }, [user?.id, user?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // libera um aviso por vez, 1 a cada 45 segundos; no máximo 2 na tela no celular (3 no desktop)
   useEffect(() => {
@@ -123,30 +174,14 @@ export default function Dashboard() {
     }, wait);
     return () => clearTimeout(t);
   }, [queue, toasts]);
-  const isOpen = (r: Raffle) => new Date(r.endsAt).getTime() > now;
-  const visible = useMemo(() => {
-    const list = mine.filter((r) => {
-      if (tab === 'open') return isOpen(r);
-      if (tab === 'ended') return !isOpen(r);
-      if (tab === 'won') return !isOpen(r) && r.winnerUserId === user?.id;
-      return true;
-    });
-    // em andamento primeiro (por tempo restante), depois encerrados (mais recentes primeiro)
-    return list.sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || (isOpen(a) ? +new Date(a.endsAt) - +new Date(b.endsAt) : +new Date(b.endsAt) - +new Date(a.endsAt)));
-    // eslint-disable-next-line
-  }, [mine, tab, user, Math.floor(now / 5000)]);
-
-  const open = mine.filter(isOpen).length;
-  const won = mine.filter((r) => !isOpen(r) && r.winnerUserId === user?.id).length;
-
-  // scroll infinito da lista de sorteios
+  // scroll infinito: perto do fim, pede a próxima página ao servidor
   useEffect(() => {
     const onScroll = () => {
-      if (window.innerHeight + window.scrollY > document.body.offsetHeight - 400) setShown((s) => s + PAGE);
+      if (window.innerHeight + window.scrollY > document.body.offsetHeight - 400) loadMore();
     };
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  }, [loadMore]);
 
   if (!user) return null;
 
@@ -171,17 +206,12 @@ export default function Dashboard() {
     );
   }
 
-  const countOf = (k: Tab) => mine.filter((r) => {
-    if (k === 'open') return isOpen(r);
-    if (k === 'ended') return !isOpen(r);
-    if (k === 'won') return !isOpen(r) && r.winnerUserId === user.id;
-    return true;
-  }).length;
+  const countOf = (k: Tab) => ({ all: summary.total, open: summary.open, ended: summary.ended, won: summary.won }[k]);
   const stats = [
-    { l: 'sorteios que você participa hoje', v: mine.length, c: 'var(--ink)', bg: '#fff' },
-    { l: 'em andamento', v: open, c: 'var(--ink)', bg: 'var(--blue-bg)' },
-    { l: 'encerrados', v: mine.length - open, c: 'var(--ink)', bg: 'var(--line)' },
-    { l: 'prêmios ganhos', v: won, c: 'var(--green-fg)', bg: 'var(--green-bg)' },
+    { l: 'sorteios que você participa hoje', v: summary.total, c: 'var(--ink)', bg: '#fff' },
+    { l: 'em andamento', v: summary.open, c: 'var(--ink)', bg: 'var(--blue-bg)' },
+    { l: 'encerrados', v: summary.ended, c: 'var(--ink)', bg: 'var(--line)' },
+    { l: 'prêmios ganhos', v: summary.won, c: 'var(--green-fg)', bg: 'var(--green-bg)' },
   ];
   const first = user.name.split(' ')[0];
   const lastLine = lines[lines.length - 1]?.s ?? '';
@@ -223,20 +253,20 @@ export default function Dashboard() {
         <div className="toolbar">
           <Tabs
             value={tab}
-            onChange={(k) => { setTab(k); setShown(PAGE); }}
+            onChange={setTab}
             items={(['all', 'open', 'ended', 'won'] as Tab[]).map((k) => ({ key: k, label: { all: 'Todos', open: 'Em andamento', ended: 'Encerrados', won: 'Ganhei' }[k], count: countOf(k) }))}
           />
           <LogoStrip />
         </div>
 
-        {tab === 'won' && visible.length === 0 && (
+        {tab === 'won' && loaded && total === 0 && (
           <div className="won-empty">
             <b>Você ainda não ganhou nenhum sorteio</b>
           </div>
         )}
 
         <div className={`raffles ${tab === 'won' ? 'compact' : ''}`}>
-          {visible.slice(0, shown).map((r) => <RaffleCard key={r.id} r={r} now={now} userId={user.id} />)}
+          {items.map((r) => <RaffleCard key={r.id} r={r} now={now} userId={user.id} />)}
         </div>
       </main>
       <div className="toasts">

@@ -8,13 +8,15 @@ const MAX_SHOWN = 80;
 
 /** Combobox com busca para escolher um cliente. A lista abre em portal (não é cortada por overflow). */
 export function UserPicker({
-  options, value, fallbackLabel, onChange,
+  options, value, fallbackLabel, loadOptions, onChange,
 }: {
   options: UserOption[];
+  /** busca remota (use quando há clientes demais para baixar todos): recebe o texto digitado */
+  loadOptions?: (q: string) => Promise<UserOption[]>;
   value: string;
   /** texto exibido quando há ganhador sem vínculo com um cliente */
   fallbackLabel?: string | null;
-  onChange: (id: string) => void;
+  onChange: (id: string, name?: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -24,11 +26,22 @@ export function UserPicker({
   const pop = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
 
-  const selected = options.find((o) => o.id === value);
+  const [remote, setRemote] = useState<UserOption[]>([]);
+  useEffect(() => {
+    if (!open || !loadOptions) return;
+    let alive = true;
+    const t = setTimeout(() => loadOptions(q.trim()).then((r) => alive && setRemote(r)).catch(() => {}), 250);
+    return () => { alive = false; clearTimeout(t); };
+    // eslint-disable-next-line
+  }, [open, q]);
+
+  const selected = (loadOptions ? remote : options).find((o) => o.id === value) ?? options.find((o) => o.id === value);
   const shown = useMemo(() => {
+    if (loadOptions) return remote;
     const n = q.trim().toLowerCase();
     return n ? options.filter((o) => (o.name + ' ' + o.sub).toLowerCase().includes(n)) : options;
-  }, [options, q]);
+    // eslint-disable-next-line
+  }, [options, q, remote]);
   const visible = shown.slice(0, MAX_SHOWN);
 
   function place() {
@@ -76,7 +89,7 @@ export function UserPicker({
   }, [hi]);
 
   function pick(id: string) {
-    onChange(id);
+    onChange(id, shown.find((o) => o.id === id)?.name);
     close();
     btn.current?.focus();
   }

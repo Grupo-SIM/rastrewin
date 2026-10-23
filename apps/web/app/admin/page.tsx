@@ -10,7 +10,12 @@ import { UserPicker } from '@/components/UserPicker';
 type AdminRaffle = {
   id: string; title: string; prize: string; site: string; endsAt: string; winnerName: string | null; winnerUserId: string | null;
   _count: { entries: number };
+  winnerUser: { id: string; name: string; phone: string } | null;
 };
+type Paged<T> = { items: T[]; total: number };
+type UsersPage = Paged<AdminUser> & { planCounts: Record<string, number>; winnerClients: number; winnerPrizes: number };
+const PAGE = 50; // linhas por "carregar mais"
+
 type AdminUser = {
   id: string; name: string; email: string; plan: string; phone: string; cpf: string; pix: string | null; city: string; paidAt: string;
   wins: { id: string; title: string; site: string; prize: string; endsAt: string }[];
@@ -25,7 +30,7 @@ const PALETTE = ['#ff5a36', '#7c3aed', '#16a34a', '#0ea5e9', '#e11d48', '#f59e0b
 const siteColor = (name: string) => PALETTE[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTE.length];
 
 /** Baixa a lista de clientes filtrada como CSV (separador ;, compatível com Excel pt-BR). */
-function exportClientsCsv(clients: AdminUser[]) {
+function downloadClientsCsv(clients: AdminUser[]) {
   const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const header = ['Nome', 'E-mail', 'Telefone', 'Pix', 'CPF', 'Cidade', 'Plano', 'Valor', 'Pago em', 'Prêmios ganhos'];
   const rows = clients.map((u) => [
@@ -59,7 +64,7 @@ function fillMessage(tpl: string, u: { name: string }, r: { title: string; prize
     .replaceAll('{site}', r.site);
 }
 
-function waLink(tpl: string, u: AdminUser, r: AdminRaffle) {
+function waLink(tpl: string, u: { name: string; phone: string }, r: { title: string; prize: string; site: string }) {
   let phone = u.phone.replace(/\D/g, '');
   if (phone.length <= 11) phone = '55' + phone;
   return `https://wa.me/${phone}?text=${encodeURIComponent(fillMessage(tpl, u, r))}`;
@@ -70,6 +75,13 @@ export default function Admin() {
   const [raffles, setRaffles] = useState<AdminRaffle[]>([]);
   const order = useRef<string[]>([]); // posição das linhas fica fixa entre recargas (evita "pulos" ao editar)
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [userTotal, setUserTotal] = useState(0);
+  const [raffleTotal, setRaffleTotal] = useState(0);
+  const [planCounts, setPlanCounts] = useState<Record<string, number>>({});
+  const [winStats, setWinStats] = useState({ clients: 0, prizes: 0 });
+  const [rLimit, setRLimit] = useState(PAGE);
+  const [uLimit, setULimit] = useState(PAGE);
+  const [dq, setDq] = useState('');
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [tab, setTab] = useState<'raffles' | 'clients'>('raffles');
   const [waMsg, setWaMsg] = useState('');
@@ -84,23 +96,48 @@ export default function Admin() {
   const [openWins, setOpenWins] = useState<string | null>(null);
   const [error, setError] = useState('');
 
+  // busca com atraso para não consultar o servidor a cada tecla
+  useEffect(() => {
+    const t = setTimeout(() => setDq(q.trim()), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+  // mudar o filtro volta para a primeira página
+  useEffect(() => { setRLimit(PAGE); setULimit(PAGE); }, [dq, planFilter, onlyWinners]);
+
+  const usersQuery = (limit: number) =>
+    `q=${encodeURIComponent(dq)}&plan=${planFilter}&winners=${onlyWinners ? 1 : ''}&offset=0&limit=${limit}`;
+
   const load = useCallback(async () => {
     try {
       const [r, u] = await Promise.all([
-        api<AdminRaffle[]>('/admin/raffles', { admin: true }),
-        api<AdminUser[]>('/admin/users', { admin: true }),
+        api<Paged<AdminRaffle>>(`/admin/raffles?q=${encodeURIComponent(dq)}&offset=0&limit=${rLimit}`, { admin: true }),
+        api<UsersPage>(`/admin/users?${usersQuery(uLimit)}`, { admin: true }),
       ]);
       const known = new Set(order.current);
-      const fresh = r.map((x) => x.id).filter((id) => !known.has(id));
-      order.current = [...order.current.filter((id) => r.some((x) => x.id === id)), ...fresh];
-      const byId = new Map(r.map((x) => [x.id, x]));
+      const fresh = r.items.map((x) => x.id).filter((id) => !known.has(id));
+      order.current = [...order.current.filter((id) => r.items.some((x) => x.id === id)), ...fresh];
+      const byId = new Map(r.items.map((x) => [x.id, x]));
       setRaffles(order.current.map((id) => byId.get(id)!));
-      setUsers(u);
+      setRaffleTotal(r.total);
+      setUsers(u.items);
+      setUserTotal(u.total);
+      setPlanCounts(u.planCounts);
+      setWinStats({ clients: u.winnerClients, prizes: u.winnerPrizes });
       setError('');
     } catch (e) {
       setError((e as Error).message);
     }
-  }, []);
+    // eslint-disable-next-line
+  }, [dq, rLimit, uLimit, planFilter, onlyWinners]);
+
+  async function exportCsv() {
+    try {
+      const all = await api<UsersPage>(`/admin/users?${usersQuery(5000)}&export=1`, { admin: true });
+      downloadClientsCsv(all.items);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
 
   useEffect(() => {
     api<{ text: string; defaultText: string }>('/admin/whatsapp-message', { admin: true })
@@ -136,13 +173,13 @@ export default function Admin() {
     }
   }
 
-  const userOptions = users.map((u) => ({ id: u.id, name: u.name, sub: `${u.email} · ${PLAN_NAME[u.plan] ?? u.plan}` }));
-  const needle = q.toLowerCase();
+  // seletor de ganhador: busca no servidor (até 50 por vez), sem baixar todos os clientes
+  const searchUsers = async (term: string) =>
+    (await api<{ id: string; name: string; email: string; plan: string }[]>(`/admin/users/options?q=${encodeURIComponent(term)}`, { admin: true }))
+      .map((u) => ({ id: u.id, name: u.name, sub: `${u.email} · ${PLAN_NAME[u.plan] ?? u.plan}` }));
   const isEnded = (r: AdminRaffle) => new Date(r.endsAt).getTime() <= now;
-  const filtered = raffles.filter((r) => !isEnded(r) && (r.title + r.site).toLowerCase().includes(needle));
-  const clients = users.filter((u) => (!onlyWinners || u.wins.length > 0) && (planFilter === 'all' || u.plan === planFilter) && (u.name + u.email + u.cpf + u.phone + (u.pix ?? '')).toLowerCase().includes(needle));
-  // ganhadores dentro do plano escolhido
-  const winners = users.filter((u) => u.wins.length > 0 && (planFilter === 'all' || u.plan === planFilter));
+  const filtered = raffles.filter((r) => !isEnded(r));
+  const clients = users;
 
   return (
     <div className="app admin-page">
@@ -157,12 +194,12 @@ export default function Admin() {
           <h1 className="display">Admin</h1>
           <label className="search">
             <input placeholder={tab === 'raffles' ? 'Filtrar por título ou site...' : 'Filtrar por nome, e-mail, CPF, telefone ou Pix...'} value={q} onChange={(e) => setQ(e.target.value)} />
-            <span>{tab === 'raffles' ? `${filtered.length} sorteios` : `${clients.length} clientes`}</span>
+            <span>{tab === 'raffles' ? `${raffleTotal} sorteios` : `${userTotal} clientes`}</span>
           </label>
         </div>
         <div className="atabs">
           <button className={tab === 'raffles' ? 'on' : ''} onClick={() => setTab('raffles')}>Sorteios</button>
-          <button className={tab === 'clients' ? 'on' : ''} onClick={() => setTab('clients')}>Clientes ({users.length})</button>
+          <button className={tab === 'clients' ? 'on' : ''} onClick={() => setTab('clients')}>Clientes ({Object.values(planCounts).reduce((a, n) => a + n, 0)})</button>
           {tab === 'clients' && (
             <span className="atabs-sum">
               <Dropdown
@@ -171,15 +208,15 @@ export default function Admin() {
                 onChange={setPlanFilter}
                 width={190}
                 options={[
-                  { value: 'all', label: `Todos os planos (${users.length})` },
-                  ...Object.entries(PLAN_NAME).map(([id, name]) => ({ value: id, label: `${name} (${users.filter((u) => u.plan === id).length})` })),
+                  { value: 'all', label: `Todos os planos (${Object.values(planCounts).reduce((a, n) => a + n, 0)})` },
+                  ...Object.entries(PLAN_NAME).map(([id, name]) => ({ value: id, label: `${name} (${planCounts[id] ?? 0})` })),
                 ]}
               />
               <label className="win-filter">
                 <input type="checkbox" checked={onlyWinners} onChange={(e) => setOnlyWinners(e.target.checked)} />
-                Só quem ganhou ({winners.length} clientes · {winners.reduce((a, u) => a + u.wins.length, 0)} prêmios)
+                Só quem ganhou ({winStats.clients} clientes · {winStats.prizes} prêmios)
               </label>
-              <button className="abtn o" style={{ marginLeft: 12 }} onClick={() => exportClientsCsv(clients)}>Exportar CSV</button>
+              <button className="abtn o" style={{ marginLeft: 12 }} onClick={exportCsv}>Exportar CSV</button>
             </span>
           )}
         </div>
@@ -241,6 +278,11 @@ export default function Admin() {
               </div>
             ))}
             {clients.length === 0 && <div className="arow"><span className="sub">Nenhum cliente encontrado.</span></div>}
+            {userTotal > clients.length && (
+              <div className="arow" style={{ justifyContent: 'center', display: 'flex' }}>
+                <button className="abtn o" onClick={() => setULimit((n) => n + PAGE)}>Carregar mais ({clients.length} de {userTotal})</button>
+              </div>
+            )}
           </div>
         ) : (
         <div className="atable">
@@ -272,15 +314,15 @@ export default function Admin() {
                 <div className="winner-cell">
                   <UserPicker
                     value={r.winnerUserId ?? ''}
-                    fallbackLabel={r.winnerUserId ? null : r.winnerName}
-                    options={userOptions}
-                    onChange={(id) => {
-                      const u = users.find((x) => x.id === id);
-                      if (u) act(`/admin/raffles/${r.id}`, 'PATCH', { winnerName: u.name, winnerUserId: u.id });
+                    fallbackLabel={r.winnerName}
+                    options={r.winnerUser ? [{ id: r.winnerUser.id, name: r.winnerUser.name, sub: '' }] : []}
+                    loadOptions={searchUsers}
+                    onChange={(id, name) => {
+                      if (name) act(`/admin/raffles/${r.id}`, 'PATCH', { winnerName: name, winnerUserId: id });
                     }}
                   />
                   {(() => {
-                    const w = r.winnerUserId ? users.find((x) => x.id === r.winnerUserId) : undefined;
+                    const w = r.winnerUser;
                     return w ? (
                       <a className="wa-btn" href={waLink(waMsg, w, r)} target="_blank" rel="noopener noreferrer" title={`Enviar WhatsApp para ${w.name}`} aria-label={`Enviar WhatsApp para ${w.name}`}>
                         <WhatsAppIcon />
@@ -297,6 +339,11 @@ export default function Admin() {
               </div>
             );
           })}
+          {raffleTotal > raffles.length && (
+            <div className="arow" style={{ justifyContent: 'center', display: 'flex' }}>
+              <button className="abtn o" onClick={() => setRLimit((n) => n + PAGE)}>Carregar mais ({raffles.length} de {raffleTotal})</button>
+            </div>
+          )}
         </div>
         )}
       </main>

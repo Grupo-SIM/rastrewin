@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { api, fmtRemaining, Raffle } from '@/lib/api';
 import { SiteIcon } from '@/components/SiteIcon';
 
+const PAGE_NAMES = 100; // nomes por chamada (a lista rola devagar: cada página dura mais de 1 min)
+
 export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId: string }) {
   const [names, setNames] = useState<string[]>([]);
   const [me, setMe] = useState<{ index: number; name: string } | null>(null);
@@ -13,13 +15,26 @@ export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId:
   const loading = useRef(false);
   const box = useRef<HTMLDivElement>(null);
   const hover = useRef(false);
+  const root = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
+  // a lista de nomes só existe em sorteio aberto; só busca e rola enquanto o card está na tela (com folga)
+  const isOpenNow = new Date(r.endsAt).getTime() > now;
+  const active = inView && isOpenNow;
+
+  useEffect(() => {
+    const el = root.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return setInView(true);
+    const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { rootMargin: '300px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   async function more() {
     if (loading.current) return;
     loading.current = true;
     try {
       const res = await api<{ items: string[]; nextOffset: number; me: { index: number; name: string } | null }>(
-        `/raffles/${r.id}/participants?offset=${offset.current}&limit=30&userId=${userId}`,
+        `/raffles/${r.id}/participants?offset=${offset.current}&limit=${PAGE_NAMES}&userId=${userId}`,
       );
       if (res.me) setMe(res.me);
       offset.current = res.nextOffset;
@@ -28,19 +43,20 @@ export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId:
       loading.current = false;
     }
   }
-  useEffect(() => { more(); /* eslint-disable-next-line */ }, [r.id]);
+  useEffect(() => { if (active && offset.current === 0) more(); /* eslint-disable-next-line */ }, [r.id, active]);
 
   // rolagem automática: a lista parece não ter fim
   useEffect(() => {
+    if (!active) return;
     const t = setInterval(() => {
       const el = box.current;
-      if (!el || hover.current) return;
+      if (!el || hover.current || document.visibilityState !== 'visible') return;
       el.scrollTop += 1;
       if (el.scrollTop + el.clientHeight > el.scrollHeight - 60) more();
     }, 40);
     return () => clearInterval(t);
     // eslint-disable-next-line
-  }, [r.id]);
+  }, [r.id, active]);
 
   // busca por nome (com pequeno atraso para não consultar a cada tecla)
   useEffect(() => {
@@ -72,7 +88,7 @@ export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId:
     : isMe ? { t: 'Você ganhou', c: 'green' } : r.winnerName ? { t: 'Encerrado', c: 'grey' } : { t: 'Apurando', c: 'grey' };
 
   return (
-    <div className={`rcard ${urgent ? 'urgent' : ''}`}>
+    <div ref={root} className={`rcard ${urgent ? 'urgent' : ''}`}>
       <div className="top">
         <span className="site"><SiteIcon name={r.site} color={r.siteColor} size={24} />{r.site}</span>
         <span className={`pill ${pill.c}`}>{pill.t}</span>

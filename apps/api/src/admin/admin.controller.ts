@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { uniqueWinnerName } from '../mock';
@@ -29,11 +29,26 @@ class EndDto {
 export class AdminController {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Sorteios abertos/recém-encerrados, paginados (`limit` até 100) e com busca por título ou site. */
   @Get('raffles')
-  async list() {
+  async list(@Query('q') q = '', @Query('offset') offset = '0', @Query('limit') limit = '50') {
     await ensureWinners(this.prisma);
-    // abertos e recém-encerrados (a agenda abre 5.000 por dia; não dá para listar tudo)
-    return this.prisma.raffle.findMany({ where: { endsAt: { gt: new Date(Date.now() - 30 * 60 * 1000) } }, orderBy: { endsAt: 'asc' }, include: { _count: { select: { entries: true } } } });
+    const term = q.trim();
+    const where = {
+      endsAt: { gt: new Date(Date.now() - 30 * 60 * 1000) },
+      ...(term ? { OR: [{ title: { contains: term, mode: 'insensitive' as const } }, { site: { contains: term, mode: 'insensitive' as const } }] } : {}),
+    };
+    const o = Math.max(0, Number(offset) || 0);
+    const l = Math.min(100, Math.max(1, Number(limit) || 50));
+    const [items, total] = await Promise.all([
+      this.prisma.raffle.findMany({ where, orderBy: { endsAt: 'asc' }, skip: o, take: l, include: { _count: { select: { entries: true } } } }),
+      this.prisma.raffle.count({ where }),
+    ]);
+    // nome/telefone dos ganhadores desta página (o front monta o link do WhatsApp sem baixar todos os clientes)
+    const ids = [...new Set(items.map((r) => r.winnerUserId).filter(Boolean) as string[])];
+    const winners = ids.length ? await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, phone: true } }) : [];
+    const byId = new Map(winners.map((w) => [w.id, w]));
+    return { items: items.map((r) => ({ ...r, winnerUser: r.winnerUserId ? byId.get(r.winnerUserId) ?? null : null })), total };
   }
 
   /** Modelo da mensagem de WhatsApp enviada ao ganhador. Variáveis: {nome} {sorteio} {site} {premio}. */
@@ -49,22 +64,69 @@ export class AdminController {
     return { text: dto.text, isDefault: false, defaultText: WA_DEFAULT };
   }
 
+  /** Busca leve de clientes para o seletor de ganhador (no máximo 50 por chamada). */
+  @Get('users/options')
+  async userOptions(@Query('q') q = '') {
+    const term = q.trim();
+    const rows = await this.prisma.user.findMany({
+      where: term ? { OR: [{ name: { contains: term, mode: 'insensitive' } }, { email: { contains: term, mode: 'insensitive' } }] } : undefined,
+      orderBy: { name: 'asc' },
+      take: 50,
+      select: { id: true, name: true, email: true, plan: true },
+    });
+    return rows.map((u) => ({ id: u.id, name: u.name, email: u.email, plan: u.plan }));
+  }
+
+  /**
+   * Clientes paginados (`limit` até 100; 5000 só para exportar CSV). Filtros no servidor: `q` (nome, e-mail, CPF,
+   * telefone ou Pix), `plan` e `winners=1` (só quem já ganhou). Devolve também as contagens para a tela.
+   */
   @Get('users')
-  async users() {
-    // todo usuário cadastrado já passou pelo pagamento (paidAt é preenchido na criação)
-    const users = await this.prisma.user.findMany({
-      orderBy: { paidAt: 'desc' },
-      include: { _count: { select: { entries: true } } },
-    });
-    // sorteios já encerrados em que o usuário foi o ganhador
-    const won = await this.prisma.raffle.findMany({
-      where: { winnerUserId: { not: null }, endsAt: { lte: new Date() } },
-      orderBy: { endsAt: 'desc' },
-      select: { id: true, title: true, site: true, prize: true, endsAt: true, winnerUserId: true },
-    });
+  async users(
+    @Query('q') q = '', @Query('plan') plan = 'all', @Query('winners') winners = '', @Query('offset') offset = '0',
+    @Query('limit') limit = '50', @Query('export') exportAll = '',
+  ) {
+    const term = q.trim();
+    // sorteios já encerrados em que algum cliente foi o ganhador
+    const wonRows = await this.prisma.raffle.groupBy({ by: ['winnerUserId'], where: { winnerUserId: { not: null }, endsAt: { lte: new Date() } }, _count: { _all: true } });
+    const winnerIds = wonRows.map((w) => w.winnerUserId as string);
+    const prizesOf = new Map(wonRows.map((w) => [w.winnerUserId as string, w._count._all]));
+
+    const planWhere = plan !== 'all' ? { plan } : {};
+    const where = {
+      ...planWhere,
+      ...(winners === '1' ? { id: { in: winnerIds } } : {}),
+      ...(term
+        ? {
+            OR: ['name', 'email', 'cpf', 'phone', 'pix'].map((f) => ({ [f]: { contains: term, mode: 'insensitive' as const } })),
+          }
+        : {}),
+    };
+    const o = Math.max(0, Number(offset) || 0);
+    const l = Math.min(exportAll ? 5000 : 100, Math.max(1, Number(limit) || 50));
+    const [users, total, byPlan, winnerClients] = await Promise.all([
+      this.prisma.user.findMany({ where, orderBy: { paidAt: 'desc' }, skip: o, take: l }),
+      this.prisma.user.count({ where }),
+      this.prisma.user.groupBy({ by: ['plan'], _count: { _all: true } }),
+      this.prisma.user.findMany({ where: { id: { in: winnerIds }, ...planWhere }, select: { id: true } }),
+    ]);
+    // os prêmios (lista) só dos clientes desta página
+    const won = users.length
+      ? await this.prisma.raffle.findMany({
+          where: { winnerUserId: { in: users.map((u) => u.id) }, endsAt: { lte: new Date() } },
+          orderBy: { endsAt: 'desc' },
+          select: { id: true, title: true, site: true, prize: true, endsAt: true, winnerUserId: true },
+        })
+      : [];
     const winsOf = new Map<string, typeof won>();
     for (const w of won) winsOf.set(w.winnerUserId as string, [...(winsOf.get(w.winnerUserId as string) ?? []), w]);
-    return users.map((u) => ({ ...toPublicUser(u), limit: planLimit(u.plan), wins: winsOf.get(u.id) ?? [] }));
+    return {
+      items: users.map((u) => ({ ...toPublicUser(u), limit: planLimit(u.plan), wins: winsOf.get(u.id) ?? [] })),
+      total,
+      planCounts: Object.fromEntries(byPlan.map((p) => [p.plan, p._count._all])),
+      winnerClients: winnerClients.length,
+      winnerPrizes: winnerClients.reduce((a, u) => a + (prizesOf.get(u.id) ?? 0), 0),
+    };
   }
 
   private async find(id: string) {

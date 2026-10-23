@@ -65,42 +65,76 @@ export function ensureWinners(prisma: PrismaService) {
 export class RafflesController {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Sorteios do plano do usuário (cada plano vê uma fração fixa da agenda: 500, 2.000 ou 5.000 por dia).
-   * `since` = início da janela (ISO; o front manda a meia-noite do usuário). `after` = só o que mudou desde
-   * esse instante (sorteios novos ou que acabaram de terminar); o front junta pelo id e evita baixar tudo a cada 3 s.
-   * Os sorteios que o usuário ganhou aparecem sempre.
-   */
-  @Get()
-  async list(@Query('userId') userId?: string, @Query('since') since?: string, @Query('after') after?: string) {
+  /** Usuário ativo + janela do dia (`since`, ISO; o front manda a meia-noite do usuário) + filtro base do plano. */
+  private async scope(userId?: string, since?: string) {
     await materializeSchedule(this.prisma);
     await ensureWinners(this.prisma);
-    if (!userId) return [];
+    if (!userId) return null;
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, plan: true, status: true, expiresAt: true } });
-    if (!user) return [];
-    if ((await expireIfPastDue(this.prisma, user)) !== 'ACTIVE') return [];
-
-    const now = Date.now();
-    const floor = now - MAX_LOOKBACK_MS;
+    if (!user || (await expireIfPastDue(this.prisma, user)) !== 'ACTIVE') return null;
+    const now = new Date();
+    const floor = now.getTime() - MAX_LOOKBACK_MS;
     const from = new Date(Math.max(floor, Number(new Date(since ?? '')) || floor));
-    const changedAfter = after ? new Date(Math.max(floor, Number(after) || 0)) : null;
-    const raffles = await this.prisma.raffle.findMany({
-      where: {
-        AND: [
-          {
-            OR: [
-              { slot: { not: null }, bucket: { lt: planLimit(user.plan) }, createdAt: { gte: from, lte: new Date(now) } },
-              { winnerUserId: userId },
-            ],
-          },
-          ...(changedAfter
-            ? [{ OR: [{ createdAt: { gt: changedAfter } }, { endsAt: { gt: changedAfter, lte: new Date(now) } }] }]
-            : []),
-        ],
-      },
-      orderBy: { endsAt: 'asc' },
-    });
-    return raffles.map((r) => toPublic(r, true));
+    // cada plano vê uma fração fixa da agenda: Básico 500, Pro 2.000 e VIP 5.000 sorteios por dia
+    const base = { slot: { not: null }, bucket: { lt: planLimit(user.plan) }, createdAt: { gte: from, lte: now } };
+    return { user, now, base };
+  }
+
+  /** Contagens do dia (barato: só COUNT). Todos = em andamento + encerrados; "ganhei" inclui qualquer dia. */
+  @Get('summary')
+  async summary(@Query('userId') userId?: string, @Query('since') since?: string) {
+    const sc = await this.scope(userId, since);
+    if (!sc) return { open: 0, ended: 0, total: 0, won: 0 };
+    const [open, ended, won] = await Promise.all([
+      this.prisma.raffle.count({ where: { ...sc.base, endsAt: { gt: sc.now } } }),
+      this.prisma.raffle.count({ where: { ...sc.base, endsAt: { lte: sc.now } } }),
+      this.prisma.raffle.count({ where: { winnerUserId: sc.user.id, endsAt: { lte: sc.now } } }),
+    ]);
+    return { open, ended, total: open + ended, won };
+  }
+
+  /**
+   * Lista paginada (`offset`/`limit`, no máximo 200 por chamada). `tab`: open (termina antes primeiro), ended
+   * (mais recentes primeiro), won (ganhos do usuário, qualquer dia) ou all (abertos e depois encerrados).
+   * Resposta: { items, total, nextOffset } — nextOffset é null no fim da lista.
+   */
+  @Get()
+  async list(
+    @Query('userId') userId?: string, @Query('since') since?: string, @Query('tab') tab = 'all',
+    @Query('offset') offset = '0', @Query('limit') limit = '24',
+  ) {
+    const empty = { items: [], total: 0, nextOffset: null as number | null };
+    const sc = await this.scope(userId, since);
+    if (!sc) return empty;
+    const o = Math.max(0, Number(offset) || 0);
+    const l = Math.min(200, Math.max(1, Number(limit) || 24));
+    const open = { ...sc.base, endsAt: { gt: sc.now } };
+    const ended = { ...sc.base, endsAt: { lte: sc.now } };
+    const won = { winnerUserId: sc.user.id, endsAt: { lte: sc.now } };
+    const page = (where: object, order: 'asc' | 'desc', skip: number, take: number) =>
+      take > 0 ? this.prisma.raffle.findMany({ where, orderBy: { endsAt: order }, skip, take }) : Promise.resolve([] as Raffle[]);
+
+    let rows: Raffle[];
+    let total: number;
+    if (tab === 'open') {
+      [rows, total] = await Promise.all([page(open, 'asc', o, l), this.prisma.raffle.count({ where: open })]);
+    } else if (tab === 'ended') {
+      [rows, total] = await Promise.all([page(ended, 'desc', o, l), this.prisma.raffle.count({ where: ended })]);
+    } else if (tab === 'won') {
+      [rows, total] = await Promise.all([page(won, 'desc', o, l), this.prisma.raffle.count({ where: won })]);
+    } else {
+      const nOpen = await this.prisma.raffle.count({ where: open });
+      const nEnded = await this.prisma.raffle.count({ where: ended });
+      total = nOpen + nEnded;
+      const fromOpen = Math.max(0, Math.min(l, nOpen - o));
+      const [a, b] = await Promise.all([
+        page(open, 'asc', o, fromOpen),
+        page(ended, 'desc', Math.max(0, o - nOpen), l - fromOpen),
+      ]);
+      rows = [...a, ...b];
+    }
+    const next = o + rows.length;
+    return { items: rows.map((r) => toPublic(r, true)), total, nextOffset: next < total ? next : null };
   }
 
   /** Posição e nome do usuário logado dentro da lista deste sorteio. */
