@@ -40,6 +40,19 @@ const serialized = <T,>(fn: () => Promise<T>) => {
   return run;
 };
 
+/**
+ * Nomes que o sorteio automático nunca pode usar: o nome mascarado de cada usuário cadastrado. Quem paga não é
+ * sorteado sozinho — o ganhador automático vem só do pool fictício, e um usuário real só vira ganhador se o admin
+ * o escolher (PATCH /admin/raffles/:id). Em cache por 60 s para não ler a tabela a cada chamada.
+ */
+let reserved: { at: number; names: Set<string> } | null = null;
+export async function reservedNames(prisma: PrismaService) {
+  if (reserved && Date.now() - reserved.at < 60_000) return reserved.names;
+  const users = await prisma.user.findMany({ select: { id: true, name: true } });
+  reserved = { at: Date.now(), names: new Set(users.map((u) => maskedUser(u.name, u.id))) };
+  return reserved.names;
+}
+
 /** Todo sorteio encerrado ganha ganhador na hora (do pool de usuários, sem repetir os ganhadores recentes). */
 export function ensureWinners(prisma: PrismaService) {
   return serialized(async () => {
@@ -48,7 +61,8 @@ export function ensureWinners(prisma: PrismaService) {
     const taken = await prisma.raffle.findMany({
       where: { winnerName: { not: null } }, orderBy: { endsAt: 'desc' }, take: RECENT_WINNERS, select: { winnerName: true },
     });
-    const used = new Set(taken.map((t) => t.winnerName as string));
+    // usados = ganhadores recentes + nomes de usuários reais (que só o admin pode definir como ganhador)
+    const used = new Set([...taken.map((t) => t.winnerName as string), ...(await reservedNames(prisma))]);
     for (let i = 0; i < pending.length; i += 200) {
       await prisma.$transaction(
         pending.slice(i, i + 200).map((r) => {

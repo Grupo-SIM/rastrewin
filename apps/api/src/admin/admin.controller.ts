@@ -2,7 +2,7 @@ import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Put, Quer
 import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { uniqueWinnerName } from '../mock';
-import { ensureWinners } from '../raffles/raffles.controller';
+import { ensureWinners, reservedNames } from '../raffles/raffles.controller';
 import { planLimit } from '../plans';
 import { AdminGuard } from '../auth/auth.guard';
 import { toPublicUser } from '../users/user.view';
@@ -150,7 +150,8 @@ export class AdminController {
   async draw(@Param('id') id: string) {
     const r = await this.find(id);
     const taken = await this.prisma.raffle.findMany({ where: { winnerName: { not: null }, NOT: { id } }, select: { winnerName: true } });
-    const name = uniqueWinnerName(r.seed, new Set(taken.map((t) => t.winnerName as string)));
+    // sorteio automático: só nomes do pool fictício, nunca um usuário real (esse só o admin escolhe, pelo PATCH)
+    const name = uniqueWinnerName(r.seed, new Set([...taken.map((t) => t.winnerName as string), ...(await reservedNames(this.prisma))]));
     return this.prisma.raffle.update({ where: { id }, data: { winnerName: name, winnerUserId: null } });
   }
 
