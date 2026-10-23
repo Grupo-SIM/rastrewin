@@ -3,18 +3,11 @@ const LAST = ['Silva','Souza','Oliveira','Santos','Lima','Pereira','Costa','Ribe
 
 export const SITES = [
   // sites reais (com logo no painel)
-  { name: 'Portal da Promo', color: '#e11d48', emoji: '🎁' },
   { name: 'Cidade de Prêmios', color: '#16a34a', emoji: '🏙️' },
   { name: 'Giro Premiado', color: '#f59e0b', emoji: '🎡' },
   { name: 'Clube dos Premiados', color: '#7c3aed', emoji: '🏆' },
-  { name: 'Palpito', color: '#0ea5e9', emoji: '🔮' },
   { name: 'QualiBest', color: '#14b8a6', emoji: '📊' },
-  { name: 'VocêOpina', color: '#6366f1', emoji: '💬' },
-  { name: 'Toluna', color: '#2563eb', emoji: '🗳️' },
-  { name: 'LifePoints', color: '#84cc16', emoji: '⭐' },
   { name: 'Swagbucks', color: '#0284c7', emoji: '💵' },
-  { name: 'MOBROG', color: '#ea580c', emoji: '🎯' },
-  { name: 'PrizeRebel', color: '#ff5a36', emoji: '🏅' },
   // redes sociais (sorteios de perfis/marcas mapeados nessas redes)
   { name: 'Instagram', color: '#E1306C', emoji: '📷' },
   { name: 'Facebook', color: '#1877F2', emoji: '👍' },

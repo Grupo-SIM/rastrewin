@@ -42,7 +42,7 @@ export function PhoneVerifyModal({ userId, open, onClose, onVerified }: { userId
         </button>
         <h2 className="display" style={{ fontSize: 24 }}>Confirme seu WhatsApp</h2>
         <p style={{ color: 'var(--mut)', fontSize: 15 }}>
-          Para liberar o acesso, envie o código abaixo pelo WhatsApp para o número {data?.whatsappNumber || 'do rastrewin'}. É por esse número que avisamos você, com uma notificação, assim que ganhar um sorteio.
+          Receba avisos de vitória pelo WhatsApp
         </p>
         {err && <div className="err">{err}</div>}
         {data && (
@@ -55,7 +55,7 @@ export function PhoneVerifyModal({ userId, open, onClose, onVerified }: { userId
                 Abrir WhatsApp e enviar código
               </a>
             )}
-            <span style={{ color: 'var(--mut)', fontSize: 13 }}>Assim que recebermos sua mensagem, o acesso libera automaticamente.</span>
+            <span style={{ color: 'var(--mut)', fontSize: 13 }}>Envie o código abaixo para receber notificações diretamente no seu celular sempre que ganhar um sorteio.</span>
           </>
         )}
       </div>
