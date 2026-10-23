@@ -1,9 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { Raffle } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { enroll, expireIfPastDue } from '../plans';
+import { feedItem, FEED_SIZE } from '../feed';
 import { freeEndTime, makeRaffleData, maskedUser, normalize, participantAt, uniqueWinnerName, userIndex } from '../mock';
 
 /** Sorteios encerrados continuam visíveis por esse tempo; depois viram histórico. */
@@ -25,8 +24,6 @@ export function targetOpen(nowMs: number) {
 /** Encerrados ficam disponíveis por 48h; o front mostra só os de "hoje" (virada de dia no fuso do usuário). */
 const ENDED_KEEP_MS = 48 * 3600 * 1000;
 const FEED_KEY = 'raffles';
-/** 20 mil sorteios diferentes (prêmio + site); a posição atual fica gravada no banco (FeedState). */
-const FEED: { prize: string; site: string }[] = JSON.parse(readFileSync(join(__dirname, '../../data/raffles.json'), 'utf8'));
 const DEMO_EVERY_MS = 4 * 60 * 1000;
 let lastDemo = 0;
 
@@ -93,8 +90,8 @@ function replenish(prisma: PrismaService) {
     const created: Raffle[] = [];
     let position = (await prisma.feedState.findUnique({ where: { key: FEED_KEY } }))?.position ?? 0;
     for (const dur of wanted) {
-      const item = FEED[position % FEED.length];
-      position = (position + 1) % FEED.length;
+      const item = feedItem(position);
+      position = (position + 1) % FEED_SIZE;
       const end = freeEndTime(now + dur, taken);
       taken.push(end);
       const [raffle] = await prisma.$transaction([

@@ -12,6 +12,7 @@ type AdminRaffle = {
 };
 type AdminUser = {
   id: string; name: string; email: string; plan: string; phone: string; cpf: string; pix: string | null; city: string; paidAt: string;
+  wins: { id: string; title: string; site: string; prize: string; endsAt: string }[];
 };
 
 const PLAN_PRICE: Record<string, number> = { basico: 150, pro: 500, vip: 1000 };
@@ -25,10 +26,10 @@ const siteColor = (name: string) => PALETTE[[...name].reduce((a, c) => a + c.cha
 /** Baixa a lista de clientes filtrada como CSV (separador ;, compatível com Excel pt-BR). */
 function exportClientsCsv(clients: AdminUser[]) {
   const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
-  const header = ['Nome', 'E-mail', 'Telefone', 'Pix', 'CPF', 'Cidade', 'Plano', 'Valor', 'Pago em'];
+  const header = ['Nome', 'E-mail', 'Telefone', 'Pix', 'CPF', 'Cidade', 'Plano', 'Valor', 'Pago em', 'Prêmios ganhos'];
   const rows = clients.map((u) => [
     u.name, u.email, u.phone, u.pix ?? '', u.cpf, u.city,
-    PLAN_NAME[u.plan] ?? u.plan, String(PLAN_PRICE[u.plan] ?? ''), fmtDate(u.paidAt),
+    PLAN_NAME[u.plan] ?? u.plan, String(PLAN_PRICE[u.plan] ?? ''), fmtDate(u.paidAt), String(u.wins.length),
   ]);
   const csv = '﻿' + [header, ...rows].map((r) => r.map(esc).join(';')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -77,6 +78,8 @@ export default function Admin() {
   const [waSaved, setWaSaved] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [q, setQ] = useState('');
+  const [onlyWinners, setOnlyWinners] = useState(false);
+  const [openWins, setOpenWins] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -135,8 +138,8 @@ export default function Admin() {
   const needle = q.toLowerCase();
   const isEnded = (r: AdminRaffle) => new Date(r.endsAt).getTime() <= now;
   const filtered = raffles.filter((r) => !isEnded(r) && (r.title + r.site).toLowerCase().includes(needle));
-  const clients = users.filter((u) => (u.name + u.email + u.cpf + u.phone + (u.pix ?? '')).toLowerCase().includes(needle));
-  const revenue = users.reduce((a, u) => a + (PLAN_PRICE[u.plan] ?? 0), 0);
+  const clients = users.filter((u) => (!onlyWinners || u.wins.length > 0) && (u.name + u.email + u.cpf + u.phone + (u.pix ?? '')).toLowerCase().includes(needle));
+  const totalWins = users.reduce((a, u) => a + u.wins.length, 0);
 
   return (
     <div className="app admin-page">
@@ -159,7 +162,10 @@ export default function Admin() {
           <button className={tab === 'clients' ? 'on' : ''} onClick={() => setTab('clients')}>Clientes ({users.length})</button>
           {tab === 'clients' && (
             <span className="atabs-sum">
-              Receita mensal: R$ {revenue.toLocaleString('pt-BR')}
+              <label className="win-filter">
+                <input type="checkbox" checked={onlyWinners} onChange={(e) => setOnlyWinners(e.target.checked)} />
+                Só quem ganhou ({users.filter((u) => u.wins.length > 0).length} clientes · {totalWins} prêmios)
+              </label>
               <button className="abtn o" style={{ marginLeft: 12 }} onClick={() => exportClientsCsv(clients)}>Exportar CSV</button>
             </span>
           )}
@@ -193,7 +199,7 @@ export default function Admin() {
         )}
         {tab === 'clients' ? (
           <div className="atable">
-            <div className="arow clients head"><span>NOME</span><span>E-MAIL</span><span>TELEFONE</span><span>PIX</span><span>CPF</span><span>PLANO</span></div>
+            <div className="arow clients head"><span>NOME</span><span>E-MAIL</span><span>TELEFONE</span><span>PIX</span><span>CPF</span><span>PLANO</span><span>GANHOS</span></div>
             {clients.map((u) => (
               <div key={u.id} className="arow clients">
                 <div>
@@ -205,6 +211,20 @@ export default function Admin() {
                 <span className="cell" title={u.pix ?? ''}>{u.pix || '—'}</span>
                 <span className="cell">{u.cpf}</span>
                 <span className="pill blue" style={{ justifySelf: 'start' }}>{PLAN_NAME[u.plan] ?? u.plan} · R$ {PLAN_PRICE[u.plan] ?? '?'}</span>
+                {u.wins.length > 0 ? (
+                  <button className="pill green wins-btn" onClick={() => setOpenWins(openWins === u.id ? null : u.id)} aria-expanded={openWins === u.id}>
+                    {u.wins.length} {u.wins.length === 1 ? 'prêmio' : 'prêmios'} {openWins === u.id ? '▲' : '▼'}
+                  </button>
+                ) : (
+                  <span className="sub" style={{ margin: 0 }}>0</span>
+                )}
+                {openWins === u.id && (
+                  <div className="wins-list">
+                    {u.wins.map((w) => (
+                      <div key={w.id}><b>{w.title}</b><span>{w.site} · {fmtDate(w.endsAt)}</span></div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             {clients.length === 0 && <div className="arow"><span className="sub">Nenhum cliente encontrado.</span></div>}

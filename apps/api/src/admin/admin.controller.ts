@@ -56,7 +56,15 @@ export class AdminController {
       include: { _count: { select: { entries: true } } },
     });
     const used = await usedToday(this.prisma);
-    return users.map((u) => ({ ...toPublicUser(u), usedToday: used.get(u.id) ?? 0, limit: planLimit(u.plan) }));
+    // sorteios já encerrados em que o usuário foi o ganhador
+    const won = await this.prisma.raffle.findMany({
+      where: { winnerUserId: { not: null }, endsAt: { lte: new Date() } },
+      orderBy: { endsAt: 'desc' },
+      select: { id: true, title: true, site: true, prize: true, endsAt: true, winnerUserId: true },
+    });
+    const winsOf = new Map<string, typeof won>();
+    for (const w of won) winsOf.set(w.winnerUserId as string, [...(winsOf.get(w.winnerUserId as string) ?? []), w]);
+    return users.map((u) => ({ ...toPublicUser(u), usedToday: used.get(u.id) ?? 0, limit: planLimit(u.plan), wins: winsOf.get(u.id) ?? [] }));
   }
 
   private async find(id: string) {

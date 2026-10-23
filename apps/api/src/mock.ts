@@ -1,5 +1,5 @@
-const FIRST = ['Ana','Bruno','Carla','Diego','Eduarda','Felipe','Gabriela','Henrique','Isabela','João','Karina','Lucas','Mariana','Nicolas','Olívia','Pedro','Queila','Rafael','Sofia','Thiago','Úrsula','Vitor','Wesley','Yasmin','Zeca','Amanda','Caio','Daniela','Elias','Fernanda','Gustavo','Helena','Igor','Juliana','Kauê','Larissa','Murilo','Natália','Otávio','Patrícia'];
-const LAST = ['Silva','Souza','Oliveira','Santos','Lima','Pereira','Costa','Ribeiro','Almeida','Gomes','Martins','Rocha','Campos','Araújo','Melo','Barbosa','Cardoso','Nunes','Teixeira','Moreira'];
+const FIRST = ['Ana','Bruno','Carla','Diego','Eduarda','Felipe','Gabriela','Henrique','Isabela','João','Karina','Lucas','Mariana','Nicolas','Olívia','Pedro','Queila','Rafael','Sofia','Thiago','Úrsula','Vitor','Wesley','Yasmin','Zeca','Amanda','Caio','Daniela','Elias','Fernanda','Gustavo','Helena','Igor','Juliana','Kauê','Larissa','Murilo','Natália','Otávio','Patrícia','Adriana','Alan','Alessandra','Alexandre','Alice','Aline','Allan','André','Andréa','Antônio','Arthur','Beatriz','Bianca','Breno','Bárbara','Camila','Carlos','Carolina','Cássio','Cecília','Celso','Clara','Cláudia','Cristiano','Cristina','Danilo','Davi','Débora','Denise','Douglas','Edson','Eliane','Emanuel','Emília','Enzo','Érica','Estela','Eugênio','Evelyn','Fabiana','Fábio','Fátima','Flávia','Francisco','Gabriel','Giovana','Giovanni','Gláucia','Guilherme','Heitor','Helen','Hugo','Ingrid','Irene','Isadora','Ivan','Jaqueline','Jéssica','Joana','Joaquim','Jorge','José','Júlia','Júlio','Kátia','Kelly','Laís','Laura','Leandro','Leila','Leonardo','Letícia','Lívia','Luana','Luciana','Luís','Luíza','Magda','Manoel','Marcela','Marcelo','Márcia','Márcio','Marco','Margarida','Maria','Marina','Mário','Marta','Mateus','Matheus','Maurício','Mayara','Michele','Miguel','Mônica','Nádia','Nathália','Nelson','Nilton','Noemi','Paloma','Paula','Paulo','Priscila','Rafaela','Raíssa','Raquel','Regina','Renan','Renata','Ricardo','Roberta','Roberto','Rodrigo','Rogério','Rosana','Samuel','Sandra','Sérgio','Silvia','Simone','Sônia','Stella','Tábata','Tainá','Talita','Tatiana','Teresa','Tiago','Valentina','Valéria','Vanessa','Vera','Vinícius','Viviane','Wagner','Walter','Yago','Yuri','Zilda'];
+const LAST = ['Silva','Souza','Oliveira','Santos','Lima','Pereira','Costa','Ribeiro','Almeida','Gomes','Martins','Rocha','Campos','Araújo','Melo','Barbosa','Cardoso','Nunes','Teixeira','Moreira','Alves','Andrade','Azevedo','Batista','Borges','Braga','Brito','Cabral','Castro','Cavalcante','Correia','Coutinho','Cunha','Dias','Duarte','Fernandes','Figueiredo','Fonseca','Freitas','Garcia','Guimarães','Henrique','Jesus','Lacerda','Leite','Lopes','Machado','Magalhães','Mendes','Miranda','Monteiro','Moura','Nascimento','Neves','Nogueira','Pacheco','Peixoto','Pinto','Ramos','Reis','Rezende','Rangel','Sampaio','Siqueira','Soares','Tavares','Torres','Vasconcelos','Vaz','Vieira','Viana','Xavier','Zanetti','Bastos','Bezerra','Dantas','Franco','Gonçalves','Lemos','Matos','Medeiros','Pires','Prado','Queiroz','Salgado','Siebert','Telles','Valente']; // prefixos de 3 letras distintos: o nome mascarado não colide
 
 export const SITES = [
   // sites reais (com logo no painel)
@@ -154,8 +154,13 @@ export function pickFreePrize(usedRecently: Set<string>, usedAny: Map<string, nu
 /* Base de usuários: 72.000 identidades distintas, das quais 10.000 são o pool de usuários */
 /* ------------------------------------------------------------------ */
 
-const UNIVERSE = FIRST.length * LAST.length * 90; // 72.000
-export const POOL_SIZE = 10_000;
+const UNIVERSE = FIRST.length * LAST.length * 90; // nomes x sobrenomes x sufixo (#10..#99)
+export const POOL_SIZE = 100_000;
+
+const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+/** Primeiro inteiro >= x coprimo de m (garante que as trocas abaixo sejam bijetivas). */
+const coprime = (x: number, m: number) => { while (gcd(x, m) !== 1) x++; return x; };
+const ID_MUL = coprime(40501, UNIVERSE);
 
 function mulberry32(a: number) {
   return () => {
@@ -166,9 +171,9 @@ function mulberry32(a: number) {
   };
 }
 
-/** i (0..71999) → identidade única e bem espalhada. 40501 é coprimo de 72000, logo a troca é bijetiva. */
+/** i (0..UNIVERSE-1) → identidade única e bem espalhada; ID_MUL é coprimo de UNIVERSE, logo a troca é bijetiva. */
 function identity(i: number) {
-  const c = (i * 40501 + 12345) % UNIVERSE;
+  const c = (i * ID_MUL + 12345) % UNIVERSE;
   const first = FIRST[c % FIRST.length];
   const last = LAST[Math.floor(c / FIRST.length) % LAST.length];
   const n = Math.floor(c / (FIRST.length * LAST.length)) + 10;
@@ -179,14 +184,12 @@ export const poolUser = (i: number) => identity(i % POOL_SIZE);
 
 /**
  * Participante da posição `index` do sorteio. Ninguém repete dentro do mesmo sorteio:
- * as primeiras 10.000 posições percorrem todo o pool de usuários, depois o restante da base.
+ * as primeiras POOL_SIZE posições percorrem todo o pool de usuários, depois o restante da base.
  */
 export function participantAt(seed: number, index: number) {
   const r = mulberry32(seed);
-  let s1 = 1 + 2 * Math.floor(r() * 5000);
-  if (s1 % 5 === 0) s1 += 2;
-  let s2 = 1 + Math.floor(r() * 60000);
-  while (s2 % 2 === 0 || s2 % 5 === 0 || s2 % 31 === 0) s2++;
+  const s1 = coprime(1 + Math.floor(r() * (POOL_SIZE - 1)), POOL_SIZE);
+  const s2 = coprime(1 + Math.floor(r() * (UNIVERSE - POOL_SIZE - 1)), UNIVERSE - POOL_SIZE);
   const o1 = Math.floor(r() * POOL_SIZE);
   const o2 = Math.floor(r() * (UNIVERSE - POOL_SIZE));
   const k = ((index % UNIVERSE) + UNIVERSE) % UNIVERSE;
