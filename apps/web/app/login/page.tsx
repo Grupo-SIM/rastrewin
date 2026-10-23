@@ -31,7 +31,7 @@ export default function Login() {
       <div className="auth-frame">
         <nav className="nav">
           <a href="/"><Logo /></a>
-          <a href="/" className="nav-hide" style={{ font: '500 15.5px var(--f-body)', color: 'var(--txt-2)', paddingRight: 16 }}>Ainda não sou cliente</a>
+          <a href="/#planos" className="nav-hide" style={{ font: '500 15.5px var(--f-body)', color: 'var(--txt-2)', paddingRight: 16 }}>Ainda não sou cliente</a>
         </nav>
         <main className="auth-main">
           <div className="auth-box">
@@ -49,7 +49,7 @@ export default function Login() {
               {err && <div className="err">{err}</div>}
             </form>
             <a href="/esqueci-senha" className="auth-link">Esqueci minha senha</a>
-            <a href="/" className="auth-link">Ainda não sou cliente</a>
+            <a href="/#planos" className="auth-link">Ainda não sou cliente</a>
           </div>
         </main>
       </div>
