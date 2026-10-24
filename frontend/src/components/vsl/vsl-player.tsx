@@ -155,7 +155,11 @@ export function VslPlayer({
           events: {
             onReady: (event) => {
               clearLoadTimeout();
-              event.target.getIframe().title = `Vídeo: ${title}`;
+              const iframe = event.target.getIframe();
+              iframe.title = `Vídeo: ${title}`;
+              // Fora da ordem do Tab: os links do YouTube (título, canal) tirariam a pessoa do funil.
+              // Pausar e continuar ficam na camada própria por cima do vídeo.
+              iframe.tabIndex = -1;
               event.target.playVideo();
               setStatus("ready");
             },
