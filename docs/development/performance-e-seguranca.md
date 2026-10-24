@@ -32,7 +32,7 @@ O LCP melhora com a capa definitiva otimizada: **AVIF ou WebP, 720×1280, ~20–
 | Clickjacking       | `X-Frame-Options: DENY` + `frame-ancestors 'none'`.                                                              |
 | Terceiros          | Nenhum script de terceiros antes do toque; YouTube via `youtube-nocookie.com`.                                   |
 | Privacidade (LGPD) | Sem cookies próprios, sem coleta de dados. Só o `localStorage` guarda "botão liberado".                          |
-| Supply chain       | Poucas dependências, versões fixas, lockfile, `minimumReleaseAge` do pnpm, `pnpm audit`.                         |
+| Supply chain       | Poucas dependências, versões fixas, lockfile, `minimumReleaseAge` do Bun, `bun audit`.                           |
 | Container          | Sem root, read-only, `cap_drop: ALL`, `no-new-privileges`, sem portas publicadas.                                |
 | Indexação          | `noindex` (meta + `X-Robots-Tag`). Sem bloqueio no robots.txt, para o noindex ser lido.                          |
 

@@ -27,7 +27,7 @@ Internet ──443──▶ Caddy central (HTTPS, HSTS) ──rede Docker──�
 ## Atualizar o conteúdo
 
 1. Edite `frontend/src/config/page-config.ts` (vídeo, segundos, textos) e/ou troque `frontend/public/poster.*`.
-2. Rode `pnpm test && pnpm build` localmente (valor inválido quebra o build com a mensagem do Zod).
+2. Rode `bun run test && bun run build` localmente (valor inválido quebra o build com a mensagem do Zod).
 3. Commit, revise e faça push. No Komodo, faça **Redeploy** da Stack (rebuild da imagem).
 
 O HTML tem `Cache-Control: no-cache`, então a mudança aparece na hora. Imagens sem hash no nome

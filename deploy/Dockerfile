@@ -1,21 +1,25 @@
 # syntax=docker/dockerfile:1
 
+# Bun só instala dependências e roda scripts; Next e Vitest rodam no Node.
+FROM oven/bun:1.4.4-alpine AS bun
+
 # ---------- build: gera o site estático (frontend/out) ----------
 FROM node:24.22.1-alpine3.24 AS build
 WORKDIR /app
 ENV CI=1 NEXT_TELEMETRY_DISABLED=1
-RUN corepack enable
+RUN apk add --no-cache libgcc libstdc++
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json bun.lock bunfig.toml ./
 COPY frontend/package.json frontend/
-RUN pnpm install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 COPY frontend frontend
 COPY scripts scripts
 # report-only (padrão) ou enforce: modo da Content-Security-Policy.
 ARG CSP_MODE=report-only
-RUN pnpm -C frontend test \
-  && pnpm -C frontend build \
+RUN bun run --cwd frontend test \
+  && bun run --cwd frontend build \
   && node scripts/csp-hashes.mjs frontend/out $([ "$CSP_MODE" = "enforce" ] && echo --enforce) > csp.caddy
 
 # ---------- runtime: Caddy servindo arquivos estáticos, sem root ----------
