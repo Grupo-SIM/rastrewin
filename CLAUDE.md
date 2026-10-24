@@ -48,7 +48,8 @@ fica em `frontend/src/config/page-config.ts`, validado com Zod no build. Valor i
   com texto e botão à esquerda e vídeo à direita, para o play caber sem rolar.
 - Identidade visual da Rastrewin: tokens em `frontend/src/app/globals.css`.
 - Nada de `dangerouslySetInnerHTML`. Nenhum segredo no código; nenhuma variável sensível `NEXT_PUBLIC_`.
-- Nenhum script de terceiros antes de a pessoa tocar no vídeo.
+- Único script de terceiros: o player do YouTube, pré-carregado só depois de a página abrir (nunca com
+  economia de dados ou 2G). Nada de terceiros no carregamento inicial.
 - Antes de adicionar dependência: justificar e preferir o que já existe. Lockfile sempre commitado.
 - `bunfig.toml` aplica `minimumReleaseAge` (1 dia) e `exact`: não abra exceções para versões
   recém-publicadas sem motivo.

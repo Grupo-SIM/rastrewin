@@ -4,11 +4,19 @@ import { LoaderCircle, Play } from "lucide-react";
 import Image from "next/image";
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { advanceWatchProgress, initialWatchProgress } from "@/lib/watch-progress";
-import { loadYouTubeApi, preconnectYouTube, YOUTUBE_EMBED_HOST } from "@/lib/youtube-api";
+import {
+  canPreloadPlayer,
+  loadYouTubeApi,
+  preconnectYouTube,
+  whenPageIdle,
+  YOUTUBE_EMBED_HOST,
+} from "@/lib/youtube-api";
 
 const TICK_MS = 250;
 /** Sem player pronto nesse tempo (rede travada, bloqueador), mostra o erro e libera o botão. */
 const LOAD_TIMEOUT_MS = 15_000;
+/** Play pedido e o vídeo não começou nesse tempo (ex.: iPhone bloqueia): mostra o play do próprio YouTube. */
+const PLAY_FALLBACK_MS = 2000;
 
 export type UnlockReason = "watched" | "error";
 
@@ -44,7 +52,12 @@ export function VslPlayer({
   const tickRef = useRef<number | null>(null);
   const lastTickAtRef = useRef(0);
   const loadTimeoutRef = useRef<number | null>(null);
+  const playFallbackRef = useRef<number | null>(null);
   const failedRef = useRef(false);
+  /** A pessoa tocou na capa: o player toca assim que estiver pronto. */
+  const wantsPlayRef = useRef(false);
+  const playerReadyRef = useRef(false);
+  const creatingRef = useRef(false);
   const progressRef = useRef(initialWatchProgress);
   const unlockedRef = useRef(unlocked);
   const onUnlockRef = useRef(onUnlock);
@@ -61,6 +74,12 @@ export function VslPlayer({
     if (loadTimeoutRef.current === null) return;
     window.clearTimeout(loadTimeoutRef.current);
     loadTimeoutRef.current = null;
+  }, []);
+
+  const clearPlayFallback = useCallback(() => {
+    if (playFallbackRef.current === null) return;
+    window.clearTimeout(playFallbackRef.current);
+    playFallbackRef.current = null;
   }, []);
 
   const stopTicking = useCallback(() => {
@@ -101,22 +120,35 @@ export function VslPlayer({
   const fail = useCallback(() => {
     failedRef.current = true;
     clearLoadTimeout();
+    clearPlayFallback();
     stopTicking();
     playerRef.current?.destroy();
     playerRef.current = null;
     setStatus("error");
     unlock("error");
-  }, [clearLoadTimeout, stopTicking, unlock]);
+  }, [clearLoadTimeout, clearPlayFallback, stopTicking, unlock]);
 
   useEffect(
     () => () => {
       clearLoadTimeout();
+      clearPlayFallback();
       stopTicking();
       playerRef.current?.destroy();
       playerRef.current = null;
     },
-    [clearLoadTimeout, stopTicking],
+    [clearLoadTimeout, clearPlayFallback, stopTicking],
   );
+
+  const play = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    clearLoadTimeout();
+    player.playVideo();
+    playFallbackRef.current = window.setTimeout(() => {
+      playFallbackRef.current = null;
+      setStatus((current) => (current === "loading" ? "ready" : current));
+    }, PLAY_FALLBACK_MS);
+  }, [clearLoadTimeout]);
 
   useEffect(() => {
     if (!keepFocusRef.current) return;
@@ -132,73 +164,105 @@ export function VslPlayer({
     }
   }, [status, started]);
 
+  /**
+   * Cria o player uma única vez: no pré-carregamento (escondido atrás da capa, sem tocar)
+   * ou no toque, se o pré-carregamento não rodou ou falhou.
+   */
+  const createPlayer = useCallback(async () => {
+    if (playerRef.current || creatingRef.current) return;
+    creatingRef.current = true;
+    try {
+      const api = await loadYouTubeApi();
+      const container = containerRef.current;
+      // A API pode chegar depois do limite: nesse caso o erro já foi mostrado.
+      if (!container || failedRef.current) return;
+
+      // O YouTube troca este elemento por um iframe; ele fica fora do controle do React.
+      const mount = document.createElement("div");
+      container.replaceChildren(mount);
+
+      playerRef.current = new api.Player(mount, {
+        host: YOUTUBE_EMBED_HOST,
+        videoId: youtubeId,
+        width: "100%",
+        height: "100%",
+        playerVars: {
+          autoplay: wantsPlayRef.current ? 1 : 0,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          rel: 0,
+          playsinline: 1,
+          iv_load_policy: 3,
+          // Sem origin explícito, os eventos do player não chegam quando o host é youtube-nocookie.
+          origin: window.location.origin,
+        },
+        events: {
+          onReady: (event) => {
+            playerReadyRef.current = true;
+            event.target.getIframe().title = `Vídeo: ${title}`;
+            if (wantsPlayRef.current) play();
+          },
+          onStateChange: (event) => {
+            const { PLAYING, BUFFERING, ENDED } = api.PlayerState;
+            const isPlaying = event.data === PLAYING;
+            setPlayback(isPlaying ? "playing" : event.data === BUFFERING ? "buffering" : "paused");
+            if (isPlaying) {
+              clearPlayFallback();
+              // Só depois de começar: fora da ordem do Tab, para os links do YouTube (título, canal)
+              // não tirarem a pessoa do funil. Antes disso o iframe precisa ser alcançável, porque
+              // com autoplay bloqueado o play é o botão do próprio YouTube.
+              event.target.getIframe().tabIndex = -1;
+              setStatus("ready");
+              setStarted(true);
+              startTicking();
+            } else {
+              stopTicking();
+            }
+            // Assistiu até o fim: libera mesmo que o vídeo seja mais curto que unlockAtSeconds.
+            if (event.data === ENDED) unlock("watched");
+          },
+          onError: () => {
+            if (wantsPlayRef.current) {
+              fail();
+              return;
+            }
+            // Falhou no pré-carregamento: descarta em silêncio; o toque tenta de novo.
+            playerRef.current?.destroy();
+            playerRef.current = null;
+            playerReadyRef.current = false;
+          },
+        },
+      });
+    } catch {
+      // Sem a API no pré-carregamento, o toque tenta de novo.
+      if (wantsPlayRef.current) fail();
+    } finally {
+      creatingRef.current = false;
+    }
+  }, [clearPlayFallback, fail, play, startTicking, stopTicking, title, unlock, youtubeId]);
+
+  // Pré-carrega o player depois de a página abrir: no toque, o vídeo começa quase na hora.
+  useEffect(() => {
+    if (!canPreloadPlayer()) return;
+    return whenPageIdle(() => {
+      // Já liberado em visita anterior: o mais provável é ir direto ao botão; economiza os dados.
+      if (!unlockedRef.current) void createPlayer();
+    });
+  }, [createPlayer]);
+
   const start = useCallback(
-    async (event: MouseEvent<HTMLButtonElement>) => {
+    (event: MouseEvent<HTMLButtonElement>) => {
       if (status !== "idle") return;
       keepFocusRef.current = document.activeElement === event.currentTarget;
+      wantsPlayRef.current = true;
       setStatus("loading");
       loadTimeoutRef.current = window.setTimeout(fail, LOAD_TIMEOUT_MS);
-
-      try {
-        const api = await loadYouTubeApi();
-        const container = containerRef.current;
-        // A API pode chegar depois do limite: nesse caso o erro já foi mostrado.
-        if (!container || failedRef.current) return;
-
-        // O YouTube troca este elemento por um iframe; ele fica fora do controle do React.
-        const mount = document.createElement("div");
-        container.replaceChildren(mount);
-
-        playerRef.current = new api.Player(mount, {
-          host: YOUTUBE_EMBED_HOST,
-          videoId: youtubeId,
-          width: "100%",
-          height: "100%",
-          playerVars: {
-            autoplay: 1,
-            controls: 0,
-            disablekb: 1,
-            fs: 0,
-            rel: 0,
-            playsinline: 1,
-            iv_load_policy: 3,
-            // Sem origin explícito, os eventos do player não chegam quando o host é youtube-nocookie.
-            origin: window.location.origin,
-          },
-          events: {
-            onReady: (event) => {
-              clearLoadTimeout();
-              event.target.getIframe().title = `Vídeo: ${title}`;
-              event.target.playVideo();
-              setStatus("ready");
-            },
-            onStateChange: (event) => {
-              const { PLAYING, BUFFERING, ENDED } = api.PlayerState;
-              const isPlaying = event.data === PLAYING;
-              setPlayback(
-                isPlaying ? "playing" : event.data === BUFFERING ? "buffering" : "paused",
-              );
-              if (isPlaying) {
-                // Só depois de começar: fora da ordem do Tab, para os links do YouTube (título, canal)
-                // não tirarem a pessoa do funil. Antes disso o iframe precisa ser alcançável, porque
-                // com autoplay bloqueado o play é o botão do próprio YouTube.
-                event.target.getIframe().tabIndex = -1;
-                setStarted(true);
-                startTicking();
-              } else {
-                stopTicking();
-              }
-              // Assistiu até o fim: libera mesmo que o vídeo seja mais curto que unlockAtSeconds.
-              if (event.data === ENDED) unlock("watched");
-            },
-            onError: fail,
-          },
-        });
-      } catch {
-        fail();
-      }
+      // Pronto: toca já. Ainda carregando: toca no onReady. Sem player: cria agora.
+      if (playerReadyRef.current) play();
+      else void createPlayer();
     },
-    [clearLoadTimeout, fail, startTicking, status, stopTicking, title, unlock, youtubeId],
+    [createPlayer, fail, play, status],
   );
 
   const togglePlayback = () => {
@@ -222,7 +286,12 @@ export function VslPlayer({
         tabIndex={-1}
         className="relative aspect-[9/16] w-full overflow-hidden rounded-[1.75rem] bg-ink shadow-brand-lg outline-none"
       >
-        <div ref={containerRef} className="absolute inset-0 [&_iframe]:size-full" />
+        {/* inert enquanto a capa está por cima: o player pré-carregado fica fora do Tab e do leitor de tela. */}
+        <div
+          ref={containerRef}
+          inert={status === "idle" || status === "loading"}
+          className="absolute inset-0 [&_iframe]:size-full"
+        />
 
         {status === "error" ? (
           <div
