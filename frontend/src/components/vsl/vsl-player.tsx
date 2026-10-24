@@ -114,7 +114,8 @@ export function VslPlayer({
       overlayRef.current?.focus({ preventScroll: true });
       keepFocusRef.current = false;
     } else if (status === "ready") {
-      frameRef.current?.focus({ preventScroll: true });
+      // Autoplay ainda não começou (ou foi bloqueado): foco dentro do player, perto do play do YouTube.
+      (playerRef.current?.getIframe() ?? frameRef.current)?.focus({ preventScroll: true });
     } else if (status === "error") {
       errorLinkRef.current?.focus({ preventScroll: true });
       keepFocusRef.current = false;
@@ -157,11 +158,7 @@ export function VslPlayer({
           events: {
             onReady: (event) => {
               clearLoadTimeout();
-              const iframe = event.target.getIframe();
-              iframe.title = `Vídeo: ${title}`;
-              // Fora da ordem do Tab: os links do YouTube (título, canal) tirariam a pessoa do funil.
-              // Pausar e continuar ficam na camada própria por cima do vídeo.
-              iframe.tabIndex = -1;
+              event.target.getIframe().title = `Vídeo: ${title}`;
               event.target.playVideo();
               setStatus("ready");
             },
@@ -172,6 +169,10 @@ export function VslPlayer({
                 isPlaying ? "playing" : event.data === BUFFERING ? "buffering" : "paused",
               );
               if (isPlaying) {
+                // Só depois de começar: fora da ordem do Tab, para os links do YouTube (título, canal)
+                // não tirarem a pessoa do funil. Antes disso o iframe precisa ser alcançável, porque
+                // com autoplay bloqueado o play é o botão do próprio YouTube.
+                event.target.getIframe().tabIndex = -1;
                 setStarted(true);
                 startTicking();
               } else {
