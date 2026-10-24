@@ -29,6 +29,8 @@ export default function Home() {
           unlockAtSeconds={pageConfig.unlockAtSeconds}
           posterSrc={pageConfig.posterSrc}
           title={pageConfig.copy.title}
+          ctaLabel={pageConfig.copy.cta}
+          destinationUrl={pageConfig.destinationUrl}
         />
       </main>
     </div>
