@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { pageConfig } from "@/config/page-config";
 
 export default function Home() {
   return (
@@ -16,10 +17,10 @@ export default function Home() {
         />
 
         <h1 className="mt-6 font-display text-[1.75rem] leading-[1.15] font-extrabold tracking-tight text-balance sm:mt-8 sm:text-4xl">
-          Título provisório da VSL
+          {pageConfig.copy.title}
         </h1>
         <p className="mt-3 text-base text-pretty text-ink-soft sm:text-lg">
-          Subtítulo provisório explicando a promessa em uma frase.
+          {pageConfig.copy.subtitle}
         </p>
       </main>
     </div>
