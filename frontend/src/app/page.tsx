@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { VslSection } from "@/components/vsl/vsl-section";
 import { pageConfig } from "@/config/page-config";
 
 export default function Home() {
@@ -22,6 +23,13 @@ export default function Home() {
         <p className="mt-3 text-base text-pretty text-ink-soft sm:text-lg">
           {pageConfig.copy.subtitle}
         </p>
+
+        <VslSection
+          youtubeId={pageConfig.youtubeId}
+          unlockAtSeconds={pageConfig.unlockAtSeconds}
+          posterSrc={pageConfig.posterSrc}
+          title={pageConfig.copy.title}
+        />
       </main>
     </div>
   );

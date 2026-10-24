@@ -9,7 +9,7 @@ export const pageConfig = PageConfigSchema.parse({
   youtubeId: "VIDEO_ID_00",
   unlockAtSeconds: 120,
   destinationUrl: "https://rastrewin.com",
-  posterSrc: "/poster.webp",
+  posterSrc: "/poster.jpg",
   copy: {
     title: "Título provisório da VSL",
     subtitle: "Subtítulo provisório explicando a promessa em uma frase.",
