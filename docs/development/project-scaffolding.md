@@ -7,7 +7,7 @@
 ├── bun.lock                lockfile do Bun (sempre commitado)
 ├── bunfig.toml             config do Bun (versões exatas, idade mínima de versões)
 ├── biome.json              lint + format
-├── frontend/               Next.js (export estático)
+├── frontend/               Next.js (standalone)
 │   ├── next.config.ts
 │   ├── src/app/            rotas (App Router)
 │   ├── src/components/     componentes (ui/ = shadcn)
@@ -15,7 +15,8 @@
 │   ├── src/lib/            funções puras e utilitários
 │   └── public/             arquivos estáticos (logo, capa)
 ├── .github/workflows/      publish-image.yml (publica a imagem no GHCR)
-├── deploy/                 Dockerfile, Caddyfile, compose (Komodo)
+├── Dockerfile              imagem Next.js standalone
+├── compose.yml             Stack do Komodo + labels caddy-docker-proxy
 ├── docs/development/       guias
 ├── plans/                  planos aprovados
 └── scripts/                scripts auxiliares (ex.: hashes de CSP)

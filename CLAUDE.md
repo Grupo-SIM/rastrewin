@@ -1,19 +1,19 @@
 # VSL Rastrewin
 
 Página de VSL (título, subtítulo, vídeo vertical do YouTube, botão com delay e rodapé) que antecede
-https://rastrewin.com. Fica em **vsl.rastrewin.com**. Site **100% estático**: sem backend, sem banco,
+https://rastrewin.com. Fica em **vsl.rastrewin.com**. Conteúdo **estático**: sem backend, sem banco,
 sem coleta de dados, sem pixel/UTM (rastreamento será tratado em outro momento).
 
 ## Stack
 
-- Next.js 16 (App Router, `output: "export"`) + React 19 + TypeScript estrito (6.x, a última suportada pelo Next).
+- Next.js 16 (App Router, `output: "standalone"`) + React 19 + TypeScript estrito (6.x, a última suportada pelo Next).
 - Tailwind CSS 4 + shadcn/ui (`frontend/src/components/ui/`).
 - Zod 4: única fonte de verdade dos schemas (config da página em `frontend/src/config/`).
 - Biome (lint + format), Vitest (testes).
 - Bun 1.4 como gerenciador de pacotes e executor de scripts (Next e Vitest rodam no Node 24).
-  Monorepo enxuto (workspaces no `package.json`): `frontend/`, `docs/`, `plans/`, `scripts/`, `deploy/`.
+  Monorepo enxuto (workspaces no `package.json`): `frontend/`, `docs/`, `plans/`, `scripts/`.
 - Deploy: GitHub Actions publica a imagem no GHCR (`ghcr.io/grupo-sim/vslrastrewin`, amd64 + arm64) a cada
-  push na `main`; a VM (Komodo) só baixa e roda. Container Caddy interno serve `out/`, atrás do Caddy central (HTTPS).
+  push na `main`; a VM (Komodo) só baixa e roda. Servidor Next.js standalone, atrás do caddy-docker-proxy central (HTTPS).
 - Sem `backend/` e sem `packages/schemas` por enquanto. Se entrar backend (NestJS + Prisma + PostgreSQL),
   os schemas Zod migram para `packages/schemas`.
 
@@ -28,7 +28,7 @@ Requer Bun 1.4.4 (`npm i -g bun@1.4.4`) e Node 24.
 | Typecheck                               | `bun run typecheck`               |
 | Testes                                  | `bun run test`                    |
 | Lint/format                             | `bun run lint` / `bun run format` |
-| Build estático (gera `frontend/out/`)   | `bun run build`                   |
+| Build (gera `frontend/.next/`)   | `bun run build`                   |
 | Auditoria de dependências               | `bun audit`                       |
 | Novo componente shadcn (em `frontend/`) | `bunx shadcn@4.22.1 add <nome>`   |
 
@@ -70,12 +70,9 @@ fica em `frontend/src/config/page-config.ts`, validado com Zod no build. Valor i
 
 ## Deploy
 
-`deploy/`: `Dockerfile` (multiplataforma; build Node nativo → Caddy sem root), `Caddyfile` (headers, cache, CSP),
-`compose.yaml` (Stack do Komodo: baixa a imagem do GHCR, sem portas públicas) e `caddy-central.snippet`
-(HTTPS + HSTS no Caddy central). `.github/workflows/publish-image.yml` publica a imagem (push na `main` ou
-manual), com ações fixadas por hash de commit: ao atualizar uma ação, troque o hash, não só a tag.
-CSP gerada no build por `scripts/csp-hashes.mjs` nos dois modos; o `CSP_MODE` do container escolhe
-(`report-only` ou `enforce`, outro valor impede o container de subir).
+`Dockerfile` e `compose.yml` ficam na raiz. A imagem roda apenas Next.js standalone na porta 3000.
+Os labels do Compose configuram o caddy-docker-proxy central pela rede Docker externa `caddy`.
+`.github/workflows/publish-image.yml` publica a imagem no GHCR para amd64 e arm64.
 
 ## Guias
 

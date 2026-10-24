@@ -1,11 +1,12 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Site 100% estático: gera HTML/CSS/JS em out/, servidos pelo Caddy (sem servidor Node).
-  output: "export",
+  output: "standalone",
+  outputFileTracingRoot: path.resolve(import.meta.dirname, ".."),
   poweredByHeader: false,
   reactStrictMode: true,
-  // O export estático não tem o otimizador de imagens; as imagens já vão otimizadas em public/.
+  // As imagens já vão otimizadas em public/.
   images: { unoptimized: true },
 };
 
