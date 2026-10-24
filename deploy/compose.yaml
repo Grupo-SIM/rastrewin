@@ -1,0 +1,31 @@
+# Stack para o Komodo. Build a partir da raiz do repositório.
+# Não publica portas: só o Caddy central (na mesma rede Docker) acessa o container.
+services:
+  vsl-rastrewin:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        CSP_MODE: ${CSP_MODE:-report-only}
+    image: vsl-rastrewin:latest
+    container_name: vsl-rastrewin
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /data:uid=10001,gid=10001,mode=0700
+      - /config:uid=10001,gid=10001,mode=0700
+      - /tmp:uid=10001,gid=10001,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 100
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: ${CADDY_NETWORK:-caddy}
