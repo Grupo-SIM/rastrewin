@@ -2,7 +2,7 @@
 
 import { LoaderCircle, Play } from "lucide-react";
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { advanceWatchProgress, initialWatchProgress } from "@/lib/watch-progress";
 import { loadYouTubeApi, preconnectYouTube, YOUTUBE_EMBED_HOST } from "@/lib/youtube-api";
 
@@ -33,6 +33,11 @@ export function VslPlayer({
   onUnlock,
 }: VslPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLButtonElement>(null);
+  const errorLinkRef = useRef<HTMLAnchorElement>(null);
+  /** O foco estava na capa ao dar play: acompanha o player para não voltar ao topo da página. */
+  const keepFocusRef = useRef(false);
   const playerRef = useRef<YT.Player | null>(null);
   const tickRef = useRef<number | null>(null);
   const loadTimeoutRef = useRef<number | null>(null);
@@ -101,63 +106,80 @@ export function VslPlayer({
     [clearLoadTimeout, stopTicking],
   );
 
-  const start = useCallback(async () => {
-    if (status !== "idle") return;
-    setStatus("loading");
-    loadTimeoutRef.current = window.setTimeout(fail, LOAD_TIMEOUT_MS);
-
-    try {
-      const api = await loadYouTubeApi();
-      const container = containerRef.current;
-      // A API pode chegar depois do limite: nesse caso o erro já foi mostrado.
-      if (!container || failedRef.current) return;
-
-      // O YouTube troca este elemento por um iframe; ele fica fora do controle do React.
-      const mount = document.createElement("div");
-      container.replaceChildren(mount);
-
-      playerRef.current = new api.Player(mount, {
-        host: YOUTUBE_EMBED_HOST,
-        videoId: youtubeId,
-        width: "100%",
-        height: "100%",
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          disablekb: 1,
-          fs: 0,
-          rel: 0,
-          playsinline: 1,
-          iv_load_policy: 3,
-          // Sem origin explícito, os eventos do player não chegam quando o host é youtube-nocookie.
-          origin: window.location.origin,
-        },
-        events: {
-          onReady: (event) => {
-            clearLoadTimeout();
-            event.target.getIframe().title = `Vídeo: ${title}`;
-            event.target.playVideo();
-            setStatus("ready");
-          },
-          onStateChange: (event) => {
-            const isPlaying = event.data === api.PlayerState.PLAYING;
-            setPlaying(isPlaying);
-            if (isPlaying) {
-              setStarted(true);
-              startTicking();
-            } else {
-              stopTicking();
-            }
-            // Assistiu até o fim: libera mesmo que o vídeo seja mais curto que unlockAtSeconds.
-            if (event.data === api.PlayerState.ENDED) unlock("watched");
-          },
-          onError: fail,
-        },
-      });
-    } catch {
-      fail();
+  useEffect(() => {
+    if (!keepFocusRef.current) return;
+    if (status === "ready" && started) {
+      overlayRef.current?.focus({ preventScroll: true });
+      keepFocusRef.current = false;
+    } else if (status === "ready") {
+      frameRef.current?.focus({ preventScroll: true });
+    } else if (status === "error") {
+      errorLinkRef.current?.focus({ preventScroll: true });
+      keepFocusRef.current = false;
     }
-  }, [clearLoadTimeout, fail, startTicking, status, stopTicking, title, unlock, youtubeId]);
+  }, [status, started]);
+
+  const start = useCallback(
+    async (event: MouseEvent<HTMLButtonElement>) => {
+      if (status !== "idle") return;
+      keepFocusRef.current = document.activeElement === event.currentTarget;
+      setStatus("loading");
+      loadTimeoutRef.current = window.setTimeout(fail, LOAD_TIMEOUT_MS);
+
+      try {
+        const api = await loadYouTubeApi();
+        const container = containerRef.current;
+        // A API pode chegar depois do limite: nesse caso o erro já foi mostrado.
+        if (!container || failedRef.current) return;
+
+        // O YouTube troca este elemento por um iframe; ele fica fora do controle do React.
+        const mount = document.createElement("div");
+        container.replaceChildren(mount);
+
+        playerRef.current = new api.Player(mount, {
+          host: YOUTUBE_EMBED_HOST,
+          videoId: youtubeId,
+          width: "100%",
+          height: "100%",
+          playerVars: {
+            autoplay: 1,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            rel: 0,
+            playsinline: 1,
+            iv_load_policy: 3,
+            // Sem origin explícito, os eventos do player não chegam quando o host é youtube-nocookie.
+            origin: window.location.origin,
+          },
+          events: {
+            onReady: (event) => {
+              clearLoadTimeout();
+              event.target.getIframe().title = `Vídeo: ${title}`;
+              event.target.playVideo();
+              setStatus("ready");
+            },
+            onStateChange: (event) => {
+              const isPlaying = event.data === api.PlayerState.PLAYING;
+              setPlaying(isPlaying);
+              if (isPlaying) {
+                setStarted(true);
+                startTicking();
+              } else {
+                stopTicking();
+              }
+              // Assistiu até o fim: libera mesmo que o vídeo seja mais curto que unlockAtSeconds.
+              if (event.data === api.PlayerState.ENDED) unlock("watched");
+            },
+            onError: fail,
+          },
+        });
+      } catch {
+        fail();
+      }
+    },
+    [clearLoadTimeout, fail, startTicking, status, stopTicking, title, unlock, youtubeId],
+  );
 
   const togglePlayback = () => {
     const player = playerRef.current;
@@ -175,7 +197,11 @@ export function VslPlayer({
 
   return (
     <div className="w-full">
-      <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[1.75rem] bg-ink shadow-brand-lg">
+      <div
+        ref={frameRef}
+        tabIndex={-1}
+        className="relative aspect-[9/16] w-full overflow-hidden rounded-[1.75rem] bg-ink shadow-brand-lg outline-none"
+      >
         <div ref={containerRef} className="absolute inset-0 [&_iframe]:size-full" />
 
         {status === "error" ? (
@@ -185,6 +211,7 @@ export function VslPlayer({
           >
             <p className="font-semibold">Não foi possível carregar o vídeo.</p>
             <a
+              ref={errorLinkRef}
               href={watchOnYouTube}
               target="_blank"
               rel="noopener noreferrer"
@@ -202,7 +229,8 @@ export function VslPlayer({
             onPointerEnter={preconnectYouTube}
             onPointerDown={warmUp}
             onFocus={preconnectYouTube}
-            disabled={status === "loading"}
+            // aria-disabled (e não disabled): desabilitar um botão com foco joga o foco para o topo.
+            aria-disabled={status === "loading"}
             aria-label={`Assistir ao vídeo: ${title}`}
             className="group absolute inset-0 cursor-pointer outline-none focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-inset"
           >
@@ -229,6 +257,7 @@ export function VslPlayer({
 
         {status === "ready" && started ? (
           <button
+            ref={overlayRef}
             type="button"
             onClick={togglePlayback}
             aria-label={playing ? "Pausar vídeo" : "Continuar vídeo"}
