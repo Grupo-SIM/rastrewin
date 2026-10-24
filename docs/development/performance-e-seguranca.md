@@ -18,8 +18,8 @@
   capa sai e aparece o play do próprio YouTube.
 - **Fontes:** `next/font` serve Plus Jakarta Sans e Manrope do próprio domínio, só com os pesos usados.
 - **Cache:** `/_next/static/*` imutável por 1 ano; HTML e `.txt` do Next sempre revalidam; imagens com 1h.
-- **Compressão:** zstd/gzip no Caddy (HTML de ~14KB vira ~4KB).
-- **JS:** ~144KB gzip (React + roteador do Next, o piso do App Router), todo `async` (não bloqueia a pintura).
+- **Compressão:** zstd/gzip no Caddy (HTML de ~16KB vira ~5KB).
+- **JS:** ~172KB comprimido, medido no Lighthouse (React + roteador do Next, o piso do App Router), todo `async` (não bloqueia a pintura).
 
 ### Medição (Lighthouse 13, mobile, Caddy local, capa provisória)
 
