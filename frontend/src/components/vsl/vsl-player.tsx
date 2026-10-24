@@ -13,6 +13,8 @@ const LOAD_TIMEOUT_MS = 15_000;
 export type UnlockReason = "watched" | "error";
 
 type Status = "idle" | "loading" | "ready" | "error";
+/** "buffering": travou para baixar; mostra carregamento em vez do ícone de play. */
+type Playback = "playing" | "buffering" | "paused";
 
 type VslPlayerProps = {
   youtubeId: string;
@@ -47,7 +49,7 @@ export function VslPlayer({
   const onUnlockRef = useRef(onUnlock);
   const [status, setStatus] = useState<Status>("idle");
   const [started, setStarted] = useState(false);
-  const [playing, setPlaying] = useState(false);
+  const [playback, setPlayback] = useState<Playback>("paused");
 
   useEffect(() => {
     unlockedRef.current = unlocked;
@@ -164,8 +166,11 @@ export function VslPlayer({
               setStatus("ready");
             },
             onStateChange: (event) => {
-              const isPlaying = event.data === api.PlayerState.PLAYING;
-              setPlaying(isPlaying);
+              const { PLAYING, BUFFERING, ENDED } = api.PlayerState;
+              const isPlaying = event.data === PLAYING;
+              setPlayback(
+                isPlaying ? "playing" : event.data === BUFFERING ? "buffering" : "paused",
+              );
               if (isPlaying) {
                 setStarted(true);
                 startTicking();
@@ -173,7 +178,7 @@ export function VslPlayer({
                 stopTicking();
               }
               // Assistiu até o fim: libera mesmo que o vídeo seja mais curto que unlockAtSeconds.
-              if (event.data === api.PlayerState.ENDED) unlock("watched");
+              if (event.data === ENDED) unlock("watched");
             },
             onError: fail,
           },
@@ -188,8 +193,8 @@ export function VslPlayer({
   const togglePlayback = () => {
     const player = playerRef.current;
     if (!player) return;
-    if (playing) player.pauseVideo();
-    else player.playVideo();
+    if (playback === "paused") player.playVideo();
+    else player.pauseVideo();
   };
 
   const warmUp = () => {
@@ -264,14 +269,19 @@ export function VslPlayer({
             ref={overlayRef}
             type="button"
             onClick={togglePlayback}
-            aria-label={playing ? "Pausar vídeo" : "Continuar vídeo"}
+            aria-label={playback === "paused" ? "Continuar vídeo" : "Pausar vídeo"}
             className="absolute inset-0 grid cursor-pointer place-items-center outline-none focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-inset"
           >
-            {playing ? null : (
+            {playback === "paused" ? (
               <span className="grid size-20 place-items-center rounded-full bg-white/95 text-ink shadow-brand-lg">
                 <Play aria-hidden="true" className="ml-1 size-8 fill-current" />
               </span>
-            )}
+            ) : null}
+            {playback === "buffering" ? (
+              <span className="grid size-16 place-items-center rounded-full bg-ink/60 text-white">
+                <LoaderCircle aria-hidden="true" className="size-8 animate-spin" />
+              </span>
+            ) : null}
           </button>
         ) : null}
       </div>
