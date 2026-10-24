@@ -14,6 +14,7 @@
 │   ├── src/config/         configuração validada com Zod
 │   ├── src/lib/            funções puras e utilitários
 │   └── public/             arquivos estáticos (logo, capa)
+├── .github/workflows/      publish-image.yml (publica a imagem no GHCR)
 ├── deploy/                 Dockerfile, Caddyfile, compose (Komodo)
 ├── docs/development/       guias
 ├── plans/                  planos aprovados

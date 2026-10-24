@@ -12,7 +12,8 @@ sem coleta de dados, sem pixel/UTM (rastreamento será tratado em outro momento)
 - Biome (lint + format), Vitest (testes).
 - Bun 1.4 como gerenciador de pacotes e executor de scripts (Next e Vitest rodam no Node 24).
   Monorepo enxuto (workspaces no `package.json`): `frontend/`, `docs/`, `plans/`, `scripts/`, `deploy/`.
-- Deploy: VM própria com Komodo; container Caddy interno serve `out/`, atrás do Caddy central (HTTPS).
+- Deploy: GitHub Actions publica a imagem no GHCR (`ghcr.io/grupo-sim/vslrastrewin`, amd64 + arm64) a cada
+  push na `main`; a VM (Komodo) só baixa e roda. Container Caddy interno serve `out/`, atrás do Caddy central (HTTPS).
 - Sem `backend/` e sem `packages/schemas` por enquanto. Se entrar backend (NestJS + Prisma + PostgreSQL),
   os schemas Zod migram para `packages/schemas`.
 
@@ -69,9 +70,12 @@ fica em `frontend/src/config/page-config.ts`, validado com Zod no build. Valor i
 
 ## Deploy
 
-`deploy/`: `Dockerfile` (build Node → Caddy sem root), `Caddyfile` (headers, cache, CSP),
-`compose.yaml` (Stack do Komodo, sem portas públicas) e `caddy-central.snippet` (HTTPS + HSTS no Caddy central).
-CSP gerada no build por `scripts/csp-hashes.mjs` (hashes dos scripts inline); modo via `CSP_MODE`.
+`deploy/`: `Dockerfile` (multiplataforma; build Node nativo → Caddy sem root), `Caddyfile` (headers, cache, CSP),
+`compose.yaml` (Stack do Komodo: baixa a imagem do GHCR, sem portas públicas) e `caddy-central.snippet`
+(HTTPS + HSTS no Caddy central). `.github/workflows/publish-image.yml` publica a imagem (push na `main` ou
+manual), com ações fixadas por hash de commit: ao atualizar uma ação, troque o hash, não só a tag.
+CSP gerada no build por `scripts/csp-hashes.mjs` nos dois modos; o `CSP_MODE` do container escolhe
+(`report-only` ou `enforce`, outro valor impede o container de subir).
 
 ## Guias
 

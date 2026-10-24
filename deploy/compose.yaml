@@ -1,15 +1,16 @@
-# Stack para o Komodo. Build a partir da raiz do repositório.
+# Stack para o Komodo. A imagem é publicada no GHCR pelo GitHub Actions
+# (.github/workflows/publish-image.yml): a VM só baixa e roda, sem compilar nada.
 # Não publica portas: só o Caddy central (na mesma rede Docker) acessa o container.
 services:
   vsl-rastrewin:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-      args:
-        CSP_MODE: ${CSP_MODE:-report-only}
-    image: vsl-rastrewin:latest
+    # latest = último push na main. Para voltar a uma versão anterior: VSL_IMAGE_TAG=sha-<commit>.
+    image: ghcr.io/grupo-sim/vslrastrewin:${VSL_IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: vsl-rastrewin
     restart: unless-stopped
+    environment:
+      # report-only (padrão) ou enforce. Valor inválido: o container não sobe.
+      CSP_MODE: ${CSP_MODE:-report-only}
     read_only: true
     tmpfs:
       - /data:uid=10001,gid=10001,mode=0700
