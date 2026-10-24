@@ -4,8 +4,8 @@
 .
 ├── CLAUDE.md               regras, stack e comandos
 ├── package.json            scripts da raiz (delegam para frontend/)
-├── bun.lock              lockfile do Bun (sempre commitado)
-├── bunfig.toml           config do Bun (versões exatas, idade mínima de versões)
+├── bun.lock                lockfile do Bun (sempre commitado)
+├── bunfig.toml             config do Bun (versões exatas, idade mínima de versões)
 ├── biome.json              lint + format
 ├── frontend/               Next.js (export estático)
 │   ├── next.config.ts

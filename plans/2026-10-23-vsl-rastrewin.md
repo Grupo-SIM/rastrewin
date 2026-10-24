@@ -1,9 +1,11 @@
 # Plano — VSL Rastrewin (vsl.rastrewin.com)
 
 ## Contexto
+
 Página de VSL que antecede https://rastrewin.com: logo, título, subtítulo, vídeo vertical do YouTube, botão que aparece após X segundos **realmente assistidos** e rodapé com aviso Meta. Tem que ser extremamente rápida, segura e seguir a identidade visual da Rastrewin. A página só exibe e redireciona: **sem backend, sem banco, sem coleta de dados, sem pixel/UTM** (rastreamento fica para outra conversa).
 
 ## Decisões da entrevista
+
 - **Stack:** Next.js 16 (App Router, `output: 'export'`) + React 19 + TS estrito + Tailwind 4 + shadcn/ui + Zod 4. Sem NestJS/Prisma/Postgres.
 - **Estrutura:** monorepo enxuto com pnpm: `frontend/`, `docs/`, `plans/`, `scripts/`, `deploy/`. Sem `backend/` e sem `packages/schemas` por enquanto.
 - **Vídeo:** YouTube não listado, carregado do domínio `youtube-nocookie.com`. Mostra só uma capa leve e carrega o YouTube no toque, que já começa com som. Player sem barra de progresso (`controls=0`), e tocar no vídeo pausa e retoma.
@@ -15,6 +17,7 @@ Página de VSL que antecede https://rastrewin.com: logo, título, subtítulo, v�
 - **Infra:** já existe um Caddy central na VM. Entrego um container Caddy interno (servindo os estáticos) e um bloco para o Caddyfile central.
 
 ## Identidade visual (extraída do CSS público)
+
 Tokens em `globals.css` (`@theme` do Tailwind 4):
 - **Cores:** `--ink #08304c`, `--ink-2 #084e72`, `--ink-soft #4b6478`, `--paper #fff`, `--paper-2 #fafbfc`, `--dark #2c2c2c`.
 - **Gradiente:** `--rainbow: linear-gradient(90deg,#26c0ff,#e600c2 20%,#ff4940 40%,#ffa130 60%,#ffc837 80%,#00cc3d)`.
@@ -23,6 +26,7 @@ Tokens em `globals.css` (`@theme` do Tailwind 4):
 - **Botão:** fundo branco, borda de 3px com o gradiente, pílula, texto `--ink`, altura ~58px, peso 600.
 
 ## Arquivos
+
 ```
 CLAUDE.md                      stack, comandos, convenções, regras + links p/ docs
 .gitignore  .env.example       (.env* ignorado; exemplo vazio comentado — site não tem segredos)
@@ -50,6 +54,7 @@ deploy/
 ```
 
 ## Schema Zod (`page-config.ts`)
+
 `PageConfigSchema = z.object({...}).strict()`, validado no build (se falhar, o build quebra):
 - `youtubeId`: `z.string().regex(/^[A-Za-z0-9_-]{11}$/)`
 - `unlockAtSeconds`: `z.number().int().positive().max(7200)`
@@ -60,6 +65,7 @@ deploy/
 Tipo derivado com `z.infer`. Testes cobrem config válida e inválida (ID errado, host diferente, `http:`, segundos negativos, chave extra).
 
 ## Player: como funciona o delay
+
 1. Capa `<button>` com poster (`fetchpriority="high"`, width/height explícitos), ícone play e `aria-label="Assistir ao vídeo"`.
 2. No toque, injeta `https://www.youtube.com/iframe_api` e cria `YT.Player` com `host: 'https://www.youtube-nocookie.com'` e `playerVars { autoplay:1, controls:0, disablekb:1, fs:0, rel:0, playsinline:1, iv_load_policy:3 }`.
 3. Enquanto o estado é PLAYING, um intervalo de 250ms soma `min(delta real, 1s)`. Quando a soma passa de `unlockAtSeconds`, chama `onUnlock()`, grava no storage e para o timer.
@@ -67,6 +73,7 @@ Tipo derivado com `z.infer`. Testes cobrem config válida e inválida (ID errado
 5. Sem JS ou com erro, a capa continua visível, e o vídeo pode ser aberto no YouTube como fallback.
 
 ## Segurança
+
 - **Sem dados nem segredos:** não há superfície de backend, SQL ou auth. Nenhuma `NEXT_PUBLIC_` sensível.
 - **XSS:** nada de `dangerouslySetInnerHTML`. Os textos vêm do config (React escapa).
 - **Open redirect:** o destino é fixo e validado com Zod (somente `https://rastrewin.com`).
@@ -77,6 +84,7 @@ Tipo derivado com `z.infer`. Testes cobrem config válida e inválida (ID errado
 - **Container:** sem root, imagens com versão fixa, filesystem read-only e nenhuma porta publicada (só a rede interna com o Caddy central).
 
 ## Dependências novas (e por quê)
+
 - `next`, `react`, `react-dom`, `tailwindcss`, `zod`, `typescript`: stack definida.
 - `shadcn` (CLI) + o que o Button exige (`class-variance-authority`, `clsx`, `tailwind-merge`, `@radix-ui/react-slot`): regra de usar shadcn/ui.
 - `@biomejs/biome`: lint e format num só, rápido.
@@ -86,9 +94,11 @@ Tipo derivado com `z.infer`. Testes cobrem config válida e inválida (ID errado
 - **TypeScript:** uso a última versão compatível com o Next 16 (a 7.x se o Next suportar; se não, a última 5.x/6.x suportada, conferida na hora).
 
 ## Banco de dados
+
 Nenhum. Nenhuma migration, nenhum comando contra banco.
 
 ## Commits (Conventional Commits, sem push)
+
 1. `chore: estrutura inicial do monorepo, Next, Biome e CLAUDE.md` (primeiro commit, depois do `git init`)
 2. `feat: tokens visuais, fontes e layout base da Rastrewin`
 3. `feat: configuração da página validada com Zod` (+ testes)
@@ -98,11 +108,13 @@ Nenhum. Nenhuma migration, nenhum comando contra banco.
 7. `chore: deploy com Caddy interno, compose para Komodo e docs`
 
 ## O que ainda preciso de você (pode ser depois, valores ficam provisórios)
+
 - Título, subtítulo e texto do botão.
 - ID do vídeo no YouTube e o segundo em que o botão deve aparecer.
 - Uma imagem de capa vertical (9:16). A miniatura do YouTube para vídeo vertical sai com tarjas pretas.
 
 ## Verificação
+
 - `pnpm -C frontend typecheck` (`tsc --noEmit`), `pnpm biome check` nos arquivos alterados e `pnpm -C frontend test` (Vitest: schema + timer + storage).
 - `pnpm -C frontend build`, conferindo o tamanho do `out/` (meta: JS inicial < ~90KB gzip e HTML + CSS mínimos).
 - Rodar `out/` localmente e conferir em 360/768/1280px: capa, play, pausa por toque, botão aparecendo no tempo, recarga com o botão já visível, foco visível e navegação por teclado.
