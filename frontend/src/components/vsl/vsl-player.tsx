@@ -42,6 +42,7 @@ export function VslPlayer({
   const keepFocusRef = useRef(false);
   const playerRef = useRef<YT.Player | null>(null);
   const tickRef = useRef<number | null>(null);
+  const lastTickAtRef = useRef(0);
   const loadTimeoutRef = useRef<number | null>(null);
   const failedRef = useRef(false);
   const progressRef = useRef(initialWatchProgress);
@@ -76,10 +77,19 @@ export function VslPlayer({
 
   const startTicking = useCallback(() => {
     if (tickRef.current !== null || unlockedRef.current) return;
+    // Recomeça a cada play: o tempo pausado não entra no tempo real entre leituras.
+    lastTickAtRef.current = performance.now();
     tickRef.current = window.setInterval(() => {
       const player = playerRef.current;
       if (!player) return;
-      progressRef.current = advanceWatchProgress(progressRef.current, player.getCurrentTime());
+      const now = performance.now();
+      const elapsedSeconds = (now - lastTickAtRef.current) / 1000;
+      lastTickAtRef.current = now;
+      progressRef.current = advanceWatchProgress(
+        progressRef.current,
+        player.getCurrentTime(),
+        elapsedSeconds,
+      );
       if (progressRef.current.watchedSeconds >= unlockAtSeconds) {
         stopTicking();
         unlock("watched");

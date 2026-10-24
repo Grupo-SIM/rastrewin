@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   advanceWatchProgress,
   initialWatchProgress,
-  MAX_STEP_SECONDS,
+  STEP_TOLERANCE_SECONDS,
   type WatchProgress,
 } from "./watch-progress";
 
+const TICK = 0.25;
+
+/** Leituras a cada TICK segundos de tempo real (aba em primeiro plano). */
 const feed = (positions: number[], start: WatchProgress = initialWatchProgress) =>
-  positions.reduce(advanceWatchProgress, start);
+  positions.reduce((progress, position) => advanceWatchProgress(progress, position, TICK), start);
 
 describe("advanceWatchProgress", () => {
   it("soma a reprodução normal", () => {
@@ -31,13 +34,28 @@ describe("advanceWatchProgress", () => {
   });
 
   it("aceita um avanço no limite e ignora acima dele", () => {
-    expect(feed([0, MAX_STEP_SECONDS]).watchedSeconds).toBe(MAX_STEP_SECONDS);
-    expect(feed([0, MAX_STEP_SECONDS + 0.01]).watchedSeconds).toBe(0);
+    const limit = TICK + STEP_TOLERANCE_SECONDS;
+    expect(feed([0, limit]).watchedSeconds).toBe(limit);
+    expect(feed([0, limit + 0.01]).watchedSeconds).toBe(0);
+  });
+
+  it("conta a aba em segundo plano, com leituras espaçadas pelo navegador", () => {
+    const start = feed([10]);
+    const afterMinute = advanceWatchProgress(start, 70, 60);
+    expect(afterMinute.watchedSeconds).toBe(60);
+    // Mesmo espaçamento, mas avanço maior que o tempo real: pulo.
+    expect(advanceWatchProgress(start, 200, 60).watchedSeconds).toBe(0);
+  });
+
+  it("trata tempo real inválido como zero (só a folga vale)", () => {
+    const start = feed([0]);
+    expect(advanceWatchProgress(start, 1, Number.NaN).watchedSeconds).toBe(1);
+    expect(advanceWatchProgress(start, 30, -5).watchedSeconds).toBe(0);
   });
 
   it("ignora leituras inválidas", () => {
     const before = feed([3]);
-    expect(advanceWatchProgress(before, Number.NaN)).toBe(before);
-    expect(advanceWatchProgress(before, -1)).toBe(before);
+    expect(advanceWatchProgress(before, Number.NaN, TICK)).toBe(before);
+    expect(advanceWatchProgress(before, -1, TICK)).toBe(before);
   });
 });
