@@ -22,6 +22,12 @@ services:
     mem_limit: 128m
     cpus: 0.5
     pids_limit: 100
+    # O Caddy registra cada visita: sem limite, os logs podem encher o disco da VM.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - proxy
 

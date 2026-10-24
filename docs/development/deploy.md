@@ -10,6 +10,7 @@ Internet ──443──▶ Caddy central (HTTPS, HSTS) ──rede Docker──�
 - A imagem é construída em 2 etapas: Node gera `frontend/out/` (rodando os testes antes) e Caddy serve os arquivos.
 - O container roda **sem root** (uid 10001), com filesystem somente leitura, `cap_drop: ALL`,
   `no-new-privileges` e limites de memória, CPU e processos.
+- Logs com rotação: até 3 arquivos de 10MB (30MB no máximo), para não encher o disco da VM.
 
 ## Primeira vez
 
