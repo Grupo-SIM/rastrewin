@@ -7,7 +7,7 @@
   carregam no toque (economiza ~1MB e várias conexões). Ao passar o dedo/mouse na capa, já abrimos
   conexão com o YouTube (`preconnect`).
 - **Fontes:** `next/font` serve Plus Jakarta Sans e Manrope do próprio domínio, só com os pesos usados.
-- **Cache:** `/_next/static/*` imutável por 1 ano; HTML sempre revalida; imagens com 1h.
+- **Cache:** `/_next/static/*` imutável por 1 ano; HTML e `.txt` do Next sempre revalidam; imagens com 1h.
 - **Compressão:** zstd/gzip no Caddy (HTML de ~14KB vira ~4KB).
 - **JS:** ~144KB gzip (React + roteador do Next, o piso do App Router), todo `async` (não bloqueia a pintura).
 

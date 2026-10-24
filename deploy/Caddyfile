@@ -32,8 +32,8 @@
 	@images path *.svg *.jpg *.jpeg *.png *.webp *.avif
 	header @images Cache-Control "public, max-age=3600, stale-while-revalidate=86400"
 
-	# HTML: sempre revalida, para cada deploy aparecer na hora.
-	@html not path /_next/static/* *.svg *.jpg *.jpeg *.png *.webp *.avif *.txt
+	# HTML e os .txt do Next (dados das páginas, sem hash no nome): sempre revalidam, para cada deploy aparecer na hora.
+	@html not path /_next/static/* *.svg *.jpg *.jpeg *.png *.webp *.avif
 	header @html Cache-Control "no-cache"
 
 	try_files {path} {path}.html
