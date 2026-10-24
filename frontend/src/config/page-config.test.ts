@@ -3,6 +3,7 @@ import { pageConfig } from "./page-config";
 import { type PageConfig, PageConfigSchema } from "./page-config.schema";
 
 const valid: PageConfig = {
+  siteUrl: "https://vsl.rastrewin.com",
   youtubeId: "abcDEF12_-3",
   unlockAtSeconds: 165,
   destinationUrl: "https://rastrewin.com",
@@ -52,6 +53,7 @@ describe("PageConfigSchema", () => {
     ["destino javascript:", { destinationUrl: "javascript:alert(1)" }],
     ["capa externa", { posterSrc: "https://cdn.com/a.webp" }],
     ["capa com path traversal", { posterSrc: "/../etc/passwd.png" }],
+    ["site em http", { siteUrl: "http://vsl.rastrewin.com" }],
     ["chave desconhecida", { extra: true }],
   ])("rejeita %s", (_label, changes) => {
     expect(PageConfigSchema.safeParse(withChanges(changes)).success).toBe(false);

@@ -8,6 +8,8 @@ export const DESTINATION_HOST = "rastrewin.com";
 const text = (max: number) => z.string().trim().min(1, "Texto obrigatório.").max(max);
 
 export const PageConfigSchema = z.strictObject({
+  /** Endereço público da VSL (usado nos metadados de compartilhamento). */
+  siteUrl: z.url({ protocol: /^https$/, error: "O endereço do site precisa ser https." }),
   youtubeId: z
     .string()
     .regex(/^[A-Za-z0-9_-]{11}$/, "ID do YouTube inválido: são 11 letras, números, - ou _."),

@@ -6,6 +6,7 @@ import { PageConfigSchema } from "./page-config.schema";
  * Provisórios: youtubeId, unlockAtSeconds, posterSrc e textos de copy.
  */
 export const pageConfig = PageConfigSchema.parse({
+  siteUrl: "https://vsl.rastrewin.com",
   youtubeId: "VIDEO_ID_00",
   unlockAtSeconds: 120,
   destinationUrl: "https://rastrewin.com",
