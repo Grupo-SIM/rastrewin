@@ -23,8 +23,8 @@ export default function NotFound() {
         </h1>
         <p className="mt-2 text-ink-soft">O endereço que você acessou não existe.</p>
       </div>
-      <div className="@container w-full max-w-xs">
-        <Button asChild variant="rainbow" size="xl" className="w-full">
+      <div className="@container flex w-full max-w-xs justify-center">
+        <Button asChild variant="rainbow" size="xl">
           <a href="/">Voltar para o vídeo</a>
         </Button>
       </div>

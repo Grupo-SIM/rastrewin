@@ -29,7 +29,7 @@ const buttonVariants = cva(
         sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
         lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
         // Responde à largura da coluna (@container no pai), não à da tela.
-        xl: "min-h-[3.5rem] gap-2.5 px-4 py-2 text-[0.9375rem] @xs:px-5 @xs:text-base @sm:min-h-[3.625rem] @sm:text-[1.0625rem] [&_svg:not([class*='size-'])]:size-5",
+        xl: "min-h-12 gap-2 px-6 py-2 text-[0.9375rem] @xs:text-base [&_svg:not([class*='size-'])]:size-[1.125rem]",
         icon: "size-9",
         "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-8",

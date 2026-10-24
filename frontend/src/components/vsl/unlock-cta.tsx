@@ -8,8 +8,8 @@ type UnlockCtaProps = {
 
 export function UnlockCta({ href, label }: UnlockCtaProps) {
   return (
-    <div className="mt-6 w-full animate-reveal motion-reduce:animate-none">
-      <Button asChild variant="rainbow-spin" size="xl" className="w-full whitespace-normal">
+    <div className="mt-5 flex w-full animate-reveal justify-center motion-reduce:animate-none">
+      <Button asChild variant="rainbow-spin" size="xl" className="max-w-full whitespace-normal">
         <a href={href} data-vsl-cta="">
           {label}
           <ArrowRight aria-hidden="true" className="animate-nudge motion-reduce:animate-none" />
