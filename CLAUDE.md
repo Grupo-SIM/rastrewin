@@ -32,7 +32,8 @@ Requer Bun 1.4.4 (`npm i -g bun@1.4.4`) e Node 24.
 | Novo componente shadcn (em `frontend/`) | `bunx shadcn@4.22.1 add <nome>`   |
 
 O CLI do shadcn **não** é dependência do projeto (roda via `bunx`); o pacote `cn` (do próprio shadcn)
-substitui `clsx` + `tailwind-merge`.
+substitui `clsx` + `tailwind-merge`. Componentes novos do shadcn importam o pacote `radix-ui` inteiro
+(~60 pacotes): troque pelo pacote específico (ex.: `@radix-ui/react-slot`), como no `button.tsx`.
 
 ## Onde editar o conteúdo
 
