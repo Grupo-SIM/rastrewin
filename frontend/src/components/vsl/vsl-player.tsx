@@ -7,6 +7,8 @@ import { advanceWatchProgress, initialWatchProgress } from "@/lib/watch-progress
 import { loadYouTubeApi, preconnectYouTube, YOUTUBE_EMBED_HOST } from "@/lib/youtube-api";
 
 const TICK_MS = 250;
+/** Sem player pronto nesse tempo (rede travada, bloqueador), mostra o erro e libera o botão. */
+const LOAD_TIMEOUT_MS = 15_000;
 
 export type UnlockReason = "watched" | "error";
 
@@ -33,6 +35,8 @@ export function VslPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YT.Player | null>(null);
   const tickRef = useRef<number | null>(null);
+  const loadTimeoutRef = useRef<number | null>(null);
+  const failedRef = useRef(false);
   const progressRef = useRef(initialWatchProgress);
   const unlockedRef = useRef(unlocked);
   const onUnlockRef = useRef(onUnlock);
@@ -44,6 +48,12 @@ export function VslPlayer({
     unlockedRef.current = unlocked;
     onUnlockRef.current = onUnlock;
   });
+
+  const clearLoadTimeout = useCallback(() => {
+    if (loadTimeoutRef.current === null) return;
+    window.clearTimeout(loadTimeoutRef.current);
+    loadTimeoutRef.current = null;
+  }, []);
 
   const stopTicking = useCallback(() => {
     if (tickRef.current === null) return;
@@ -72,28 +82,35 @@ export function VslPlayer({
 
   // Se o vídeo falhar, libera o botão para não travar o funil.
   const fail = useCallback(() => {
+    failedRef.current = true;
+    clearLoadTimeout();
     stopTicking();
+    playerRef.current?.destroy();
+    playerRef.current = null;
     setStatus("error");
     unlock("error");
-  }, [stopTicking, unlock]);
+  }, [clearLoadTimeout, stopTicking, unlock]);
 
   useEffect(
     () => () => {
+      clearLoadTimeout();
       stopTicking();
       playerRef.current?.destroy();
       playerRef.current = null;
     },
-    [stopTicking],
+    [clearLoadTimeout, stopTicking],
   );
 
   const start = useCallback(async () => {
     if (status !== "idle") return;
     setStatus("loading");
+    loadTimeoutRef.current = window.setTimeout(fail, LOAD_TIMEOUT_MS);
 
     try {
       const api = await loadYouTubeApi();
       const container = containerRef.current;
-      if (!container) return;
+      // A API pode chegar depois do limite: nesse caso o erro já foi mostrado.
+      if (!container || failedRef.current) return;
 
       // O YouTube troca este elemento por um iframe; ele fica fora do controle do React.
       const mount = document.createElement("div");
@@ -117,6 +134,7 @@ export function VslPlayer({
         },
         events: {
           onReady: (event) => {
+            clearLoadTimeout();
             event.target.getIframe().title = `Vídeo: ${title}`;
             event.target.playVideo();
             setStatus("ready");
@@ -137,7 +155,7 @@ export function VslPlayer({
     } catch {
       fail();
     }
-  }, [fail, startTicking, status, stopTicking, title, youtubeId]);
+  }, [clearLoadTimeout, fail, startTicking, status, stopTicking, title, youtubeId]);
 
   const togglePlayback = () => {
     const player = playerRef.current;
