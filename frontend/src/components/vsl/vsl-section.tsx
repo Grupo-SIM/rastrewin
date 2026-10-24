@@ -36,7 +36,11 @@ export function VslSection({
   };
 
   return (
-    <section aria-label="Vídeo" className="mt-6 flex w-full flex-col items-center sm:mt-8">
+    // Vídeo e botão dividem a mesma coluna: o botão nunca fica mais largo que o vídeo.
+    <section
+      aria-label="Vídeo"
+      className="@container mt-6 flex w-full max-w-[22.5rem] flex-col sm:mt-8 sm:max-w-[min(25rem,calc((100svh-15rem)*0.5625))] sm:min-w-[18rem]"
+    >
       <VslPlayer
         youtubeId={youtubeId}
         unlockAtSeconds={unlockAtSeconds}

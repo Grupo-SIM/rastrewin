@@ -154,7 +154,7 @@ export function VslPlayer({
   const watchOnYouTube = `https://www.youtube.com/watch?v=${youtubeId}`;
 
   return (
-    <div className="w-full max-w-[22.5rem] sm:max-w-[min(25rem,calc((100svh-15rem)*0.5625))] sm:min-w-[18rem]">
+    <div className="w-full">
       <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[1.75rem] bg-ink shadow-brand-lg">
         <div ref={containerRef} className="absolute inset-0 [&_iframe]:size-full" />
 
