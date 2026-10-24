@@ -148,6 +148,8 @@ export function VslPlayer({
             } else {
               stopTicking();
             }
+            // Assistiu até o fim: libera mesmo que o vídeo seja mais curto que unlockAtSeconds.
+            if (event.data === api.PlayerState.ENDED) unlock("watched");
           },
           onError: fail,
         },
@@ -155,7 +157,7 @@ export function VslPlayer({
     } catch {
       fail();
     }
-  }, [clearLoadTimeout, fail, startTicking, status, stopTicking, title, youtubeId]);
+  }, [clearLoadTimeout, fail, startTicking, status, stopTicking, title, unlock, youtubeId]);
 
   const togglePlayback = () => {
     const player = playerRef.current;
