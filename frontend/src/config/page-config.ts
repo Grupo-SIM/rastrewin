@@ -7,10 +7,10 @@ import { PageConfigSchema } from "./page-config.schema";
  */
 export const pageConfig = PageConfigSchema.parse({
   siteUrl: "https://vsl.rastrewin.com",
-  // TEMPORÁRIO: vídeo público de demonstração da API do YouTube (Google for Developers).
-  // Trocar pelo ID do vídeo real da VSL.
-  youtubeId: "M7lc1UVf-VE",
-  unlockAtSeconds: 120,
+  // TEMPORÁRIO (testes): Short vertical público do canal oficial do Google e liberação em 5s.
+  // Trocar pelo ID do vídeo real da VSL e pelo segundo definitivo do botão.
+  youtubeId: "yI5C7LqBVEM",
+  unlockAtSeconds: 5,
   destinationUrl: "https://rastrewin.com",
   posterSrc: "/poster.jpg",
   copy: {
