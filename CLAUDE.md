@@ -25,6 +25,10 @@ Use `corepack pnpm …` se o `pnpm` não estiver no PATH (ou rode `corepack enab
 | Testes | `pnpm test` |
 | Lint/format | `pnpm lint` / `pnpm format` |
 | Build estático (gera `frontend/out/`) | `pnpm build` |
+| Novo componente shadcn (em `frontend/`) | `pnpm dlx shadcn@4.22.1 add <nome>` |
+
+O CLI do shadcn **não** é dependência do projeto (roda via `dlx`); o pacote `cn` (do próprio shadcn)
+substitui `clsx` + `tailwind-merge`.
 
 ## Onde editar o conteúdo
 Tudo que muda com frequência (ID do vídeo, segundo de liberação do botão, textos, link de destino)
