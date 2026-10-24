@@ -20,8 +20,9 @@
 		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), autoplay=(self \"https://www.youtube-nocookie.com\"), encrypted-media=(self \"https://www.youtube-nocookie.com\"), picture-in-picture=(self \"https://www.youtube-nocookie.com\"), fullscreen=(self \"https://www.youtube-nocookie.com\")"
 		# Sempre aplicadas (não quebram nada):
 		Content-Security-Policy "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
-		# CSP completa com hashes dos scripts inline, gerada no build (Report-Only ou aplicada).
-		import /etc/caddy/csp.caddy
+		# CSP completa com hashes dos scripts inline, gerada no build nos dois modos.
+		# CSP_MODE (variável do container) escolhe: report-only (padrão) ou enforce.
+		import /etc/caddy/csp-{$CSP_MODE:report-only}.caddy
 	}
 
 	# Arquivos com hash no nome: cache "eterno".

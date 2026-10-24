@@ -2,6 +2,7 @@
 **/.next
 **/out
 .git
+.github
 .env*
 !.env.example
 docs
