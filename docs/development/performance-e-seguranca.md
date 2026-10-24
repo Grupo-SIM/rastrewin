@@ -36,7 +36,20 @@ O LCP melhora com a capa definitiva otimizada: **AVIF ou WebP, 720×1280, ~20–
 | Container          | Sem root, read-only, `cap_drop: ALL`, `no-new-privileges`, sem portas publicadas.                                |
 | Indexação          | `noindex` (meta + `X-Robots-Tag`). Sem bloqueio no robots.txt, para o noindex ser lido.                          |
 
-### Por que o botão libera se o vídeo falhar?
+### Quando o botão é liberado
 
-O delay é um recurso de persuasão, não de segurança. Se o YouTube falhar (vídeo removido, rede),
-travar o botão só perderia a venda. Nesse caso ele libera **só naquela visita** (não fica gravado).
+| Situação                                                                 | Libera? | Fica lembrado na próxima visita? |
+| ------------------------------------------------------------------------ | ------- | -------------------------------- |
+| Assistiu `unlockAtSeconds` segundos (só avanço normal; pulos não contam) | Sim     | Sim                              |
+| Assistiu até o fim (vídeo mais curto que `unlockAtSeconds`)              | Sim     | Sim                              |
+| YouTube deu erro (vídeo removido, bloqueado)                             | Sim     | Não                              |
+| YouTube não carregou em 15s (rede travada, bloqueador)                   | Sim     | Não                              |
+
+O delay é um recurso de persuasão, não de segurança. Travar o botão quando o vídeo falha só
+perderia a venda.
+
+### Acessibilidade do player
+
+- Ao dar play pelo teclado, o foco acompanha o player (quadro → "Pausar vídeo"; em erro, o link do YouTube).
+- O iframe do YouTube fica fora da ordem do Tab, para os links dele não tirarem a pessoa do funil.
+- Durante o buffering aparece um spinner (e não o ícone de play).
