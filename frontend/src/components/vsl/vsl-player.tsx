@@ -144,10 +144,19 @@ export function VslPlayer({
     if (!player) return;
     clearLoadTimeout();
     player.playVideo();
-    playFallbackRef.current = window.setTimeout(() => {
+    const requestedAt = performance.now();
+    const revealIfBlocked = () => {
       playFallbackRef.current = null;
+      // Ainda baixando (rede lenta), não bloqueado: a capa fica, para não mostrar o título e o canal
+      // do YouTube (links que tiram a pessoa do funil). Com limite, para não girar para sempre.
+      const buffering = playerRef.current?.getPlayerState() === YT.PlayerState.BUFFERING;
+      if (buffering && performance.now() - requestedAt < LOAD_TIMEOUT_MS) {
+        playFallbackRef.current = window.setTimeout(revealIfBlocked, TICK_MS);
+        return;
+      }
       setStatus((current) => (current === "loading" ? "ready" : current));
-    }, PLAY_FALLBACK_MS);
+    };
+    playFallbackRef.current = window.setTimeout(revealIfBlocked, PLAY_FALLBACK_MS);
   }, [clearLoadTimeout]);
 
   useEffect(() => {
