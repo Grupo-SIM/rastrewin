@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Celular deitado (ou janela baixa): texto ao lado do vídeo, para o play caber sem rolar. */
+@custom-variant landscape-short (@media (orientation: landscape) and (max-height: 32rem));
+
 /* Identidade visual da Rastrewin (extraída do CSS público de rastrewin.com). */
 :root {
   --ink: #08304c;

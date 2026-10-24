@@ -37,24 +37,34 @@ export function VslSection({
 
   return (
     // Vídeo e botão dividem a mesma coluna: o botão nunca fica mais largo que o vídeo.
+    // Celular deitado: a seção some da grade (contents); o vídeo vai para a coluna da direita,
+    // na altura da tela, e o botão fica à esquerda, abaixo do texto.
     <section
       aria-label="Vídeo"
-      className="@container mt-6 flex w-full max-w-[22.5rem] flex-col max-[359px]:mt-5 sm:mt-8 sm:max-w-[min(25rem,calc((100svh-15rem)*0.5625))] sm:min-w-[18rem]"
+      className="@container mt-6 flex w-full max-w-[22.5rem] flex-col max-[359px]:mt-5 sm:mt-8 sm:max-w-[min(25rem,calc((100svh-15rem)*0.5625))] sm:min-w-[18rem] landscape-short:contents"
     >
-      <VslPlayer
-        youtubeId={youtubeId}
-        unlockAtSeconds={unlockAtSeconds}
-        posterSrc={posterSrc}
-        title={title}
-        unlocked={unlocked}
-        onUnlock={handleUnlock}
-      />
+      <div className="w-full landscape-short:col-start-2 landscape-short:row-span-4 landscape-short:row-start-1 landscape-short:w-[calc((100svh-2rem)*0.5625)]">
+        <VslPlayer
+          youtubeId={youtubeId}
+          unlockAtSeconds={unlockAtSeconds}
+          posterSrc={posterSrc}
+          title={title}
+          unlocked={unlocked}
+          onUnlock={handleUnlock}
+        />
+      </div>
 
       <p role="status" className="sr-only">
-        {unlocked ? "Acesso liberado. O botão para continuar está abaixo do vídeo." : ""}
+        {unlocked ? "Acesso liberado. O botão para continuar já está na página." : ""}
       </p>
 
-      {unlocked ? <UnlockCta href={destinationUrl} label={ctaLabel} /> : null}
+      {unlocked ? (
+        <UnlockCta
+          href={destinationUrl}
+          label={ctaLabel}
+          className="landscape-short:mt-6 landscape-short:justify-start"
+        />
+      ) : null}
     </section>
   );
 }

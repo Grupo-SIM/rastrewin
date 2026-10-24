@@ -42,7 +42,10 @@ fica em `frontend/src/config/page-config.ts`, validado com Zod no build. Valor i
 ## Convenções
 
 - Textos de interface e mensagens em português.
-- Mobile-first; conferir 360px, 768px e 1280px. Foco visível, contraste WCAG AA, `aria-*` corretos.
+- Mobile-first; conferir 320px, 360px, 768px, 1280px e celular deitado (ex.: 844×390). Foco visível,
+  contraste WCAG AA, `aria-*` corretos.
+- Celular deitado (tela deitada com até 512px de altura): variante `landscape-short:` (em `globals.css`),
+  com texto e botão à esquerda e vídeo à direita, para o play caber sem rolar.
 - Identidade visual da Rastrewin: tokens em `frontend/src/app/globals.css`.
 - Nada de `dangerouslySetInnerHTML`. Nenhum segredo no código; nenhuma variável sensível `NEXT_PUBLIC_`.
 - Nenhum script de terceiros antes de a pessoa tocar no vídeo.
