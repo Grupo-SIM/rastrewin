@@ -19,6 +19,9 @@ const buttonVariants = cva(
         // Botão-assinatura da Rastrewin: fundo branco com borda no gradiente da marca.
         rainbow:
           "rounded-full border-[3px] border-transparent font-semibold text-ink shadow-brand [background:linear-gradient(#fff,#fff)_padding-box,var(--rainbow)_border-box] hover:-translate-y-px focus-visible:border-transparent focus-visible:ring-ring/70 focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        // Mesmo botão, com a borda girando (CTA principal).
+        "rainbow-spin":
+          "rainbow-border-spin rounded-full border-[3px] border-transparent font-semibold text-ink shadow-brand hover:-translate-y-px focus-visible:border-transparent focus-visible:ring-ring/70 focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
