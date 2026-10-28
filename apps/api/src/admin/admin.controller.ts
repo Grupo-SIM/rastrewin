@@ -110,7 +110,7 @@ export class AdminController {
       this.prisma.user.findMany({ where, orderBy: { paidAt: 'desc' }, skip: o, take: l }),
       this.prisma.user.count({ where }),
       this.prisma.user.groupBy({ by: ['plan'], where: cityWhere, _count: { _all: true } }),
-      this.prisma.user.groupBy({ by: ['city'], where: planWhere, _count: { _all: true } }),
+      this.prisma.user.groupBy({ by: ['city'], where: { ...planWhere, role: { not: 'ADMIN' }, city: { not: '' } }, _count: { _all: true } }),
       this.prisma.user.findMany({ where: { id: { in: winnerIds }, ...planWhere, ...cityWhere }, select: { id: true } }),
     ]);
     // "Cuiabá" e "cuiabá" são a mesma cidade (o filtro também ignora a caixa)
