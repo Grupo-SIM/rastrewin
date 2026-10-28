@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { uniqueWinnerName } from '../mock';
@@ -69,7 +69,7 @@ export class AdminController {
   async userOptions(@Query('q') q = '') {
     const term = q.trim();
     const rows = await this.prisma.user.findMany({
-      where: term ? { OR: [{ name: { contains: term, mode: 'insensitive' } }, { email: { contains: term, mode: 'insensitive' } }] } : undefined,
+      where: { role: { not: 'ADMIN' }, ...(term ? { OR: [{ name: { contains: term, mode: 'insensitive' } }, { email: { contains: term, mode: 'insensitive' } }] } : {}) },
       orderBy: { name: 'asc' },
       take: 50,
       select: { id: true, name: true, email: true, plan: true },
@@ -92,7 +92,8 @@ export class AdminController {
     const winnerIds = wonRows.map((w) => w.winnerUserId as string);
     const prizesOf = new Map(wonRows.map((w) => [w.winnerUserId as string, w._count._all]));
 
-    const planWhere = plan !== 'all' ? { plan } : {};
+    // a conta admin não é cliente: fora da lista, das contagens e dos filtros
+    const planWhere = { role: { not: 'ADMIN' }, ...(plan !== 'all' ? { plan } : {}) };
     const cityWhere = city !== 'all' ? { city: { equals: city, mode: 'insensitive' as const } } : {};
     const where = {
       ...planWhere,
@@ -109,8 +110,8 @@ export class AdminController {
     const [users, total, byPlan, byCity, winnerClients] = await Promise.all([
       this.prisma.user.findMany({ where, orderBy: { paidAt: 'desc' }, skip: o, take: l }),
       this.prisma.user.count({ where }),
-      this.prisma.user.groupBy({ by: ['plan'], where: cityWhere, _count: { _all: true } }),
-      this.prisma.user.groupBy({ by: ['city'], where: { ...planWhere, role: { not: 'ADMIN' }, city: { not: '' } }, _count: { _all: true } }),
+      this.prisma.user.groupBy({ by: ['plan'], where: { role: { not: 'ADMIN' }, ...cityWhere }, _count: { _all: true } }),
+      this.prisma.user.groupBy({ by: ['city'], where: { ...planWhere, city: { not: '' } }, _count: { _all: true } }),
       this.prisma.user.findMany({ where: { id: { in: winnerIds }, ...planWhere, ...cityWhere }, select: { id: true } }),
     ]);
     // "Cuiabá" e "cuiabá" são a mesma cidade (o filtro também ignora a caixa)
@@ -151,6 +152,10 @@ export class AdminController {
   @Patch('raffles/:id')
   async setWinner(@Param('id') id: string, @Body() dto: UpdateRaffleDto) {
     await this.find(id);
+    if (dto.winnerUserId) {
+      const u = await this.prisma.user.findUnique({ where: { id: dto.winnerUserId }, select: { role: true } });
+      if (u?.role === 'ADMIN') throw new BadRequestException('A conta admin não pode ser ganhadora');
+    }
     const data: { title?: string; winnerName?: string | null; winnerUserId?: string | null } = {};
     if (dto.title !== undefined) data.title = dto.title.trim();
     if (dto.winnerName !== undefined) data.winnerName = dto.winnerName || null;

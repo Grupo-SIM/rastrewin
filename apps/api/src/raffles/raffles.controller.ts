@@ -57,7 +57,7 @@ export async function reservedNames(prisma: PrismaService) {
 let buyerCache: { at: number; rows: { id: string; name: string }[] } | null = null;
 async function buyers(prisma: PrismaService) {
   if (buyerCache && Date.now() - buyerCache.at < 10_000) return buyerCache.rows;
-  const rows = await prisma.user.findMany({ where: { status: { not: 'PENDING' } }, orderBy: { id: 'asc' }, select: { id: true, name: true } });
+  const rows = await prisma.user.findMany({ where: { status: { not: 'PENDING' }, role: { not: 'ADMIN' } }, orderBy: { id: 'asc' }, select: { id: true, name: true } });
   buyerCache = { at: Date.now(), rows };
   return rows;
 }
