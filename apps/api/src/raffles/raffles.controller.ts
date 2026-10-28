@@ -53,6 +53,15 @@ export async function reservedNames(prisma: PrismaService) {
   return reserved.names;
 }
 
+/** Clientes que já compraram (ativos ou vencidos), em ordem estável de id. Cache curto: compra nova aparece em segundos. */
+let buyerCache: { at: number; rows: { id: string; name: string }[] } | null = null;
+async function buyers(prisma: PrismaService) {
+  if (buyerCache && Date.now() - buyerCache.at < 10_000) return buyerCache.rows;
+  const rows = await prisma.user.findMany({ where: { status: { not: 'PENDING' } }, orderBy: { id: 'asc' }, select: { id: true, name: true } });
+  buyerCache = { at: Date.now(), rows };
+  return rows;
+}
+
 /** Todo sorteio encerrado ganha ganhador na hora (do pool de usuários, sem repetir os ganhadores recentes). */
 export function ensureWinners(prisma: PrismaService) {
   return serialized(async () => {
@@ -151,12 +160,26 @@ export class RafflesController {
     return { items: rows.map((r) => toPublic(r, true)), total, nextOffset: next < total ? next : null };
   }
 
+  /**
+   * Todos os clientes que compraram aparecem na lista de todo sorteio (para um amigo achar o nome do outro na busca).
+   * Posição fixa por sorteio: a derivada de userIndex, empurrada para a próxima livre quando dois clientes colidem.
+   */
+  private async layout(seed: number) {
+    const users = await buyers(this.prisma);
+    const byIndex = new Map<number, { id: string; name: string }>();
+    for (const u of users) {
+      let i = userIndex(seed, u.id);
+      while (byIndex.has(i)) i++;
+      byIndex.set(i, { id: u.id, name: maskedUser(u.name, u.id) });
+    }
+    return byIndex;
+  }
+
   /** Posição e nome do usuário logado dentro da lista deste sorteio. */
-  private async me(seed: number, userId?: string) {
+  private meIn(layout: Map<number, { id: string; name: string }>, userId?: string) {
     if (!userId) return null;
-    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
-    if (!u) return null;
-    return { index: userIndex(seed, userId), name: maskedUser(u.name, userId) };
+    for (const [index, u] of layout) if (u.id === userId) return { index, name: u.name };
+    return null;
   }
 
   @Get(':id/participants')
@@ -165,8 +188,9 @@ export class RafflesController {
     if (!r) throw new NotFoundException();
     const o = Math.max(0, Number(offset) || 0);
     const l = Math.min(100, Math.max(1, Number(limit) || 30));
-    const me = await this.me(r.seed, userId);
-    const items = Array.from({ length: l }, (_, i) => (me && o + i === me.index ? me.name : participantAt(r.seed, o + i)));
+    const layout = await this.layout(r.seed);
+    const me = this.meIn(layout, userId);
+    const items = Array.from({ length: l }, (_, i) => layout.get(o + i)?.name ?? participantAt(r.seed, o + i));
     return { items, nextOffset: o + l, me };
   }
 
@@ -177,11 +201,15 @@ export class RafflesController {
     if (!r) throw new NotFoundException();
     const needle = normalize(q.trim());
     if (needle.length < 2) return { results: [] };
-    const me = await this.me(r.seed, userId);
+    const layout = await this.layout(r.seed);
     const results: { index: number; name: string; me: boolean }[] = [];
-    if (me && normalize(me.name).includes(needle)) results.push({ index: me.index, name: me.name, me: true });
+    // clientes reais primeiro: o nome de quem comprou nunca pode ficar de fora da busca
+    for (const [index, u] of layout) {
+      if (results.length >= 15) break;
+      if (normalize(u.name).includes(needle)) results.push({ index, name: u.name, me: u.id === userId });
+    }
     for (let i = 0; i < 5000 && results.length < 15; i++) {
-      if (me && i === me.index) continue;
+      if (layout.has(i)) continue;
       const name = participantAt(r.seed, i);
       if (normalize(name).includes(needle)) results.push({ index: i, name, me: false });
     }

@@ -26,10 +26,11 @@ export class UsersController {
     const checkoutUrl = checkoutUrlFor(dto.plan);
     if (!checkoutUrl) throw new BadRequestException('Checkout não configurado para este plano');
     const email = dto.email.trim().toLowerCase();
+    const city = dto.city.trim();
     const user = await this.prisma.user.upsert({
       where: { email },
-      update: { ...dto, email, status: 'PENDING', paidAt: null },
-      create: { ...dto, email, status: 'PENDING' },
+      update: { ...dto, email, city, status: 'PENDING', paidAt: null },
+      create: { ...dto, email, city, status: 'PENDING' },
     });
     return { ...toPublicUser(user), checkoutUrl };
   }

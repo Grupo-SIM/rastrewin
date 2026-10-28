@@ -13,7 +13,9 @@ type AdminRaffle = {
   winnerUser: { id: string; name: string; phone: string } | null;
 };
 type Paged<T> = { items: T[]; total: number };
-type UsersPage = Paged<AdminUser> & { planCounts: Record<string, number>; winnerClients: number; winnerPrizes: number };
+type UsersPage = Paged<AdminUser> & {
+  planCounts: Record<string, number>; cityCounts: { city: string; count: number }[]; winnerClients: number; winnerPrizes: number;
+};
 const PAGE = 50; // linhas por "carregar mais"
 
 type AdminUser = {
@@ -78,6 +80,8 @@ export default function Admin() {
   const [userTotal, setUserTotal] = useState(0);
   const [raffleTotal, setRaffleTotal] = useState(0);
   const [planCounts, setPlanCounts] = useState<Record<string, number>>({});
+  const [cityCounts, setCityCounts] = useState<{ city: string; count: number }[]>([]);
+  const [cityFilter, setCityFilter] = useState('all');
   const [winStats, setWinStats] = useState({ clients: 0, prizes: 0 });
   const [rLimit, setRLimit] = useState(PAGE);
   const [uLimit, setULimit] = useState(PAGE);
@@ -102,10 +106,10 @@ export default function Admin() {
     return () => clearTimeout(t);
   }, [q]);
   // mudar o filtro volta para a primeira página
-  useEffect(() => { setRLimit(PAGE); setULimit(PAGE); }, [dq, planFilter, onlyWinners]);
+  useEffect(() => { setRLimit(PAGE); setULimit(PAGE); }, [dq, planFilter, cityFilter, onlyWinners]);
 
   const usersQuery = (limit: number) =>
-    `q=${encodeURIComponent(dq)}&plan=${planFilter}&winners=${onlyWinners ? 1 : ''}&offset=0&limit=${limit}`;
+    `q=${encodeURIComponent(dq)}&plan=${planFilter}&city=${encodeURIComponent(cityFilter)}&winners=${onlyWinners ? 1 : ''}&offset=0&limit=${limit}`;
 
   const load = useCallback(async () => {
     try {
@@ -122,13 +126,14 @@ export default function Admin() {
       setUsers(u.items);
       setUserTotal(u.total);
       setPlanCounts(u.planCounts);
+      setCityCounts(u.cityCounts);
       setWinStats({ clients: u.winnerClients, prizes: u.winnerPrizes });
       setError('');
     } catch (e) {
       setError((e as Error).message);
     }
     // eslint-disable-next-line
-  }, [dq, rLimit, uLimit, planFilter, onlyWinners]);
+  }, [dq, rLimit, uLimit, planFilter, cityFilter, onlyWinners]);
 
   async function exportCsv() {
     try {
@@ -212,6 +217,16 @@ export default function Admin() {
                   ...Object.entries(PLAN_NAME).map(([id, name]) => ({ value: id, label: `${name} (${planCounts[id] ?? 0})` })),
                 ]}
               />
+              <Dropdown
+                label="Filtrar por localização"
+                value={cityFilter}
+                onChange={setCityFilter}
+                width={220}
+                options={[
+                  { value: 'all', label: `Todas as cidades (${cityCounts.reduce((a, c) => a + c.count, 0)})` },
+                  ...cityCounts.map((c) => ({ value: c.city, label: `${c.city} (${c.count})` })),
+                ]}
+              />
               <label className="win-filter">
                 <input type="checkbox" checked={onlyWinners} onChange={(e) => setOnlyWinners(e.target.checked)} />
                 Só quem ganhou ({winStats.clients} clientes · {winStats.prizes} prêmios)
@@ -249,7 +264,7 @@ export default function Admin() {
         )}
         {tab === 'clients' ? (
           <div className="atable">
-            <div className="arow clients head"><span>NOME</span><span>E-MAIL</span><span>TELEFONE</span><span>PIX</span><span>CPF</span><span>PLANO</span><span>GANHOS</span></div>
+            <div className="arow clients head"><span>NOME</span><span>E-MAIL</span><span>TELEFONE</span><span>CIDADE</span><span>PIX</span><span>CPF</span><span>PLANO</span><span>GANHOS</span></div>
             {clients.map((u) => (
               <div key={u.id} className="arow clients">
                 <div>
@@ -258,6 +273,7 @@ export default function Admin() {
                 </div>
                 <span className="cell" title={u.email}>{u.email}</span>
                 <span className="cell">{u.phone}</span>
+                <span className="cell" title={u.city}>{u.city || '—'}</span>
                 <span className="cell" title={u.pix ?? ''}>{u.pix || '—'}</span>
                 <span className="cell">{u.cpf}</span>
                 <span className="pill blue" style={{ justifySelf: 'start' }}>{PLAN_NAME[u.plan] ?? u.plan} · R$ {PLAN_PRICE[u.plan] ?? '?'}</span>

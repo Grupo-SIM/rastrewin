@@ -83,7 +83,7 @@ export class AdminController {
    */
   @Get('users')
   async users(
-    @Query('q') q = '', @Query('plan') plan = 'all', @Query('winners') winners = '', @Query('offset') offset = '0',
+    @Query('q') q = '', @Query('plan') plan = 'all', @Query('city') city = 'all', @Query('winners') winners = '', @Query('offset') offset = '0',
     @Query('limit') limit = '50', @Query('export') exportAll = '',
   ) {
     const term = q.trim();
@@ -93,8 +93,10 @@ export class AdminController {
     const prizesOf = new Map(wonRows.map((w) => [w.winnerUserId as string, w._count._all]));
 
     const planWhere = plan !== 'all' ? { plan } : {};
+    const cityWhere = city !== 'all' ? { city: { equals: city, mode: 'insensitive' as const } } : {};
     const where = {
       ...planWhere,
+      ...cityWhere,
       ...(winners === '1' ? { id: { in: winnerIds } } : {}),
       ...(term
         ? {
@@ -104,12 +106,21 @@ export class AdminController {
     };
     const o = Math.max(0, Number(offset) || 0);
     const l = Math.min(exportAll ? 5000 : 100, Math.max(1, Number(limit) || 50));
-    const [users, total, byPlan, winnerClients] = await Promise.all([
+    const [users, total, byPlan, byCity, winnerClients] = await Promise.all([
       this.prisma.user.findMany({ where, orderBy: { paidAt: 'desc' }, skip: o, take: l }),
       this.prisma.user.count({ where }),
-      this.prisma.user.groupBy({ by: ['plan'], _count: { _all: true } }),
-      this.prisma.user.findMany({ where: { id: { in: winnerIds }, ...planWhere }, select: { id: true } }),
+      this.prisma.user.groupBy({ by: ['plan'], where: cityWhere, _count: { _all: true } }),
+      this.prisma.user.groupBy({ by: ['city'], where: planWhere, _count: { _all: true } }),
+      this.prisma.user.findMany({ where: { id: { in: winnerIds }, ...planWhere, ...cityWhere }, select: { id: true } }),
     ]);
+    // "Cuiabá" e "cuiabá" são a mesma cidade (o filtro também ignora a caixa)
+    const cities = new Map<string, { city: string; count: number }>();
+    for (const c of byCity) {
+      const label = c.city;
+      const key = label.toLowerCase();
+      const cur = cities.get(key);
+      cities.set(key, { city: cur?.city ?? label, count: (cur?.count ?? 0) + c._count._all });
+    }
     // os prêmios (lista) só dos clientes desta página
     const won = users.length
       ? await this.prisma.raffle.findMany({
@@ -124,6 +135,7 @@ export class AdminController {
       items: users.map((u) => ({ ...toPublicUser(u), limit: planLimit(u.plan), wins: winsOf.get(u.id) ?? [] })),
       total,
       planCounts: Object.fromEntries(byPlan.map((p) => [p.plan, p._count._all])),
+      cityCounts: [...cities.values()].sort((a, b) => b.count - a.count || a.city.localeCompare(b.city, 'pt-BR')),
       winnerClients: winnerClients.length,
       winnerPrizes: winnerClients.reduce((a, u) => a + (prizesOf.get(u.id) ?? 0), 0),
     };
