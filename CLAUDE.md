@@ -17,7 +17,7 @@
 |---|---|---|
 | 1 | Fundação, design system, shell, Docker, CI | ✅ |
 | 2 | Banco (Drizzle), papéis + RLS, pgcrypto, login (Better Auth) | ✅ |
-| 3 | Configurações pelo painel (contas, segredos mascarados, testar conexão) | ⏳ |
+| 3 | Configurações pelo painel (contas, segredos mascarados, testar conexão) | ✅ |
 | 4 | Captura: `/t.js`, `/api/identify`, `/api/event`, Meta CAPI | ⏳ |
 | 5 | Webhook SimIntPay + GA4 Measurement Protocol | ⏳ |
 | 6 | Dashboard (visão geral, eventos, faturamento, geo) | ⏳ |
@@ -48,7 +48,7 @@
   **Nunca** `NEXT_PUBLIC_` com algo sensível. `.env` nunca é commitado. Env é lido de forma preguiçosa (`env()` em `src/lib/env.ts`) — o build roda sem env.
 - Credenciais Meta/GA4/webhook ficam no banco, **cifradas com pgcrypto** (`src/lib/secrets.ts`: `encryptSecret`/`decryptSecret`/`secretHint`), em colunas `*_enc`.
 - **Papéis do Postgres** (migration `drizzle/0001_security.sql`):
-  - `app_login` — o app conecta com ele; NOINHERIT, sem privilégio próprio.
+  - `app_login` — o app conecta com ele; NOINHERIT, sem privilégio próprio. Cada pool abre a conexão já no papel (`options: -c role=...`); não use `SET ROLE` em `pool.on("connect")` (corrida; removido no pg 9).
   - `app_service` — escrita. Use `serviceDb()` (`src/db/index.ts`) SÓ em código de servidor (API, server actions, auth).
   - `app_reader` — leitura do painel. RLS só libera linhas se `app.user_id` tiver sessão NÃO expirada (`app_private.has_valid_session()`), e não lê colunas `*_enc` nem tabelas de login.
 - **RLS em todas as tabelas** (ligada e FORÇADA). Tabela nova → na migration: `SELECT app_private.secure_table('public.x', true);` e rode `npm run test:rls` (falha se alguma tabela ficar sem RLS).
@@ -57,6 +57,18 @@
 - Em código que roda no render, chame `headers()`/`cookies()` ANTES de `getAuth()`/`serviceDb()` (senão o build tenta ler o env).
 - Cadastro público **desligado** (Better Auth `disableSignUp`); usuários só via `create-admin`. Login com rate limit (5 tentativas/min).
 - Endpoints públicos: validação Zod + limite de corpo + rate limit + CORS restrito. Webhook do SimIntPay: assinatura HMAC-SHA256 do corpo em `x-simintpay-signature` (comparação em tempo constante).
+
+## Configurações (Fase 3)
+- Tela: `src/app/painel/config/` (page + `actions.ts`); componentes em `src/components/config/`.
+- Leitura: `getConfigView()` (`src/lib/config/queries.ts`) via `readAsUser` — só colunas não secretas + pista (`••••abcd`).
+- Escrita: Server Actions em `actions.ts`. **Toda action chama `requireSession()` e valida com Zod** (`src/lib/config/validation.ts`), escreve com `serviceDb()` e termina com `refresh()`.
+- Segredo em branco na edição = manter o atual. Editar só o nome mantém o resultado do último teste; trocar ID/segredo zera.
+- Segredo do webhook: gerado no servidor e mostrado **uma única vez** (ou colado manualmente). Nunca há "revelar".
+- "Testar conexão" (`src/lib/config/connection-tests.ts`):
+  - Pixel: `GET /{pixel_id}?fields=id,name`. **Não** envia evento de teste (a Meta não descarta eventos com test_event_code).
+  - Contas de anúncio: `GET /act_{id}?fields=name,account_status,currency`.
+  - GA4: servidor de validação `/debug/mp/collect`. Ele **não valida o api_secret** → resultado "Atenção" (confirmar no DebugView).
+- Cliente da Graph API: `src/lib/meta/graph.ts` (token em `access_token`, timeout 10s, sem logar token; captura headers de uso para o rate limit da Fase 7).
 
 ## Regras de tracking (não quebrar)
 - Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.
@@ -73,7 +85,8 @@
 docker compose up -d db          # Postgres local (pg_cron + pgcrypto)
 npm run db:migrate               # aplica migrations (papéis, RLS)
 npm run create-admin -- --email voce@empresa.com --name "Seu Nome"   # pede a senha sem mostrar
-npm run test:rls                 # 25 verificações de segurança do banco
+npm run delete-user -- --email voce@empresa.com                      # apaga usuário (e sessões)
+npm run test:rls                 # 26 verificações de segurança do banco
 npm run dev                      # desenvolvimento (http://localhost:3000)
 npm run build                    # build de produção (gera .next/standalone)
 npm run lint && npm run typecheck

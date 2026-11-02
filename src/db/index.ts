@@ -7,11 +7,12 @@ import * as schema from "./schema";
 
 /*
  * O app conecta como `app_login` (sem privilégios próprios, NOINHERIT) e cada pool
- * troca de papel ao abrir a conexão:
+ * já abre a conexão no papel certo (parâmetro de inicialização `-c role=...`; o
+ * Postgres recusa a conexão se app_login não puder assumir esse papel):
  *   - serviceDb(): app_service — escrita. SÓ código de servidor (API, server actions, auth).
  *   - reader:      app_reader  — só leitura, e a RLS só libera linhas se `app.user_id`
  *                  for um usuário válido. Use via `readAsUser()` em src/lib/dal.ts.
- * Se o SET ROLE falhar, as queries rodam como app_login e são negadas (falha fechada).
+ * Sem o papel, a conexão nem abre (falha fechada).
  */
 
 export type Database = NodePgDatabase<typeof schema>;
@@ -30,12 +31,7 @@ function connect(role: Role, max: number): Database {
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
     application_name: `rastrewin:${role}`,
-  });
-  pool.on("connect", (client) => {
-    // Executa antes de qualquer query do chamador (a fila do client é ordenada).
-    client.query(`SET ROLE ${role}`).catch((error: unknown) => {
-      console.error(`[db] falha no SET ROLE ${role}`, error);
-    });
+    options: `-c role=${role}`,
   });
   pool.on("error", (error) => console.error(`[db] erro no pool ${role}`, error));
 

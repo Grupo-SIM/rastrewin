@@ -121,6 +121,17 @@ async function main() {
     // ---------------------------------------------------------------- app_login sem papel
     await expectDenied(app, "app_login sem SET ROLE não lê nada", null, null, "select count(*) from visitors");
     await expectDenied(app, "app_login não consegue virar o dono do banco", null, null, "set role postgres");
+    {
+      const sneaky = new Client({ connectionString: appUrl, options: "-c role=postgres" });
+      try {
+        await sneaky.connect();
+        record("app_login não abre conexão já como dono (-c role=postgres)", false, "a conexão abriu");
+      } catch {
+        record("app_login não abre conexão já como dono (-c role=postgres)", true);
+      } finally {
+        await sneaky.end().catch(() => {});
+      }
+    }
 
     // ---------------------------------------------------------------- leitura no painel (app_reader)
     const visitorQ = "select count(*) as n from visitors where trck_user_id = $1";
