@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ConfigView } from "@/lib/config/types";
 import { AccountsPanel } from "./accounts-panel";
 import { GeneralForm } from "./general-form";
+import { InstallCard } from "./install-card";
 import { WebhookCard } from "./webhook-card";
 
 export function ConfigTabs({ config }: { config: ConfigView }) {
@@ -31,8 +32,9 @@ export function ConfigTabs({ config }: { config: ConfigView }) {
         </TabsList>
       </div>
       <TabsContent value="geral" className="flex flex-col gap-5">
-        <WebhookCard general={config.general} />
+        <InstallCard general={config.general} />
         <GeneralForm general={config.general} />
+        <WebhookCard general={config.general} />
       </TabsContent>
       <TabsContent value="ga4">
         <AccountsPanel kind="ga4" accounts={config.accounts.ga4} />

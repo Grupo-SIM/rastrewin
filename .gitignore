@@ -41,3 +41,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 dist-scripts
+
+# base de geolocalização (baixada; não versionar)
+/data
+
+# script do site (gerado de src/tracker/trck.ts)
+/public/t.js

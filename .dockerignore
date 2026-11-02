@@ -10,3 +10,6 @@ docker
 !README.md
 coverage
 .DS_Store
+data
+public/t.js
+dist-scripts

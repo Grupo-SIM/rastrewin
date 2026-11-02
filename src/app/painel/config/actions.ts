@@ -18,6 +18,7 @@ import {
 } from "@/lib/config/validation";
 import { requireSession } from "@/lib/dal";
 import { decryptSecret, encryptSecret, secretHint } from "@/lib/secrets";
+import { invalidateRuntimeConfig } from "@/lib/tracking/runtime-config";
 
 /*
  * Server Actions são endpoints públicos: TODA função aqui chama requireSession()
@@ -113,6 +114,7 @@ export async function saveAccount(kind: AccountKind, input: unknown): Promise<Ac
   } catch (error) {
     return dbError(error);
   }
+  invalidateRuntimeConfig();
   refresh();
   return { ok: true, message: id ? "Conta atualizada." : "Conta adicionada." };
 }
@@ -123,6 +125,7 @@ export async function deleteAccount(kind: AccountKind, id: string): Promise<Acti
   const accountId = idSchema.parse(id);
   const table = REGISTRY[k].table as AnyAccountTable;
   await serviceDb().delete(table).where(eq(table.id, accountId));
+  invalidateRuntimeConfig();
   refresh();
   return { ok: true, message: "Conta removida." };
 }
@@ -136,6 +139,7 @@ export async function setAccountActive(kind: AccountKind, id: string, active: bo
     .update(table)
     .set({ active: z.boolean().parse(active) } as never)
     .where(eq(table.id, accountId));
+  invalidateRuntimeConfig();
   refresh();
   return { ok: true, message: active ? "Conta ativada." : "Conta desativada: não recebe mais eventos." };
 }
@@ -159,6 +163,7 @@ export async function testAccount(kind: AccountKind, id: string): Promise<Action
     .update(table)
     .set({ lastTestAt: new Date(), lastTestStatus: result.status, lastTestMessage: result.message.slice(0, 500) } as never)
     .where(eq(table.id, accountId));
+  invalidateRuntimeConfig();
   refresh();
   return { ok: true, data: result };
 }
@@ -180,6 +185,7 @@ export async function saveGeneral(input: unknown): Promise<ActionResult> {
   } catch (error) {
     return dbError(error);
   }
+  invalidateRuntimeConfig();
   refresh();
   return { ok: true, message: "Configurações salvas." };
 }
@@ -192,6 +198,7 @@ export async function generateWebhookSecret(): Promise<ActionResult<{ secret: st
     .update(settings)
     .set({ webhookTokenEnc: encryptSecret(secret) as never, webhookTokenHint: secretHint(secret) })
     .where(eq(settings.id, 1));
+  invalidateRuntimeConfig();
   refresh();
   return { ok: true, message: "Segredo gerado.", data: { secret } };
 }
@@ -207,6 +214,7 @@ export async function setWebhookSecret(value: unknown): Promise<ActionResult> {
     .update(settings)
     .set({ webhookTokenEnc: encryptSecret(parsed.data) as never, webhookTokenHint: secretHint(parsed.data) })
     .where(eq(settings.id, 1));
+  invalidateRuntimeConfig();
   refresh();
   return { ok: true, message: "Segredo do webhook salvo." };
 }

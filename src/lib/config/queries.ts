@@ -93,6 +93,7 @@ export async function getConfigView(): Promise<ConfigView> {
       checkoutDomains: data.general?.checkoutDomains ?? [],
       webhookTokenHint: data.general?.webhookTokenHint ?? null,
       webhookUrl: new URL("/api/webhook/compra", env().APP_URL).toString(),
+      scriptUrl: new URL("/t.js", env().APP_URL).toString(),
     },
     accounts: {
       ga4: data.ga4.map(toView("ga4")),

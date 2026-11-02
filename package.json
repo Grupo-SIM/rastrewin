@@ -13,7 +13,12 @@
     "create-admin": "tsx --env-file=.env scripts/create-admin.ts",
     "test:rls": "tsx --env-file=.env scripts/test-rls.ts",
     "scripts:build": "esbuild scripts/migrate.ts scripts/create-admin.ts scripts/delete-user.ts --bundle --platform=node --target=node22 --format=esm --outdir=dist-scripts --out-extension:.js=.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
-    "delete-user": "tsx --env-file=.env scripts/delete-user.ts"
+    "delete-user": "tsx --env-file=.env scripts/delete-user.ts",
+    "geo:download": "sh scripts/geo-download.sh",
+    "tracker:build": "esbuild src/tracker/trck.ts --bundle --minify --format=iife --target=es2019 --legal-comments=none --outfile=public/t.js",
+    "predev": "npm run tracker:build",
+    "prebuild": "npm run tracker:build",
+    "test": "tsx --conditions=react-server --test 'src/**/*.test.ts'"
   },
   "dependencies": {
     "better-auth": "^1.7.15",
@@ -21,6 +26,7 @@
     "cn": "^0.5.2",
     "drizzle-orm": "^0.45.4",
     "lucide-react": "^1.66.0",
+    "maxmind": "^5.0.8",
     "next": "16.4.4",
     "next-themes": "^0.4.6",
     "pg": "^8.23.1",

@@ -1,0 +1,75 @@
+import { z } from "zod";
+
+/* Validação das requisições PÚBLICAS de captura. Tudo opcional é limitado em tamanho. */
+
+export const TRCK_ID = /^[A-Za-z0-9_-]{8,64}$/;
+const str = (max: number) => z.string().trim().max(max);
+const optStr = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .nullable()
+    .transform((v) => (v ? v : null));
+
+const utm = {
+  utm_source: optStr(200),
+  utm_medium: optStr(200),
+  utm_campaign: optStr(300),
+  utm_term: optStr(300),
+  utm_content: optStr(300),
+};
+
+/** fbp/fbc no formato fb.<n>.<timestamp>.<valor> */
+const fbCookie = optStr(500).refine((v) => v === null || /^fb\.\d\.\d{10,13}\.[\w.-]+$/.test(v), "formato inválido");
+
+const userData = {
+  email: optStr(254),
+  phone: optStr(40),
+  first_name: optStr(100),
+  last_name: optStr(100),
+};
+
+const url = optStr(2048).refine((v) => v === null || /^https?:\/\//i.test(v), "URL inválida");
+
+export const identifySchema = z.object({
+  trck_user_id: z.string().regex(TRCK_ID).optional().nullable(),
+  fbp: fbCookie,
+  fbc: fbCookie,
+  ga_client_id: optStr(100).refine((v) => v === null || /^\d+\.\d+$/.test(v), "formato inválido"),
+  ga_session_id: optStr(40).refine((v) => v === null || /^\d+$/.test(v), "formato inválido"),
+  referrer: url,
+  landing_url: url,
+  pixel_id: optStr(25).refine((v) => v === null || /^\d+$/.test(v), "formato inválido"),
+  ...utm,
+  ...userData,
+});
+export type IdentifyInput = z.infer<typeof identifySchema>;
+
+export const eventSchema = z.object({
+  event_name: z
+    .string()
+    .regex(/^[A-Za-z][A-Za-z0-9_]{1,39}$/, "nome de evento inválido")
+    .refine((v) => v.toLowerCase() !== "purchase", "Purchase só vem do webhook de vendas"),
+  event_id: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
+  trck_user_id: z.string().regex(TRCK_ID),
+  event_source_url: url,
+  fbp: fbCookie,
+  fbc: fbCookie,
+  ga_client_id: optStr(100).refine((v) => v === null || /^\d+\.\d+$/.test(v), "formato inválido"),
+  ga_session_id: optStr(40).refine((v) => v === null || /^\d+$/.test(v), "formato inválido"),
+  custom_data: z
+    .object({
+      value: z.number().finite().nonnegative().max(1e9).optional(),
+      currency: z.string().regex(/^[A-Za-z]{3}$/).optional(),
+      content_ids: z.array(str(100)).max(50).optional(),
+      content_name: str(300).optional(),
+      content_type: z.enum(["product", "product_group"]).optional(),
+      num_items: z.number().int().nonnegative().max(10_000).optional(),
+    })
+    .strict()
+    .optional(),
+  user_data: z.object(userData).optional(),
+});
+export type EventInput = z.infer<typeof eventSchema>;

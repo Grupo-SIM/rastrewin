@@ -18,7 +18,7 @@
 | 1 | Fundação, design system, shell, Docker, CI | ✅ |
 | 2 | Banco (Drizzle), papéis + RLS, pgcrypto, login (Better Auth) | ✅ |
 | 3 | Configurações pelo painel (contas, segredos mascarados, testar conexão) | ✅ |
-| 4 | Captura: `/t.js`, `/api/identify`, `/api/event`, Meta CAPI | ⏳ |
+| 4 | Captura: `/t.js`, `/api/identify`, `/api/event`, Meta CAPI | ✅ |
 | 5 | Webhook SimIntPay + GA4 Measurement Protocol | ⏳ |
 | 6 | Dashboard (visão geral, eventos, faturamento, geo) | ⏳ |
 | 7 | Campanhas (Meta Ads insights, cache, ROAS/CPA) | ⏳ |
@@ -70,6 +70,21 @@
   - GA4: servidor de validação `/debug/mp/collect`. Ele **não valida o api_secret** → resultado "Atenção" (confirmar no DebugView).
 - Cliente da Graph API: `src/lib/meta/graph.ts` (token em `access_token`, timeout 10s, sem logar token; captura headers de uso para o rate limit da Fase 7).
 
+## Captura (Fase 4)
+- **Script do site:** fonte em `src/tracker/trck.ts` → `npm run tracker:build` gera `public/t.js` (roda sozinho no `predev`/`prebuild`; o arquivo gerado não vai para o git).
+  - Lê `/api/config/public` (só IDs públicos, só para origens autorizadas), carrega Pixel + gtag das contas ativas, mantém `trck_user_id` (cookie `_trck` no domínio raiz + localStorage), gera `_fbp`/`_fbc`, guarda UTMs (última origem, 90 dias), lê `client_id`/`session_id` via `gtag('get')` (fallback: cookies `_ga` e `_ga_*` GS1/GS2).
+  - Decora links de checkout (`src`=trck_user_id + UTMs + fbc/fbp, que o SimIntPay repassa) e WhatsApp (`Ref: <id>` na mensagem). Cliques disparam InitiateCheckout/Contact (desliga com `data-no-auto`).
+  - `trck('track', nome, dados)` → Pixel (`eventID`) + gtag + `/api/event` com o MESMO event_id. `Purchase` é recusado (só webhook).
+  - Dados do `identify` vão junto nos eventos seguintes da página (evita corrida).
+- **Endpoints públicos** (`src/app/api/identify`, `src/app/api/event`, `src/app/api/config/public`): origem (CORS via `allowed_origins`) → rate limit → limite de corpo → Zod (`src/lib/tracking/schemas.ts`). IP/UA/geo sempre do servidor.
+  - Limites: identify 30/min (burst 15), event 120/min (burst 40), por IP. Corpo: 8 KB / 16 KB.
+  - `/api/event` responde 202 e envia à Meta em `after()`; dedup por `event_id` (repetido → `duplicate: true`, sem reenvio).
+- **Proxy reverso obrigatório em produção** (nginx/Traefik/Cloudflare): o IP vem de `cf-connecting-ip` → `x-real-ip` → 1º válido do `x-forwarded-for`; o rate limit usa o ÚLTIMO IP do XFF (o que o proxy anexou — não forjável). Next só preenche XFF se ausente.
+- **Config em memória** (`src/lib/tracking/runtime-config.ts`): cache de 30 s com tokens decifrados; as actions de Configurações chamam `invalidateRuntimeConfig()`.
+- **Meta CAPI:** `src/lib/meta/capi.ts` (montagem + envio a TODOS os pixels ativos); normalização/hash em `src/lib/tracking/normalize.ts` (telefone BR sem DDI ganha 55; com `+`/`00` mantém).
+- **Geo:** `src/lib/geo` lê `data/geo/dbip-city-lite.mmdb` (DB-IP Lite, **CC BY 4.0 — manter a atribuição no rodapé do painel**). `npm run geo:download` (local); no Docker, estágio `geo` (o CI roda todo mês para atualizar). `geo_region` = UF no Brasil.
+- **Testes unitários:** `npm test` (node:test via tsx, `--conditions=react-server` por causa do `server-only`). Arquivos `*.test.ts` ao lado do código.
+
 ## Regras de tracking (não quebrar)
 - Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.
 - GA4: eventos web via **gtag no navegador** (measurement_id vindo da config). Measurement Protocol **só** para a compra do webhook, com o mesmo `client_id`/`session_id`. Nunca duplicar no MP o que a gtag já enviou.
@@ -87,6 +102,8 @@ npm run db:migrate               # aplica migrations (papéis, RLS)
 npm run create-admin -- --email voce@empresa.com --name "Seu Nome"   # pede a senha sem mostrar
 npm run delete-user -- --email voce@empresa.com                      # apaga usuário (e sessões)
 npm run test:rls                 # 26 verificações de segurança do banco
+npm run geo:download             # base de geolocalização (uma vez; ~127 MB em data/geo)
+npm test                         # testes unitários (normalização/hash, IP, rate limit, CAPI, validação)
 npm run dev                      # desenvolvimento (http://localhost:3000)
 npm run build                    # build de produção (gera .next/standalone)
 npm run lint && npm run typecheck

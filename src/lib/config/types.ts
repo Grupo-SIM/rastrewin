@@ -20,6 +20,7 @@ export type GeneralView = {
   checkoutDomains: string[];
   webhookTokenHint: string | null;
   webhookUrl: string;
+  scriptUrl: string;
 };
 
 export type ConfigView = {

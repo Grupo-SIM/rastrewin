@@ -10,6 +10,14 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
+# ---------- geo (base DB-IP City Lite, CC BY 4.0) ----------
+# GEO_MONTH muda todo mês no CI → invalida o cache e baixa a base nova.
+FROM node:${NODE_VERSION}-alpine AS geo
+ARG GEO_MONTH=local
+WORKDIR /app
+COPY scripts/geo-download.sh scripts/geo-download.sh
+RUN echo "base de geolocalização: $GEO_MONTH" && sh scripts/geo-download.sh /app/data/geo
+
 # ---------- build ----------
 FROM node:${NODE_VERSION}-alpine AS builder
 WORKDIR /app
@@ -35,6 +43,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Scripts avulsos (migração e criação de admin) já empacotados, mais as migrations SQL
 COPY --from=builder --chown=nextjs:nodejs /app/dist-scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+COPY --from=geo --chown=nextjs:nodejs /app/data ./data
 
 USER nextjs
 EXPOSE 3000

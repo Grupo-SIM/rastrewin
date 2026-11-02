@@ -23,6 +23,14 @@ export default function PainelLayout({ children }: LayoutProps<"/painel">) {
           <Suspense fallback={<PageSkeleton />}>
             <SessionGate>{children}</SessionGate>
           </Suspense>
+          {/* Exigido pela licença CC BY 4.0 da base de geolocalização */}
+          <p className="mt-10 text-center text-[11px] text-muted-foreground">
+            Geolocalização por IP:{" "}
+            <a href="https://db-ip.com" target="_blank" rel="noopener" className="underline underline-offset-2">
+              IP Geolocation by DB-IP
+            </a>{" "}
+            (CC BY 4.0)
+          </p>
         </main>
       </div>
       <MobileNav footer={user} />
