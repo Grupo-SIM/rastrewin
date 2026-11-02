@@ -1,5 +1,12 @@
 # Ambiente local / referência de produção.
-# Uso: cp .env.example .env  (preencha)  &&  docker compose up -d --build
+#
+#   cp .env.example .env            # preencha (no compose, o host do banco é "db")
+#   docker compose up -d db         # sobe o Postgres
+#   docker compose run --rm migrate # aplica migrations (papéis, RLS) — rode a cada versão nova
+#   docker compose run --rm -it app node scripts/create-admin.mjs --email voce@empresa.com --name "Seu Nome"
+#   docker compose up -d app
+#
+# O container do app NÃO recebe MIGRATION_DATABASE_URL (credencial do dono do banco).
 services:
   db:
     build: ./docker/postgres
@@ -28,9 +35,25 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?defina DATABASE_URL}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?defina ENCRYPTION_KEY}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?defina BETTER_AUTH_SECRET}
+      APP_URL: ${APP_URL:?defina APP_URL}
     ports:
       - "3000:3000"
+
+  # Tarefa avulsa: docker compose run --rm migrate
+  migrate:
+    image: ghcr.io/${GHCR_OWNER:-local}/rastrewin:latest
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?defina DATABASE_URL}
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?defina MIGRATION_DATABASE_URL}
+    command: ["node", "scripts/migrate.mjs"]
 
 volumes:
   pgdata:

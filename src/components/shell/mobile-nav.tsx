@@ -3,7 +3,7 @@
 import { EllipsisIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Sheet,
   SheetContent,
@@ -20,7 +20,7 @@ const tab =
   "flex min-h-14 flex-1 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /** Barra inferior fixa no celular (até lg). Itens secundários ficam em "Mais". */
-export function MobileNav() {
+export function MobileNav({ footer }: { footer?: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const primary = NAV_ITEMS.filter((i) => i.primary);
@@ -79,6 +79,7 @@ export function MobileNav() {
                   </Link>
                 );
               })}
+              {footer && <div className="mt-2 rounded-lg border px-3 py-2">{footer}</div>}
               <div className="mt-2 flex h-12 items-center justify-between rounded-lg border px-3">
                 <span className="text-sm font-medium">Tema</span>
                 <ThemeToggle />

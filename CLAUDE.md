@@ -16,7 +16,7 @@
 | Fase | Conteúdo | Status |
 |---|---|---|
 | 1 | Fundação, design system, shell, Docker, CI | ✅ |
-| 2 | Banco (Drizzle), papéis + RLS, pgcrypto, login (Better Auth) | ⏳ |
+| 2 | Banco (Drizzle), papéis + RLS, pgcrypto, login (Better Auth) | ✅ |
 | 3 | Configurações pelo painel (contas, segredos mascarados, testar conexão) | ⏳ |
 | 4 | Captura: `/t.js`, `/api/identify`, `/api/event`, Meta CAPI | ⏳ |
 | 5 | Webhook SimIntPay + GA4 Measurement Protocol | ⏳ |
@@ -43,22 +43,47 @@
 - Gráficos: Recharts. Mapa: react-simple-maps. Ler a skill `dataviz` antes de criar gráficos.
 
 ## Segurança (regras fixas)
-- Env só tem: `DATABASE_URL`, `ENCRYPTION_KEY`, `BETTER_AUTH_SECRET`, `APP_URL` (+ `POSTGRES_*` do compose). **Nunca** `NEXT_PUBLIC_` com algo sensível. `.env` nunca é commitado.
-- Credenciais Meta/GA4/webhook ficam no banco, **cifradas com pgcrypto**, editadas pelo painel e lidas só no servidor.
-- RLS em **todas** as tabelas: leitura só pelo papel `app_reader` com sessão validada; escrita só por `app_service` (código de servidor).
-- Cadastro público **desligado**; admin criado via `npm run create-admin`.
-- Endpoints públicos: validação Zod + limite de corpo + rate limit + CORS restrito. Webhook exige token (comparação em tempo constante).
+- Env do **app**: `DATABASE_URL` (usuário `app_login`), `ENCRYPTION_KEY`, `BETTER_AUTH_SECRET`, `APP_URL`.
+  `MIGRATION_DATABASE_URL` (dono do banco) e `POSTGRES_*` são só da migração/compose — **nunca** vão para o container do app.
+  **Nunca** `NEXT_PUBLIC_` com algo sensível. `.env` nunca é commitado. Env é lido de forma preguiçosa (`env()` em `src/lib/env.ts`) — o build roda sem env.
+- Credenciais Meta/GA4/webhook ficam no banco, **cifradas com pgcrypto** (`src/lib/secrets.ts`: `encryptSecret`/`decryptSecret`/`secretHint`), em colunas `*_enc`.
+- **Papéis do Postgres** (migration `drizzle/0001_security.sql`):
+  - `app_login` — o app conecta com ele; NOINHERIT, sem privilégio próprio.
+  - `app_service` — escrita. Use `serviceDb()` (`src/db/index.ts`) SÓ em código de servidor (API, server actions, auth).
+  - `app_reader` — leitura do painel. RLS só libera linhas se `app.user_id` tiver sessão NÃO expirada (`app_private.has_valid_session()`), e não lê colunas `*_enc` nem tabelas de login.
+- **RLS em todas as tabelas** (ligada e FORÇADA). Tabela nova → na migration: `SELECT app_private.secure_table('public.x', true);` e rode `npm run test:rls` (falha se alguma tabela ficar sem RLS).
+- **Leitura no painel SEMPRE via `readAsUser()`** (`src/lib/dal.ts`): valida a sessão no servidor e consulta como `app_reader`.
+  O `proxy.ts` e o `<SessionGate>` do layout são só UX: com Cache Components, o texto **estático** de uma página pode ir no HTML pré-renderizado. Nunca coloque dado sensível em parte estática.
+- Em código que roda no render, chame `headers()`/`cookies()` ANTES de `getAuth()`/`serviceDb()` (senão o build tenta ler o env).
+- Cadastro público **desligado** (Better Auth `disableSignUp`); usuários só via `create-admin`. Login com rate limit (5 tentativas/min).
+- Endpoints públicos: validação Zod + limite de corpo + rate limit + CORS restrito. Webhook do SimIntPay: assinatura HMAC-SHA256 do corpo em `x-simintpay-signature` (comparação em tempo constante).
 
 ## Regras de tracking (não quebrar)
 - Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.
 - GA4: eventos web via **gtag no navegador** (measurement_id vindo da config). Measurement Protocol **só** para a compra do webhook, com o mesmo `client_id`/`session_id`. Nunca duplicar no MP o que a gtag já enviou.
 - Eventos vão para **todos** os destinos ativos; a resposta de cada destino fica no log.
 
+## Banco e migrations
+- Schema em `src/db/schema/` (`app.ts` = nossas tabelas; `auth.ts` = gerado pelo Better Auth, com ajuste de timezone).
+- `npm run db:generate` gera SQL em `drizzle/` a partir do schema. SQL de segurança é migration custom: `npm run db:generate -- --custom --name=<nome>`.
+- `npm run db:migrate` aplica as migrations como dono do banco e sincroniza a senha do `app_login` a partir da `DATABASE_URL`.
+
 ## Comandos
 ```bash
-npm run dev          # desenvolvimento
-npm run build        # build de produção (gera .next/standalone)
-npm run lint
-npx tsc --noEmit     # typecheck (rode `npx next typegen` se faltar tipos de rotas)
-docker compose up -d --build   # app + Postgres local
+docker compose up -d db          # Postgres local (pg_cron + pgcrypto)
+npm run db:migrate               # aplica migrations (papéis, RLS)
+npm run create-admin -- --email voce@empresa.com --name "Seu Nome"   # pede a senha sem mostrar
+npm run test:rls                 # 25 verificações de segurança do banco
+npm run dev                      # desenvolvimento (http://localhost:3000)
+npm run build                    # build de produção (gera .next/standalone)
+npm run lint && npm run typecheck
+```
+O `npm run build` local lê o `.env`; o Docker/CI não. Para reproduzir o CI: `docker compose build app`.
+
+Produção (imagem do GHCR):
+```bash
+docker compose up -d db
+docker compose --profile tools run --rm migrate
+docker compose run --rm -it app node scripts/create-admin.mjs --email voce@empresa.com --name "Seu Nome"
+docker compose up -d app
 ```

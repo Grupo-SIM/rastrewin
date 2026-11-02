@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -8,7 +9,7 @@ import { Logo } from "./logo";
 import { NAV_ITEMS, isActive } from "./nav-items";
 
 /** Navegação lateral — só aparece a partir de lg (desktop). */
-export function Sidebar() {
+export function Sidebar({ footer }: { footer?: ReactNode }) {
   const pathname = usePathname();
 
   return (
@@ -39,9 +40,12 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="flex items-center justify-between border-t px-4 py-3">
-        <span className="text-xs text-muted-foreground">Tema</span>
-        <ThemeToggle />
+      <div className="flex flex-col gap-2 border-t px-4 py-3">
+        {footer}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Tema</span>
+          <ThemeToggle />
+        </div>
       </div>
     </aside>
   );
