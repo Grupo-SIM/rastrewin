@@ -1,21 +1,30 @@
 import "server-only";
 import { GA4_MP_DEBUG_URL } from "@/lib/ga4/endpoints";
-import { describeGraphError, graphGet } from "@/lib/meta/graph";
+import { describeGraphError, graphGet, graphPost } from "@/lib/meta/graph";
 
 export type TestStatus = "ok" | "warning" | "error";
 export type TestResult = { status: TestStatus; message: string };
 
 /**
- * Pixel / Conversions API: consulta o pixel com o token.
- * Não envia evento de teste: pela doc da Meta, eventos com test_event_code NÃO são descartados.
+ * Pixel / Conversions API — teste SEM criar evento:
+ * POST /{pixel_id}/events com `data: []`. A Meta confere token e permissão no pixel ANTES do corpo:
+ *   - "param data must be non-empty" → token válido e com permissão de envio ✅
+ *   - código 190 → token inválido/expirado; subcode 33 → sem acesso a este pixel (ou ID errado)
+ * Não usamos GET /{pixel_id}: o token da Conversions API (Gerenciador de Eventos) costuma
+ * NÃO ter permissão de leitura do pixel ("(#100) Missing Permission"), mesmo enviando eventos.
+ * Também não enviamos evento de teste: pela doc, eventos com test_event_code não são descartados.
  */
 export async function testMetaPixel(pixelId: string, token: string): Promise<TestResult> {
-  const result = await graphGet<{ id: string; name?: string }>(pixelId, token, { fields: "id,name" });
-  if (!result.ok) return { status: "error", message: describeGraphError(result.error) };
-  return {
-    status: "ok",
-    message: `Pixel encontrado: ${result.data.name ?? result.data.id}. O token tem acesso.`,
-  };
+  const result = await graphPost<unknown>(`${pixelId}/events`, token, { data: [] });
+  if (result.ok) return { status: "ok", message: "Token aceito pela Conversions API para este pixel." };
+  const { error } = result;
+  if (error.code === 100 && error.error_subcode !== 33 && /data must be non-empty/i.test(error.message)) {
+    return { status: "ok", message: "Token aceito pela Conversions API: tem permissão para enviar eventos a este pixel." };
+  }
+  if (error.code === 100 && error.error_subcode === 33) {
+    return { status: "error", message: "Este token não tem acesso a este pixel (ou o ID do pixel está errado)." };
+  }
+  return { status: "error", message: describeGraphError(error) };
 }
 
 const AD_ACCOUNT_STATUS: Record<number, string> = {

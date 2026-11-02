@@ -65,7 +65,8 @@
 - Segredo em branco na edição = manter o atual. Editar só o nome mantém o resultado do último teste; trocar ID/segredo zera.
 - Segredo do webhook: gerado no servidor e mostrado **uma única vez** (ou colado manualmente). Nunca há "revelar".
 - "Testar conexão" (`src/lib/config/connection-tests.ts`):
-  - Pixel: `GET /{pixel_id}?fields=id,name`. **Não** envia evento de teste (a Meta não descarta eventos com test_event_code).
+  - Pixel: `POST /{pixel_id}/events` com `data: []` — a Meta valida token e permissão ANTES do corpo; "param data must be non-empty" = OK. Nenhum evento é criado.
+    (Não use `GET /{pixel_id}`: o token da Conversions API costuma não ter permissão de leitura → "(#100) Missing Permission" mesmo funcionando para envio.)
   - Contas de anúncio: `GET /act_{id}?fields=name,account_status,currency`.
   - GA4: servidor de validação `/debug/mp/collect`. Ele **não valida o api_secret** → resultado "Atenção" (confirmar no DebugView).
 - Cliente da Graph API: `src/lib/meta/graph.ts` (token em `access_token`, timeout 10s, sem logar token; captura headers de uso para o rate limit da Fase 7).
