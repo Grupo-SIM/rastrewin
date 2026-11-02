@@ -16,7 +16,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+# public/ pode não existir no git (pasta vazia não é versionada)
+RUN mkdir -p public && npm run build
 
 # ---------- runtime ----------
 FROM node:${NODE_VERSION}-alpine AS runner
