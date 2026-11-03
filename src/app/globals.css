@@ -111,6 +111,36 @@
   --glow-2: hsl(192 85% 45% / 0.07);
   --noise-opacity: 0.025;
   --glass-alpha: 78%;
+
+  /*
+   * Cores de GRÁFICO (dataviz) — validadas com validate_palette.js contra a superfície real dos
+   * cartões (#fdfefd claro / #0b120f escuro). Ordem fixa por entidade, nunca reciclada.
+   * Categóricas: pior ΔE daltonismo 14,5 / visão normal 15,7; contraste >= 3:1.
+   */
+  --viz-1: #159946; /* verde */
+  --viz-2: #098faa; /* ciano */
+  --viz-3: #c37e05; /* âmbar */
+  --viz-4: #5b17cf; /* violeta */
+  --viz-5: #d0255e; /* rosa */
+  /* Sequencial (mapa): um tom, perto do fundo = claro */
+  --viz-seq-1: #cff7dd;
+  --viz-seq-2: #88eaac;
+  --viz-seq-3: #26d767;
+  --viz-seq-4: #1fb255;
+  --viz-seq-5: #198f44;
+  --viz-seq-6: #136d34;
+  /* Funil (ordinal, 3 etapas) — validado com --ordinal */
+  --viz-fun-1: #21bd5a;
+  --viz-fun-2: #1a9246;
+  --viz-fun-3: #136932;
+  /* Status (fixos; sempre com ícone + rótulo) */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  /* Grade e eixos: linha fina, sólida, recessiva */
+  --viz-grid: hsl(150 12% 90%);
+  --viz-axis: hsl(150 10% 78%);
 }
 
 /* ---------- Tema ESCURO (padrão) ---------- */
@@ -161,6 +191,24 @@
   --glow-2: hsl(188 86% 50% / 0.08);
   --noise-opacity: 0.045;
   --glass-alpha: 62%;
+
+  --viz-1: #18af4f;
+  --viz-2: #0aa3c1;
+  --viz-3: #c88005;
+  --viz-4: #a274f0;
+  --viz-5: #ea5587;
+  /* Sequencial no escuro: âncora invertida (perto do fundo = escuro) */
+  --viz-seq-1: #0a371b;
+  --viz-seq-2: #0f5629;
+  --viz-seq-3: #157739;
+  --viz-seq-4: #1b9949;
+  --viz-seq-5: #21bd5a;
+  --viz-seq-6: #46de7e;
+  --viz-fun-1: #157739;
+  --viz-fun-2: #1ca04d;
+  --viz-fun-3: #24cb61;
+  --viz-grid: hsl(155 14% 13%);
+  --viz-axis: hsl(155 12% 22%);
 }
 
 @layer base {

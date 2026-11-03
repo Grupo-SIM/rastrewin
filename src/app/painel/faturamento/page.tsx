@@ -1,19 +1,103 @@
-import { BanknoteIcon } from "lucide-react";
+import { BanknoteIcon, ReceiptIcon, ShoppingBagIcon, Undo2Icon, WalletIcon } from "lucide-react";
 import type { Metadata } from "next";
-import { EmptyState } from "@/components/empty-state";
+import { Suspense } from "react";
+import { ChartCard } from "@/components/charts/chart-card";
+import { SegmentedBar } from "@/components/charts/segmented-bar";
+import { TrendChart } from "@/components/charts/trend-chart";
+import { FiltersBar, FiltersProvider, Pagination, PendingArea, SearchFilter, SelectFilter } from "@/components/dashboard/filters";
+import { PurchasesTable } from "@/components/dashboard/purchases-table";
+import { GlassCard } from "@/components/glass-card";
+import { KpiCard } from "@/components/kpi-card";
 import { PageHeader } from "@/components/page-header";
+import { PageSkeleton } from "@/components/page-skeleton";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { SearchParams } from "@/lib/dashboard/context";
+import { delta, formatDayShort, formatInt, formatMoney, formatPct, ratio } from "@/lib/dashboard/format";
+import { PURCHASE_STATUS_FILTERS, getRevenue } from "@/lib/dashboard/revenue";
 
 export const metadata: Metadata = { title: "Faturamento" };
 
-export default function FaturamentoPage() {
+/** Cor fixa por forma de pagamento (cor segue a entidade, nunca a posição). */
+const METHOD_COLOR: Record<string, string> = { PIX: "var(--viz-1)", CREDIT_CARD: "var(--viz-2)", BOLETO: "var(--viz-3)", OUTRO: "var(--viz-4)" };
+
+export default function FaturamentoPage({ searchParams }: PageProps<"/painel/faturamento">) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Faturamento" description="Receita, ticket médio, reembolsos e compras." />
-      <EmptyState
-        icon={BanknoteIcon}
-        title="Em construção"
-        description="Esta tela será implementada na Fase 6."
-      />
+      <Suspense fallback={<PageSkeleton />}>
+        <RevenueContent searchParams={searchParams} />
+      </Suspense>
     </div>
+  );
+}
+
+async function RevenueContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const d = await getRevenue(await searchParams);
+  const { kpis, currency } = d;
+  const ticket = kpis.purchases ? kpis.revenue / kpis.purchases : 0;
+  const ticketPrev = kpis.purchasesPrev ? kpis.revenuePrev / kpis.purchasesPrev : 0;
+  const methodTotal = d.byPaymentMethod.reduce((s, m) => s + m.value, 0);
+
+  return (
+    <FiltersProvider>
+      <div className="flex flex-col gap-4">
+        <FiltersBar>
+          <SelectFilter name="status" label="Status" allLabel="Todos os status" options={PURCHASE_STATUS_FILTERS.filter((f) => f.key !== "todas").map((f) => ({ value: f.key, label: f.label }))} width="w-[14rem]" />
+          <SearchFilter placeholder="Pedido, email ou produto" />
+        </FiltersBar>
+        <PendingArea className="flex flex-col gap-4">
+          <section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <KpiCard label="Receita" value={formatMoney(kpis.revenue, currency)} icon={BanknoteIcon} tone="cyan"
+              info="Valor bruto pago nas compras aprovadas (ou em mediação) do período."
+              delta={{ value: delta(kpis.revenue, kpis.revenuePrev) }} />
+            <KpiCard label="Receita líquida" value={formatMoney(kpis.net, currency)} icon={WalletIcon}
+              info="O que sobra depois das taxas do SimIntPay (netAmount)." />
+            <KpiCard label="Ticket médio" value={formatMoney(ticket, currency)} icon={ReceiptIcon} tone="amber"
+              info="Receita ÷ número de compras."
+              delta={{ value: ticketPrev ? delta(ticket, ticketPrev) : null }} />
+            <KpiCard label="Compras" value={formatInt(kpis.purchases)} icon={ShoppingBagIcon}
+              info="Vendas aprovadas (ou em mediação) pela data da venda."
+              delta={{ value: delta(kpis.purchases, kpis.purchasesPrev) }} />
+            <KpiCard className="col-span-2 lg:col-span-1" label="Reembolsos" value={formatInt(kpis.refunds)} icon={Undo2Icon} tone="amber"
+              info="Reembolsos e chargebacks registrados no período (pela data do reembolso)."
+              hint={`${formatMoney(kpis.refundsValue, currency)} devolvidos`} />
+          </section>
+
+          <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <ChartCard
+              title="Receita por dia"
+              table={{ columns: [{ key: "dia", label: "Dia" }, { key: "v", label: "Receita", align: "right" }], rows: d.revenueByDay.map((p) => ({ dia: formatDayShort(p.day), v: formatMoney(p.value, currency) })) }}
+            >
+              <TrendChart data={d.revenueByDay} label="Receita" kind="money" currency={currency} color="var(--viz-2)" />
+            </ChartCard>
+            <ChartCard
+              title="Formas de pagamento"
+              description="Participação na receita do período."
+              table={{
+                columns: [{ key: "forma", label: "Forma" }, { key: "compras", label: "Compras", align: "right" }, { key: "receita", label: "Receita", align: "right" }, { key: "pct", label: "%", align: "right" }],
+                rows: d.byPaymentMethod.map((m) => ({ forma: m.label, compras: formatInt(m.count), receita: formatMoney(m.value, currency), pct: formatPct(ratio(m.value, methodTotal)) })),
+              }}
+            >
+              <SegmentedBar
+                currency={currency}
+                parts={d.byPaymentMethod.map((m) => ({ key: m.key, label: m.label, value: m.value, color: METHOD_COLOR[m.key] ?? "var(--viz-5)" }))}
+              />
+            </ChartCard>
+          </div>
+
+          <GlassCard>
+            <CardHeader>
+              <CardTitle className="font-semibold">
+                <span className="num">{formatInt(d.table.total)}</span> compra(s) · {d.period.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              <PurchasesTable rows={d.table.rows} timeZone={d.timeZone} />
+              <Pagination page={d.table.page} total={d.table.total} pageSize={d.table.pageSize} />
+            </CardContent>
+          </GlassCard>
+        </PendingArea>
+      </div>
+    </FiltersProvider>
   );
 }

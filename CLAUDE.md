@@ -20,7 +20,7 @@
 | 3 | Configurações pelo painel (contas, segredos mascarados, testar conexão) | ✅ |
 | 4 | Captura: `/t.js`, `/api/identify`, `/api/event`, Meta CAPI | ✅ |
 | 5 | Webhook SimIntPay + GA4 Measurement Protocol | ✅ |
-| 6 | Dashboard (visão geral, eventos, faturamento, geo) | ⏳ |
+| 6 | Dashboard (visão geral, eventos, faturamento, geo) | ✅ |
 | 7 | Campanhas (Meta Ads insights, cache, ROAS/CPA) | ⏳ |
 | 8 | Retenção (pg_cron), auditoria de segurança, go-live | ⏳ |
 
@@ -99,6 +99,17 @@
   - Modo debug do GA4 (`settings.ga4_debug`): valida no /debug/mp/collect e envia com `debug_mode`.
 - **Reenvio automático:** `src/instrumentation.ts` → `src/lib/sales/retry.ts` a cada 5 min (não roda no build nem sem `DATABASE_URL`); até 5 tentativas por destino, últimos 7 dias.
 - **Fuso horário do painel:** `settings.timezone` (IANA, padrão Brasília), escolhido em Configurações › Geral; formatação em `src/lib/time.ts`. Deve ser o MESMO da conta de anúncios: a conta do usuário está em **America/Sao_Paulo** (manter o padrão). Só o computador dele está no fuso do Acre — o Gerenciador de Eventos e o DebugView mostram o horário local de quem olha.
+
+## Dashboard (Fase 6)
+- **Consultas** em `src/lib/dashboard/` — todas dentro de `withDashboard()` (`context.ts`): UMA transação `readAsUser` (RLS), lê fuso/moeda e resolve o período da URL (`period.ts`, padrão 30d; presets hoje/ontem/7d/30d/90d/mês/personalizado). Agregações em SQL; dias agrupados com `at time zone <fuso do painel>`.
+- **Definições** (mostradas no ⓘ de cada KPI): usuários únicos = trck_user_id distintos com evento no período; compras = status approved/refund_requested por `occurred_at`; conversão = compras ÷ usuários; receita = soma do valor BRUTO; reembolsos por `refunded_at`.
+  - **Funil por PESSOAS**: Visitou (PageView) ⊇ Checkout (InitiateCheckout entre quem visitou) ⊇ Comprou (compradores entre os do checkout). Compras sem ligação/checkout aparecem numa nota (nunca passa de 100%).
+  - Deltas: período anterior de mesmo tamanho.
+- **Detalhes** (payload/resposta Meta e GA4, webhook bruto) só ao abrir o modal: Server Actions `src/app/painel/{eventos,faturamento}/actions.ts` → `src/lib/dashboard/details.ts` (readAsUser).
+- **Gráficos** (`src/components/charts/`, skill dataviz): um eixo por gráfico; cor por papel/entidade; todo gráfico tem "Ver tabela"; filtros numa linha (`src/components/dashboard/filters.tsx`, estado na URL, conteúdo esmaece ao recarregar). Componentes cliente não recebem funções do servidor — use `kind: "int" | "money"`.
+- **Paleta de gráficos** (`--viz-*` em `globals.css`, validada com `validate_palette.js` nas superfícies reais #fdfefd / #0b120f): claro `#159946,#098faa,#c37e05,#5b17cf,#d0255e`; escuro `#18af4f,#0aa3c1,#c88005,#a274f0,#ea5587` (ordem fixa verde→ciano→âmbar→violeta→rosa). O neon da UI é claro demais para gráfico no escuro — não use `--primary` em marcas de dados. Funil: `--viz-fun-*` (validado com `--ordinal`); mapa: `--viz-seq-*`; status: `--status-*` (sempre com ícone + rótulo).
+- **Mapa**: `react-simple-maps` + malha oficial do IBGE (`src/components/charts/geo/br-uf.topo.json`, códigos IBGE → UF em `src/lib/geo/br-states.ts`). Créditos "Malha: IBGE" e DB-IP no rodapé.
+- KPIs: número nunca quebra; fonte reduz conforme o tamanho do valor no celular.
 
 ## Regras de tracking (não quebrar)
 - Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.

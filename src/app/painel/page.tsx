@@ -1,52 +1,122 @@
-import { ActivityIcon, PercentIcon, ShoppingBagIcon, UsersIcon } from "lucide-react";
+import { ActivityIcon, BanknoteIcon, PercentIcon, PlugIcon, ShoppingBagIcon, UsersIcon } from "lucide-react";
 import type { Metadata } from "next";
-import { GlassCard } from "@/components/glass-card";
+import Link from "next/link";
+import { Suspense } from "react";
+import { ChartCard } from "@/components/charts/chart-card";
+import { Funnel } from "@/components/charts/funnel";
+import { RankedBars } from "@/components/charts/ranked-bars";
+import { TrendChart } from "@/components/charts/trend-chart";
+import { FiltersBar, FiltersProvider, PendingArea } from "@/components/dashboard/filters";
+import { EmptyState } from "@/components/empty-state";
 import { KpiCard } from "@/components/kpi-card";
 import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
-import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageSkeleton } from "@/components/page-skeleton";
+import { Button } from "@/components/ui/button";
+import type { SearchParams } from "@/lib/dashboard/context";
+import { delta, formatDayShort, formatInt, formatMoney, formatPct, ratio } from "@/lib/dashboard/format";
+import { getOverview } from "@/lib/dashboard/overview";
 
 export const metadata: Metadata = { title: "Visão geral" };
 
-const FUNNEL = [
-  { step: "Visitou", tone: "bg-primary" },
-  { step: "Checkout", tone: "bg-cyan" },
-  { step: "Compra", tone: "bg-amber" },
-];
-
-export default function VisaoGeralPage() {
+export default function VisaoGeralPage({ searchParams }: PageProps<"/painel">) {
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Visão geral"
-        description="Usuários, eventos e conversões do período."
-        actions={<Badge variant="outline">Dados na Fase 6</Badge>}
-      />
-
-      <section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard label="Usuários únicos" value="—" icon={UsersIcon} />
-        <KpiCard label="Eventos" value="—" icon={ActivityIcon} tone="cyan" />
-        <KpiCard label="Compras" value="—" icon={ShoppingBagIcon} tone="amber" />
-        <KpiCard label="Conversão" value="—" icon={PercentIcon} />
-      </section>
-
-      <GlassCard>
-        <CardHeader>
-          <CardTitle>Funil</CardTitle>
-          <CardDescription>Visitou → Checkout → Compra, com % entre etapas.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {FUNNEL.map((f) => (
-            <div key={f.step} className="flex items-center gap-3">
-              <span className="w-20 shrink-0 text-sm text-muted-foreground">{f.step}</span>
-              <div className="h-8 flex-1 overflow-hidden rounded-md bg-muted">
-                <div className={`h-full w-0 ${f.tone}`} />
-              </div>
-              <span className="num w-14 text-right text-sm">—</span>
-            </div>
-          ))}
-        </CardContent>
-      </GlassCard>
+      <PageHeader title="Visão geral" description="Usuários, eventos e conversões do período." />
+      <Suspense fallback={<PageSkeleton />}>
+        <OverviewContent searchParams={searchParams} />
+      </Suspense>
     </div>
+  );
+}
+
+async function OverviewContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const d = await getOverview(await searchParams);
+  const { kpis, funnel, currency } = d;
+  const conv = ratio(kpis.purchases, kpis.users);
+  const convPrev = ratio(kpis.purchasesPrev, kpis.usersPrev);
+  const steps = [
+    { label: "Visitou", value: funnel.visited },
+    { label: "Checkout", value: funnel.checkout },
+    { label: "Comprou", value: funnel.purchased },
+  ];
+
+  return (
+    <FiltersProvider>
+      <div className="flex flex-col gap-4">
+        <FiltersBar />
+        <p className="text-xs text-muted-foreground">
+          {d.period.label} · {formatDayShort(d.period.from)} a {formatDayShort(d.period.to)} · comparado com os {formatInt(d.period.days)} dia(s) anteriores
+        </p>
+        <PendingArea className="flex flex-col gap-4">
+          {!d.hasAnyData && (
+            <EmptyState icon={PlugIcon} title="Nenhum dado ainda" description="Instale o script no site e cadastre os sites autorizados para começar a ver visitantes e eventos aqui.">
+              <Button asChild className="h-11">
+                <Link href="/painel/config">Ir para Configurações</Link>
+              </Button>
+            </EmptyState>
+          )}
+
+          <section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <KpiCard label="Usuários únicos" value={formatInt(kpis.users)} icon={UsersIcon}
+              info="Visitantes diferentes (trck_user_id) com algum evento no período."
+              delta={{ value: delta(kpis.users, kpis.usersPrev) }} />
+            <KpiCard label="Eventos" value={formatInt(kpis.events)} icon={ActivityIcon} tone="cyan"
+              info="Todos os eventos registrados no período (PageView, Lead, InitiateCheckout…)."
+              delta={{ value: delta(kpis.events, kpis.eventsPrev) }} />
+            <KpiCard label="Compras" value={formatInt(kpis.purchases)} icon={ShoppingBagIcon} tone="amber"
+              info="Vendas aprovadas (ou em mediação) pela data da venda."
+              delta={{ value: delta(kpis.purchases, kpis.purchasesPrev) }} />
+            <KpiCard label="Conversão" value={formatPct(conv)} icon={PercentIcon}
+              info="Compras ÷ usuários únicos do período."
+              delta={{ value: conv !== null && convPrev !== null ? delta(conv, convPrev) : null }} />
+            <KpiCard className="col-span-2 lg:col-span-1" label="Receita" value={formatMoney(kpis.revenue, currency)} icon={BanknoteIcon} tone="cyan"
+              info="Soma do valor bruto pago nas compras do período (o mesmo valor enviado à Meta e ao GA4)."
+              delta={{ value: delta(kpis.revenue, kpis.revenuePrev) }} />
+          </section>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ChartCard
+              title="Funil"
+              description="Pessoas que visitaram → foram ao checkout → compraram, no período."
+              table={{
+                columns: [{ key: "etapa", label: "Etapa" }, { key: "pessoas", label: "Pessoas", align: "right" }, { key: "etapa_ant", label: "% da etapa anterior", align: "right" }, { key: "topo", label: "% do topo", align: "right" }],
+                rows: steps.map((s, i) => ({
+                  etapa: s.label,
+                  pessoas: formatInt(s.value),
+                  etapa_ant: i === 0 ? "—" : formatPct(ratio(s.value, steps[i - 1].value)),
+                  topo: formatPct(ratio(s.value, steps[0].value)),
+                })),
+              }}
+              footer={funnel.outsideFunnel > 0 ? `${formatInt(funnel.outsideFunnel)} compra(s) do período ficaram fora do funil (sem ligação com um visitante ou sem checkout registrado).` : undefined}
+            >
+              <Funnel steps={steps} />
+            </ChartCard>
+
+            <ChartCard
+              title="Eventos por tipo"
+              description="Quantidade de cada evento no período."
+              table={{ columns: [{ key: "evento", label: "Evento" }, { key: "qtd", label: "Quantidade", align: "right" }], rows: d.eventsByType.map((e) => ({ evento: e.label, qtd: formatInt(e.value) })) }}
+            >
+              <RankedBars items={d.eventsByType} color="var(--viz-1)" />
+            </ChartCard>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ChartCard
+              title="Usuários únicos por dia"
+              table={{ columns: [{ key: "dia", label: "Dia" }, { key: "v", label: "Usuários", align: "right" }], rows: d.usersByDay.map((p) => ({ dia: formatDayShort(p.day), v: formatInt(p.value) })) }}
+            >
+              <TrendChart data={d.usersByDay} label="Usuários únicos" color="var(--viz-1)" />
+            </ChartCard>
+            <ChartCard
+              title="Receita por dia"
+              table={{ columns: [{ key: "dia", label: "Dia" }, { key: "v", label: "Receita", align: "right" }], rows: d.revenueByDay.map((p) => ({ dia: formatDayShort(p.day), v: formatMoney(p.value, currency) })) }}
+            >
+              <TrendChart data={d.revenueByDay} label="Receita" kind="money" currency={currency} color="var(--viz-2)" />
+            </ChartCard>
+          </div>
+        </PendingArea>
+      </div>
+    </FiltersProvider>
   );
 }

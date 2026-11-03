@@ -45,7 +45,7 @@ export function serviceDb(): Database {
   return connect("app_service", 10);
 }
 
-type ReaderTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type ReaderTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /**
  * Leitura com RLS como o usuário `userId`. Prefira `readAsUser()` (src/lib/dal.ts),
