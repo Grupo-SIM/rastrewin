@@ -28,7 +28,7 @@ mkdir -p /opt/rastrewin/backups && cd /opt/rastrewin
 ```
 
 ## 3. Acesso às imagens (GHCR)
-As imagens são privadas. No GitHub, vá em **Settings › Developer settings › Personal access tokens › Tokens (classic)**:
+A imagem do app é privada (o banco usa o `postgres:18` oficial, público). No GitHub, vá em **Settings › Developer settings › Personal access tokens › Tokens (classic)**:
 - crie um token só com **`read:packages`**;
 - use uma validade longa e anote a data de renovação.
 
@@ -167,4 +167,4 @@ docker image prune -f
 | O IP mostrado é o da VPS (ex.: 127.0.0.1) | O proxy está repassando o próprio IP. Use `{remote_host}` no Caddy ou `$remote_addr` no nginx. |
 | Script do site não envia eventos | O site não está em "Sites autorizados" ou está sem `https://`. |
 | Webhook não chega | Veja "Último evento recebido" no cartão do webhook. Se não aparecer nada, confira com o SimIntPay a URL **e** o segredo: envios com assinatura inválida são recusados (401) e não ficam registrados. Os logs mostram as recusas: `docker compose logs app \| grep webhook`. |
-| Limpeza diária "Falhou" ou "Atrasada" | Veja o erro em `docker compose exec db psql -U postgres -d rastrewin -c "select * from cron.job_run_details order by runid desc limit 5"`. |
+| Limpeza diária "Falhou" ou "Atrasada" | Ela roda dentro do app. Veja o erro com `docker compose logs app \| grep retenção`. Para rodar à mão: `docker compose exec db psql -U postgres -d rastrewin -c "CALL app_private.run_retention()"`. |

@@ -35,10 +35,6 @@ jobs:
             context: .
             file: ./Dockerfile
             image: rastrewin
-          - name: postgres
-            context: ./docker/postgres
-            file: ./docker/postgres/Dockerfile
-            image: rastrewin-postgres
     steps:
       - uses: actions/checkout@v7
 

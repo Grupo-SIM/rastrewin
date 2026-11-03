@@ -13,13 +13,13 @@ name: rastrewin
 
 services:
   db:
-    image: ghcr.io/grupo-sim/rastrewin-postgres:${IMAGE_TAG:-latest}
+    # Postgres oficial: pgcrypto já vem incluído; a limpeza diária é agendada pelo app (sem pg_cron).
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_DB: rastrewin
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
-      CRON_DATABASE: rastrewin
     volumes:
       - pgdata:/var/lib/postgresql
     ports:

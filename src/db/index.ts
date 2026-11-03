@@ -15,7 +15,8 @@ import * as schema from "./schema";
  * Sem o papel, a conexão nem abre (falha fechada).
  */
 
-export type Database = NodePgDatabase<typeof schema>;
+/** `$client` = o Pool do papel (a limpeza diária usa uma conexão dedicada para a trava). */
+export type Database = NodePgDatabase<typeof schema> & { $client: Pool };
 type Role = "app_service" | "app_reader";
 
 const globalForDb = globalThis as unknown as { __rastrewinDb?: Partial<Record<Role, Database>> };

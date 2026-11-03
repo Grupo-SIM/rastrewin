@@ -158,8 +158,8 @@ async function main() {
       (await countAs(app, "app_reader", validUser, "select count(*) as n from (select 1 from maintenance_runs limit 1) x")) >= 0,
     );
     await expectDenied(app, "app_reader NÃO grava em maintenance_runs", "app_reader", validUser, "insert into maintenance_runs (job) values ('x')");
-    await expectDenied(app, "app_service NÃO roda a retenção (só o dono, via pg_cron)", "app_service", null, "call app_private.run_retention()");
-    await expectDenied(app, "app_service NÃO mexe nos jobs do pg_cron", "app_service", null, "select count(*) from cron.job");
+    await expectDenied(app, "app_reader NÃO roda a retenção (só app_service, agendada pelo app)", "app_reader", validUser, "call app_private.run_retention()");
+    await expectDenied(app, "app_service NÃO usa as funções internas de segurança (secure_table)", "app_service", null, "select app_private.secure_table('public.visitors', true)");
 
     // ---------------------------------------------------------------- cifra
     const decrypted = await asRole(app, "app_service", null, async () =>

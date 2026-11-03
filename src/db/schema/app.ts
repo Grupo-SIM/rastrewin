@@ -274,7 +274,7 @@ export const metaInsightsCache = pgTable(
 
 // ---------------------------------------------------------------- manutenção
 
-/** Execuções da limpeza diária (pg_cron → app_private.run_retention). Escrita só pelo dono do banco. */
+/** Execuções da limpeza diária (app → app_private.run_retention, como app_service). */
 export const maintenanceRuns = pgTable(
   "maintenance_runs",
   {

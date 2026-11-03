@@ -69,7 +69,7 @@ export function MaintenanceCard({ maintenance: m, timeZone }: { maintenance: Mai
       <CardHeader>
         <CardTitle className="font-semibold">Manutenção e servidor</CardTitle>
         <CardDescription>
-          Todo dia às 03:15 (Brasília), uma limpeza automática apaga o conteúdo enviado e recebido da Meta e do GA4 nos
+          Todo dia, a partir das 03:15 (Brasília), uma limpeza automática apaga o conteúdo enviado e recebido da Meta e do GA4 nos
           eventos com mais de {m.retentionDays} dias. O evento continua nos relatórios. Ela também remove sessões de
           login vencidas e o cache antigo das campanhas.
         </CardDescription>
@@ -91,13 +91,14 @@ export function MaintenanceCard({ maintenance: m, timeZone }: { maintenance: Mai
           )}
           {run?.error && (
             <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {run.error.replace(/\.?\s*$/, ".")} Ela roda de novo na próxima noite. Se repetir, rode à mão:{" "}
-              <code className="text-xs">CALL app_private.run_retention();</code>
+              {run.error.replace(/\.?\s*$/, ".")} O app tenta de novo em 1 hora. Detalhes nos logs:{" "}
+              <code className="text-xs">docker compose logs app | grep retenção</code>
             </p>
           )}
           {m.health === "atrasada" && (
             <p className="rounded-lg bg-amber/10 px-3 py-2 text-sm text-amber">
-              Nenhuma limpeza nos últimos 2 dias. Confira se o banco está usando a imagem com pg_cron (rastrewin-postgres).
+              Nenhuma limpeza nos últimos 2 dias. Ela roda dentro do app: confira os logs (
+              <code className="text-xs">docker compose logs app | grep retenção</code>).
             </p>
           )}
           <Row label="Próxima execução">

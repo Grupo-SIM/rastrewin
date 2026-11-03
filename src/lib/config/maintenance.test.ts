@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { maintenanceHealth, nextRunAt } from "./maintenance";
-
-test("nextRunAt: 06:15 UTC (03:15 Brasília) do dia ou do dia seguinte", () => {
-  assert.equal(nextRunAt(new Date("2026-11-03T05:00:00Z")).toISOString(), "2026-11-03T06:15:00.000Z");
-  assert.equal(nextRunAt(new Date("2026-11-03T06:15:00Z")).toISOString(), "2026-11-04T06:15:00.000Z");
-  assert.equal(nextRunAt(new Date("2026-12-31T23:00:00Z")).toISOString(), "2027-01-01T06:15:00.000Z");
-});
+import { maintenanceHealth } from "./maintenance";
 
 test("maintenanceHealth", () => {
   const now = new Date("2026-11-03T12:00:00Z");

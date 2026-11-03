@@ -22,15 +22,15 @@
 | 5 | Webhook SimIntPay + GA4 Measurement Protocol | ✅ |
 | 6 | Dashboard (visão geral, eventos, faturamento, geo) | ✅ |
 | 7 | Campanhas (Meta Ads insights, cache, ROAS/CPA) | ✅ |
-| 8 | Retenção (pg_cron), auditoria de segurança, go-live | ✅ |
+| 8 | Retenção (agendada pelo app), auditoria de segurança, go-live | ✅ |
 
 ## Stack
 - Next.js 16.4 (App Router, Turbopack, React 19.3, **Cache Components ligado**, React Compiler) — `output: "standalone"`.
   - Com Cache Components, leitura de cookies/headers/sessão/banco por request fica atrás de `<Suspense>`.
   - Middleware no Next 16 chama-se `proxy.ts`.
 - Tailwind v4 + shadcn/ui (estilo `radix-nova`, primitivos **Radix**). `cn` vem do pacote `cn` (oficial do shadcn).
-- Postgres 18 próprio (Docker) com `pgcrypto` e `pg_cron` — imagem em `docker/postgres/`.
-- Deploy: GitHub Actions (`.github/workflows/build.yml`) publica `ghcr.io/<owner>/rastrewin` e `ghcr.io/<owner>/rastrewin-postgres` (push na `main`, tags `v*` e `workflow_dispatch`). O deploy em si é feito pelo usuário.
+- Postgres 18 **oficial** (`postgres:18`, sem imagem própria nem pg_cron). `pgcrypto` vem incluído e é criado pela migration `0001`.
+- Deploy: GitHub Actions (`.github/workflows/build.yml`) publica `ghcr.io/<owner>/rastrewin` (push na `main`, tags `v*` e `workflow_dispatch`). O deploy em si é feito pelo usuário.
 
 ## Design system (`src/app/globals.css`)
 - Cores em **HSL** nas variáveis de `:root` (claro) e `.dark` (escuro, **padrão**). Mudar paleta só ali.
@@ -124,11 +124,13 @@
 - Tabela da árvore: Impressões e CTR somem abaixo de 1400 px para caber sem rolagem.
 
 ## Retenção, segurança e go-live (Fase 8)
-- **Limpeza diária** (`drizzle/0005_retention.sql`): job `rastrewin-retencao` do pg_cron, `15 6 * * *` UTC = **03:15 Brasília**, roda `CALL app_private.run_retention()` como DONO do banco.
+- **Limpeza diária** (procedure em `drizzle/0005_retention.sql`/`0006`) **agendada pelo APP, sem pg_cron**: `src/lib/maintenance/scheduler.ts` (ligado no `instrumentation.ts`) confere a cada 15 min e chama `runRetentionIfDue()` (`src/lib/maintenance/retention.ts`).
+  - Roda uma vez por dia a partir das **03:15 Brasília** (06:15 UTC). Se o app estava fora do ar no horário, roda quando voltar; após falha, tenta de novo em 1 h.
+  - Executa como **app_service** (único papel com EXECUTE; ele já podia alterar essas linhas) com trava `pg_try_advisory_lock(726401115)` numa conexão dedicada: nunca duas ao mesmo tempo, nem com várias instâncias. A trava é liberada no `finally`; se falhar, a conexão é descartada.
   - Zera `payload_meta/response_meta/payload_ga4/response_ga4` do `events_log` com mais de 14 dias, em lotes de 5.000 com COMMIT (a linha fica). Índice parcial `events_log_retention_idx` só cobre linhas com payload.
   - Também apaga sessões/verificações vencidas há 1 dia e `meta_insights_cache` com 30+ dias. Registra cada execução em `maintenance_runs` (painel: Configurações › Geral › "Manutenção e servidor").
   - É PROCEDURE sem SECURITY DEFINER e sem `SET search_path` (os dois impedem COMMIT): todo nome é qualificado com schema. Policies `owner_maintenance` só para o dono (caso ele não seja superusuário).
-  - Teste: `npm run test:retention`. Rodar à mão: `CALL app_private.run_retention();`. Ver execuções: `select * from cron.job_run_details order by runid desc`.
+  - Teste: `npm run test:retention` (procedure + executor pela conexão real do app). Rodar à mão: `CALL app_private.run_retention();`. Logs: `docker compose logs app | grep retenção`. Histórico: tabela `maintenance_runs`.
 - **IP confiável:** o app só confia no `X-Real-IP` sobrescrito pelo proxy da mesma VPS; a porta 3000 fica em `127.0.0.1` (compose). O cartão de Manutenção mostra o IP visto e alerta "Proxy sem X-Real-IP".
 - **CSP** (`next.config.ts`): sem nonce (nonce é incompatível com Cache Components/PPR), então `script-src 'self' 'unsafe-inline'`; vale para as páginas, fora de `/api` e `/t.js`. Recurso externo novo no painel (fonte, imagem, API chamada do navegador) precisa entrar na CSP.
 - **Go-live:** `docs/go-live.md` (VPS + Caddy ou nginx), arquivos em `deploy/` (compose só com imagens do GHCR, `Caddyfile`, `nginx.conf`). A URL do webhook (`https://track.rastrewin.com/api/webhook/compra`) e o segredo são cadastrados pelo time do SimIntPay (`WEBHOOK_URL`/`WEBHOOK_SECRET` da integração da plataforma).
@@ -145,12 +147,12 @@
 
 ## Comandos
 ```bash
-docker compose up -d db          # Postgres local (pg_cron + pgcrypto)
+docker compose up -d db          # Postgres local (postgres:18 oficial)
 npm run db:migrate               # aplica migrations (papéis, RLS)
 npm run create-admin -- --email voce@empresa.com --name "Seu Nome"   # pede a senha sem mostrar
 npm run delete-user -- --email voce@empresa.com                      # apaga usuário (e sessões)
 npm run test:rls                 # 30 verificações de segurança do banco
-npm run test:retention           # limpeza diária (pg_cron) — roda a procedure de verdade
+npm run test:retention           # limpeza diária — procedure + executor do app, de verdade
 npm run geo:download             # base de geolocalização (uma vez; ~127 MB em data/geo)
 npm test                         # testes unitários (normalização/hash, IP, rate limit, CAPI, validação)
 npm run dev                      # desenvolvimento (http://localhost:3000)

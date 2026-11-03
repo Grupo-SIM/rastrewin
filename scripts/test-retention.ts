@@ -1,14 +1,17 @@
 /**
- * Testa a retenção diária (app_private.run_retention + job do pg_cron). Termina com código 1 se algo falhar.
+ * Testa a retenção diária: a procedure app_private.run_retention e o executor do app
+ * (src/lib/maintenance/retention.ts, com trava). Termina com código 1 se algo falhar.
  *
  *   npm run test:retention
  *
- * Conecta como DONO do banco (MIGRATION_DATABASE_URL), igual ao pg_cron.
+ * Usa o DONO do banco (MIGRATION_DATABASE_URL) para preparar dados e conferir, e a conexão REAL do app
+ * (DATABASE_URL → app_login → app_service, com RLS) para rodar o executor, igual em produção.
  * Cria eventos com o prefixo "retention-test-" e apaga só eles no final.
  * A procedure roda de verdade: eventos REAIS com mais de 14 dias também têm os payloads zerados,
  * que é o comportamento esperado em produção.
  */
-import { Client } from "pg";
+import { Client, Pool } from "pg";
+import { RETENTION_LOCK_KEY, runRetentionIfDue } from "../src/lib/maintenance/retention";
 
 const PREFIX = "retention-test-";
 const results: { name: string; ok: boolean; detail?: string }[] = [];
@@ -16,9 +19,11 @@ const record = (name: string, ok: boolean, detail?: string) => results.push({ na
 
 async function main() {
   const ownerUrl = process.env.MIGRATION_DATABASE_URL;
-  if (!ownerUrl) throw new Error("Defina MIGRATION_DATABASE_URL");
+  const appUrl = process.env.DATABASE_URL;
+  if (!ownerUrl || !appUrl) throw new Error("Defina MIGRATION_DATABASE_URL e DATABASE_URL");
   const db = new Client({ connectionString: ownerUrl, application_name: "rastrewin:test-retention" });
   await db.connect();
+  const app = new Pool({ connectionString: appUrl, max: 2, options: "-c role=app_service", application_name: "rastrewin:test-retention-app" });
 
   const payload = JSON.stringify({ data: [{ event_name: "PageView" }] });
   try {
@@ -72,25 +77,53 @@ async function main() {
       record("parâmetro inválido (0 dias) é recusado", true);
     }
 
-    const job = (
-      await db.query("select schedule, command, database, active from cron.job where jobname = 'rastrewin-retencao'")
-    ).rows[0] as { schedule: string; command: string; database: string; active: boolean } | undefined;
-    record(
-      "job do pg_cron agendado (06:15 UTC = 03:15 Brasília) neste banco",
-      job?.schedule === "15 6 * * *" && job.command === "CALL app_private.run_retention()" && job.active === true && job.database === (await db.query("select current_database() as d")).rows[0].d,
-      JSON.stringify(job),
-    );
-
     const exec = (
       await db.query(
         `select r.rolname, has_function_privilege(r.rolname, 'app_private.run_retention(integer,integer,integer)', 'EXECUTE') as can
            from pg_roles r where r.rolname in ('app_login', 'app_service', 'app_reader')`,
       )
     ).rows as { rolname: string; can: boolean }[];
-    record("papéis do app NÃO executam a retenção", exec.length === 3 && exec.every((r) => !r.can), JSON.stringify(exec));
+    const can = Object.fromEntries(exec.map((r) => [r.rolname, r.can]));
+    record(
+      "só app_service executa a retenção (app_reader e app_login não)",
+      can.app_service === true && can.app_reader === false && can.app_login === false,
+      JSON.stringify(can),
+    );
+    record(
+      "banco sem pg_cron (Postgres padrão)",
+      Number((await db.query("select count(*) as n from pg_extension where extname = 'pg_cron'")).rows[0].n) === 0,
+    );
+
+    // ---------------------------------------------------------------- executor do app (conexão real, app_service + RLS)
+    await db.query("update events_log set payload_meta = $2::jsonb where event_id like $1", [`${PREFIX}%`, payload]);
+    await db.query("update events_log set created_at = now() - interval '20 days' where event_id = $1", [`${PREFIX}young-1`]);
+
+    await db.query("select pg_advisory_lock($1)", [RETENTION_LOCK_KEY]);
+    const locked = await runRetentionIfDue(app, { force: true });
+    record("com outra limpeza rodando (trava ocupada), o executor não roda", locked.outcome === "locked", JSON.stringify(locked));
+    await db.query("select pg_advisory_unlock($1)", [RETENTION_LOCK_KEY]);
+
+    const ran = await runRetentionIfDue(app, { force: true });
+    record("executor roda como app_service e limpa os 3 eventos", ran.outcome === "ran" && ran.rowsPayloads >= 3, JSON.stringify(ran));
+    const left = Number(
+      (await db.query("select count(*) as n from events_log where event_id like $1 and payload_meta is not null", [`${PREFIX}%`])).rows[0].n,
+    );
+    record("nenhum payload antigo sobrou", left === 0, `restaram ${left}`);
+
+    const notDue = await runRetentionIfDue(app);
+    record("sem force: já rodou desde o último horário → não roda de novo", notDue.outcome === "not-due", JSON.stringify(notDue));
+
+    const [a, b] = await Promise.all([runRetentionIfDue(app, { force: true }), runRetentionIfDue(app, { force: true })]);
+    const outcomes = [a.outcome, b.outcome].sort().join(",");
+    record("duas ao mesmo tempo: nunca rodam juntas", outcomes === "locked,ran" || outcomes === "ran,ran", outcomes);
+
+    const free = (await db.query("select pg_try_advisory_lock($1) as ok", [RETENTION_LOCK_KEY])).rows[0].ok as boolean;
+    if (free) await db.query("select pg_advisory_unlock($1)", [RETENTION_LOCK_KEY]);
+    record("a trava é sempre liberada no fim", free === true);
   } finally {
     await db.query("delete from events_log where event_id like $1", [`${PREFIX}%`]);
     await db.end();
+    await app.end();
   }
 
   let failed = 0;

@@ -36,7 +36,7 @@ As regras para quem mexe no código estão no [CLAUDE.md](CLAUDE.md), seção "S
 - os 4 segredos reais ausentes do git, do JS do navegador, do HTML do painel e dos logs;
 - toda Server Action com sessão e Zod;
 - `test:rls` com 30 verificações;
-- `test:retention` com 11 verificações.
+- `test:retention` com 17 verificações.
 
 ## Riscos aceitos
 - **CSP com `script-src 'unsafe-inline'`:** um nonce exigiria renderização dinâmica e é incompatível com Cache Components/PPR (guia do Next). Mitigação: sem HTML vindo do usuário, o React escapa tudo e as outras diretivas fecham o resto.
@@ -59,7 +59,7 @@ As regras para quem mexe no código estão no [CLAUDE.md](CLAUDE.md), seção "S
 ## Comandos de verificação
 ```bash
 npm run test:rls         # papéis, RLS, cifra
-npm run test:retention   # limpeza diária e job do pg_cron
+npm run test:retention   # limpeza diária (procedure + executor do app, com trava)
 npm test                 # unitários (inclui IP confiável e redação de logs)
 npm audit --omit=dev
 ```

@@ -9,14 +9,13 @@
 # O container do app NÃO recebe MIGRATION_DATABASE_URL (credencial do dono do banco).
 services:
   db:
-    build: ./docker/postgres
-    image: ghcr.io/${GHCR_OWNER:-local}/rastrewin-postgres:latest
+    # Postgres oficial: pgcrypto já vem incluído; a limpeza diária é agendada pelo app (sem pg_cron).
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_DB: rastrewin
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
-      CRON_DATABASE: rastrewin
     volumes:
       # Postgres 18: o volume é /var/lib/postgresql (PGDATA = /var/lib/postgresql/18/docker)
       - pgdata:/var/lib/postgresql

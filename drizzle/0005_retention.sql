@@ -1,7 +1,6 @@
 -- Retenção diária (Fase 8).
 --
--- Todo dia às 03:15 de Brasília (06:15 UTC; o pg_cron roda em UTC), o pg_cron chama
--- app_private.run_retention(), que:
+-- Todo dia a partir das 03:15 de Brasília (06:15 UTC), o app chama app_private.run_retention(), que:
 --   1. zera os campos pesados do events_log (payload/resposta da Meta e do GA4) com mais de 14 dias.
 --      A LINHA FICA: evento, UTMs, geo e datas continuam nos relatórios;
 --   2. apaga sessões de login e verificações vencidas há mais de 1 dia;
@@ -15,7 +14,7 @@
 SELECT app_private.secure_table('public.maintenance_runs', true);
 --> statement-breakpoint
 
--- Policies para o DONO do banco (quem roda o job). Superusuário já ignora a RLS. Se o dono não for
+-- Policies para o DONO do banco (para rodar à mão). Superusuário já ignora a RLS. Se o dono não for
 -- superusuário (ex.: Postgres gerenciado), a RLS forçada também vale para ele e o bloquearia.
 DO $$
 DECLARE
@@ -106,15 +105,5 @@ END
 $$;
 --> statement-breakpoint
 REVOKE ALL ON PROCEDURE app_private.run_retention(integer, integer, integer) FROM PUBLIC;
---> statement-breakpoint
 
--- Agendamento. Um job com nome é substituído se já existir, então a migration é idempotente.
--- O banco é o desta migration, mesmo que cron.database_name aponte para outro.
-CREATE EXTENSION IF NOT EXISTS pg_cron;
---> statement-breakpoint
-SELECT cron.schedule_in_database(
-  'rastrewin-retencao',
-  '15 6 * * *',
-  'CALL app_private.run_retention()',
-  current_database()
-);
+-- Agendamento: o próprio app chama a procedure (src/lib/maintenance/retention.ts). Ver 0006.

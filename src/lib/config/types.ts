@@ -28,7 +28,7 @@ export type GeneralView = {
   lastWebhook: { eventType: string; orderId: string | null; receivedAt: string; processed: boolean; error: string | null } | null;
 };
 
-/** Limpeza diária (pg_cron) + diagnóstico do proxy. Estados calculados no servidor. */
+/** Limpeza diária (agendada pelo app) + diagnóstico do proxy. Estados calculados no servidor. */
 export type MaintenanceView = {
   /** nunca = ainda não rodou; rodando = em andamento; atrasada = última execução ok há mais de 2 dias. */
   health: "ok" | "erro" | "rodando" | "atrasada" | "nunca";
