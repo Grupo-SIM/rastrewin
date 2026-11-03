@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { serviceDb } from "@/db";
 import { ga4Accounts, metaPixels, settings } from "@/db/schema";
 import { decryptSecret } from "@/lib/secrets";
@@ -18,6 +18,9 @@ export type RuntimeConfig = {
   checkoutDomains: string[];
   pixels: { pixelId: string; token: string }[];
   ga4: { measurementId: string; apiSecret: string }[];
+  ga4Debug: boolean;
+  /** Segredo HMAC do webhook de vendas (null = não configurado). */
+  webhookSecret: string | null;
 };
 
 const TTL_MS = 30_000;
@@ -31,6 +34,8 @@ async function load(): Promise<RuntimeConfig> {
       testEventCode: settings.testEventCode,
       allowedOrigins: settings.allowedOrigins,
       checkoutDomains: settings.checkoutDomains,
+      ga4Debug: settings.ga4Debug,
+      webhookSecret: sql<string | null>`case when ${settings.webhookTokenEnc} is null then null else ${decryptSecret(settings.webhookTokenEnc)} end`,
     })
     .from(settings)
     .where(eq(settings.id, 1));
@@ -49,6 +54,8 @@ async function load(): Promise<RuntimeConfig> {
     checkoutDomains: row?.checkoutDomains ?? [],
     pixels,
     ga4,
+    ga4Debug: row?.ga4Debug ?? false,
+    webhookSecret: row?.webhookSecret ?? null,
   };
 }
 

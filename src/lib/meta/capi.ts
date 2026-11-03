@@ -17,7 +17,8 @@ import {
  */
 
 export type CapiPerson = {
-  externalId: string;
+  /** trck_user_id; ausente em vendas sem visitante ligado */
+  externalId?: string | null;
   email?: string | null;
   /** hashes já calculados (ex.: vindos do banco) têm prioridade sobre o valor cru */
   emHash?: string | null;
@@ -52,7 +53,8 @@ export type CapiEvent = {
   event_time: number;
   event_id: string;
   event_source_url?: string;
-  action_source: "website";
+  /** "website" exige client_user_agent; sem visitante (venda não ligada) usamos "system_generated". */
+  action_source: "website" | "system_generated";
   user_data: Record<string, string | string[]>;
   custom_data?: CapiCustomData;
 };
@@ -68,7 +70,7 @@ export function buildUserData(p: CapiPerson): Record<string, string | string[]> 
     ct: arr(hashed(normCity(p.city))),
     st: arr(hashed(normState(p.region, p.country))),
     country: arr(hashed(normCountry(p.country))),
-    external_id: arr(hashed(p.externalId)),
+    external_id: arr(hashed(p.externalId ?? null)),
     client_ip_address: p.ip ?? undefined,
     client_user_agent: p.userAgent ?? undefined,
     fbp: p.fbp ?? undefined,
@@ -84,6 +86,7 @@ export function buildEvent(input: {
   eventSourceUrl?: string | null;
   person: CapiPerson;
   customData?: CapiCustomData;
+  actionSource?: CapiEvent["action_source"];
 }): CapiEvent {
   const custom = input.customData && Object.keys(input.customData).length ? input.customData : undefined;
   return {
@@ -91,7 +94,7 @@ export function buildEvent(input: {
     event_time: Math.floor((input.eventTime ?? new Date()).getTime() / 1000),
     event_id: input.eventId,
     ...(input.eventSourceUrl ? { event_source_url: input.eventSourceUrl } : {}),
-    action_source: "website",
+    action_source: input.actionSource ?? "website",
     user_data: buildUserData(input.person),
     ...(custom ? { custom_data: custom } : {}),
   };

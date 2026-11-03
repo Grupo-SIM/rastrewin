@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidTimeZone } from "@/lib/time";
 
 /* Normaliza e valida as entradas da tela de Configurações. Usado SÓ no servidor. */
 
@@ -100,6 +101,8 @@ export const generalSchema = z.object({
     .refine((v) => v === "" || /^[A-Za-z0-9_-]{4,40}$/.test(v), "Código inválido (ex.: TEST12345)"),
   allowedOrigins: origins,
   checkoutDomains: domains,
+  ga4Debug: z.boolean(),
+  timezone: z.string().trim().refine(isValidTimeZone, "Fuso horário inválido"),
 });
 
 export const webhookSecretSchema = z

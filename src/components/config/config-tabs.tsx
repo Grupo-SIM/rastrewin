@@ -37,13 +37,13 @@ export function ConfigTabs({ config }: { config: ConfigView }) {
         <WebhookCard general={config.general} />
       </TabsContent>
       <TabsContent value="ga4">
-        <AccountsPanel kind="ga4" accounts={config.accounts.ga4} />
+        <AccountsPanel kind="ga4" accounts={config.accounts.ga4} timeZone={config.general.timezone} />
       </TabsContent>
       <TabsContent value="pixel">
-        <AccountsPanel kind="pixel" accounts={config.accounts.pixel} />
+        <AccountsPanel kind="pixel" accounts={config.accounts.pixel} timeZone={config.general.timezone} />
       </TabsContent>
       <TabsContent value="ads">
-        <AccountsPanel kind="ads" accounts={config.accounts.ads} />
+        <AccountsPanel kind="ads" accounts={config.accounts.ads} timeZone={config.general.timezone} />
       </TabsContent>
     </Tabs>
   );

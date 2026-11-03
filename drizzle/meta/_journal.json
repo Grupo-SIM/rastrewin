@@ -15,6 +15,20 @@
       "when": 1793639278782,
       "tag": "0001_security",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793663349364,
+      "tag": "0002_purchases_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793664524967,
+      "tag": "0003_settings_timezone",
+      "breakpoints": true
     }
   ]
 }

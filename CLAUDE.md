@@ -19,7 +19,7 @@
 | 2 | Banco (Drizzle), papéis + RLS, pgcrypto, login (Better Auth) | ✅ |
 | 3 | Configurações pelo painel (contas, segredos mascarados, testar conexão) | ✅ |
 | 4 | Captura: `/t.js`, `/api/identify`, `/api/event`, Meta CAPI | ✅ |
-| 5 | Webhook SimIntPay + GA4 Measurement Protocol | ⏳ |
+| 5 | Webhook SimIntPay + GA4 Measurement Protocol | ✅ |
 | 6 | Dashboard (visão geral, eventos, faturamento, geo) | ⏳ |
 | 7 | Campanhas (Meta Ads insights, cache, ROAS/CPA) | ⏳ |
 | 8 | Retenção (pg_cron), auditoria de segurança, go-live | ⏳ |
@@ -85,6 +85,20 @@
 - **Meta CAPI:** `src/lib/meta/capi.ts` (montagem + envio a TODOS os pixels ativos); normalização/hash em `src/lib/tracking/normalize.ts` (telefone BR sem DDI ganha 55; com `+`/`00` mantém).
 - **Geo:** `src/lib/geo` lê `data/geo/dbip-city-lite.mmdb` (DB-IP Lite, **CC BY 4.0 — manter a atribuição no rodapé do painel**). `npm run geo:download` (local); no Docker, estágio `geo` (o CI roda todo mês para atualizar). `geo_region` = UF no Brasil.
 - **Testes unitários:** `npm test` (node:test via tsx, `--conditions=react-server` por causa do `server-only`). Arquivos `*.test.ts` ao lado do código.
+
+## Vendas (Fase 5)
+- **Contrato SimIntPay** ("API de vendas"): POST com JSON exato + `x-simintpay-signature` = HMAC-SHA256 hex do corpo bruto com o segredo do webhook (`settings.webhook_token_enc`). Eventos: purchase_approved, purchase_refunded, chargeback, refund_requested, card_declined, pix_generated, pix_expired. Valores em CENTAVOS, sem moeda (usa `settings.currency`). Fonte: `Grupo-SIM/simintpay` → `docs/central-sales-api.md` e `backend/src/modules/platform-core/platform-sales-events.service.ts`.
+- **Endpoint** `src/app/api/webhook/compra/route.ts`: rate limit → corpo ≤ 64 KB → segredo configurado (senão 503) → assinatura (`src/lib/sales/signature.ts`; inválida = 401, nada gravado) → Zod (`src/lib/sales/simintpay.ts`) → idempotência por `eventId` (`webhook_events`) → UPSERT por `transaction_id` (`src/lib/sales/process.ts`) → 200; envios em `after()`.
+- **Status com precedência** (`nextStatus`): pending/declined/expired < approved/refund_requested < refunded/chargeback. Evento atrasado não desfaz reembolso.
+- **Atualização preserva dados:** eventos seguintes (reembolso etc.) vêm sem tracking/email — só campos com valor sobrescrevem; UTMs trocam só em conjunto.
+- **Ligação venda → visitante** (`matchVisitor`): `tracking.src` (formato trck_user_id) → hash do email → hash do telefone. Resultado em `purchases.match`.
+- **Envio** (`src/lib/sales/deliver.ts`, função única para webhook e reenvio; trava em memória por compra):
+  - Meta: `Purchase`, `event_id = purchase_<transactionId>`, valor BRUTO; `action_source` = website (com UA do visitante) ou `system_generated` (sem visitante); até 7 dias.
+  - GA4 (`src/lib/ga4/mp.ts`): `purchase` com `client_id`/`session_id` da visita (sem visitante: client_id sintético estável), `timestamp_micros` até 72 h; **sem campo consent** (decisão do usuário; reavaliar com aviso de cookies/LGPD).
+  - Reembolso/chargeback → `refund` ao GA4 (só se a compra foi enviada; mesmo client_id). Meta não recebe reembolso.
+  - Modo debug do GA4 (`settings.ga4_debug`): valida no /debug/mp/collect e envia com `debug_mode`.
+- **Reenvio automático:** `src/instrumentation.ts` → `src/lib/sales/retry.ts` a cada 5 min (não roda no build nem sem `DATABASE_URL`); até 5 tentativas por destino, últimos 7 dias.
+- **Fuso horário do painel:** `settings.timezone` (IANA, padrão Brasília), escolhido em Configurações › Geral; formatação em `src/lib/time.ts`. Deve ser o MESMO da conta de anúncios (o usuário está em America/Rio_Branco).
 
 ## Regras de tracking (não quebrar)
 - Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.

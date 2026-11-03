@@ -8,7 +8,15 @@ import { AccountCard } from "./account-card";
 import { AccountDialog } from "./account-dialog";
 import { KIND_META } from "./kinds";
 
-export function AccountsPanel({ kind, accounts }: { kind: AccountKind; accounts: AccountView[] }) {
+export function AccountsPanel({
+  kind,
+  accounts,
+  timeZone,
+}: {
+  kind: AccountKind;
+  accounts: AccountView[];
+  timeZone: string;
+}) {
   const meta = KIND_META[kind];
   const activeCount = accounts.filter((a) => a.active).length;
 
@@ -39,7 +47,7 @@ export function AccountsPanel({ kind, accounts }: { kind: AccountKind; accounts:
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {accounts.map((account) => (
-            <AccountCard key={account.id} account={account} />
+            <AccountCard key={account.id} account={account} timeZone={timeZone} />
           ))}
         </div>
       )}

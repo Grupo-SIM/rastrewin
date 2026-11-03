@@ -21,6 +21,11 @@ export type GeneralView = {
   webhookTokenHint: string | null;
   webhookUrl: string;
   scriptUrl: string;
+  ga4Debug: boolean;
+  /** Fuso horário do painel (IANA) */
+  timezone: string;
+  /** Último evento recebido no webhook de vendas (para conferir a integração). */
+  lastWebhook: { eventType: string; orderId: string | null; receivedAt: string; processed: boolean; error: string | null } | null;
 };
 
 export type ConfigView = {

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import type { GeneralView } from "@/lib/config/types";
 import { CopyButton } from "./copy-button";
+import { formatDateTime } from "@/lib/time";
 import { Field } from "./field";
 import { SecretInput } from "./secret-input";
 
@@ -98,6 +99,30 @@ export function WebhookCard({ general }: { general: GeneralView }) {
             <p className="flex items-center gap-2 text-sm text-amber">
               <TriangleAlertIcon className="size-4" /> Ainda não configurado. Vendas serão recusadas até definir.
             </p>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1 rounded-lg border px-3 py-2 text-sm">
+          <span className="font-medium">Último evento recebido</span>
+          {general.lastWebhook ? (
+            <span className="text-muted-foreground">
+              <span className="num text-foreground">{general.lastWebhook.eventType}</span>
+              {general.lastWebhook.orderId && (
+                <>
+                  {" "}· pedido <span className="num">{general.lastWebhook.orderId}</span>
+                </>
+              )}{" "}
+              · {formatDateTime(general.lastWebhook.receivedAt, general.timezone)} ·{" "}
+              {general.lastWebhook.error ? (
+                <span className="text-destructive">erro: {general.lastWebhook.error}</span>
+              ) : general.lastWebhook.processed ? (
+                <span className="text-primary">processado</span>
+              ) : (
+                <span className="text-amber">pendente</span>
+              )}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Nenhuma venda recebida ainda.</span>
           )}
         </div>
 

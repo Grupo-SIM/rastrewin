@@ -5,6 +5,7 @@ import {
   check,
   date,
   index,
+  integer,
   jsonb,
   numeric,
   pgTable,
@@ -45,6 +46,10 @@ export const settings = pgTable(
     allowedOrigins: text("allowed_origins").array().notNull().default(sql`'{}'::text[]`),
     /** Domínios de checkout cujos links recebem o trck_user_id. */
     checkoutDomains: text("checkout_domains").array().notNull().default(sql`'{}'::text[]`),
+    /** Modo debug do GA4: valida no /debug/mp/collect e envia com debug_mode (aparece no DebugView). */
+    ga4Debug: boolean("ga4_debug").notNull().default(false),
+    /** Fuso horário do painel (IANA). Use o MESMO da conta de anúncios para os relatórios por dia baterem. */
+    timezone: text("timezone").notNull().default("America/Sao_Paulo"),
     ...timestamps(),
   },
   (t) => [
@@ -199,8 +204,17 @@ export const purchases = pgTable(
     responseGa4: jsonb("response_ga4"),
     /** Último payload bruto do webhook (auditoria). */
     webhookRaw: jsonb("webhook_raw"),
+    /** Quando a venda aconteceu (occurredAt do evento de aprovação). */
+    occurredAt: timestamp("occurred_at", { withTimezone: true }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     refundedAt: timestamp("refunded_at", { withTimezone: true }),
+    /** Envio: tentativas e último erro (o reenvio automático para em 5 tentativas). */
+    metaAttempts: integer("meta_attempts").notNull().default(0),
+    ga4Attempts: integer("ga4_attempts").notNull().default(0),
+    lastDeliveryError: text("last_delivery_error"),
+    /** refund enviado ao GA4 (reembolso/chargeback). */
+    refundSentAt: timestamp("refund_sent_at", { withTimezone: true }),
+    refundResponseGa4: jsonb("refund_response_ga4"),
     ...timestamps(),
   },
   (t) => [

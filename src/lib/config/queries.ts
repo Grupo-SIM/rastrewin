@@ -1,8 +1,9 @@
 import "server-only";
-import { asc, eq } from "drizzle-orm";
-import { ga4Accounts, metaAdAccounts, metaPixels, settings } from "@/db/schema";
+import { asc, desc, eq } from "drizzle-orm";
+import { ga4Accounts, metaAdAccounts, metaPixels, settings, webhookEvents } from "@/db/schema";
 import { readAsUser } from "@/lib/dal";
 import { env } from "@/lib/env";
+import { DEFAULT_TIMEZONE } from "@/lib/time";
 import type { AccountView, ConfigView } from "./types";
 
 type TestCols = { lastTestAt: Date | null; lastTestStatus: string | null; lastTestMessage: string | null };
@@ -25,9 +26,23 @@ export async function getConfigView(): Promise<ConfigView> {
         allowedOrigins: settings.allowedOrigins,
         checkoutDomains: settings.checkoutDomains,
         webhookTokenHint: settings.webhookTokenHint,
+        ga4Debug: settings.ga4Debug,
+        timezone: settings.timezone,
       })
       .from(settings)
       .where(eq(settings.id, 1));
+
+    const [lastWebhook] = await tx
+      .select({
+        eventType: webhookEvents.eventType,
+        orderId: webhookEvents.orderId,
+        receivedAt: webhookEvents.receivedAt,
+        processedAt: webhookEvents.processedAt,
+        error: webhookEvents.error,
+      })
+      .from(webhookEvents)
+      .orderBy(desc(webhookEvents.receivedAt))
+      .limit(1);
 
 
     const ga4 = await tx
@@ -72,7 +87,7 @@ export async function getConfigView(): Promise<ConfigView> {
       .from(metaAdAccounts)
       .orderBy(asc(metaAdAccounts.createdAt));
 
-    return { general, ga4, pixel, ads };
+    return { general, lastWebhook, ga4, pixel, ads };
   });
 
   const toView = (kind: AccountView["kind"]) => (row: (typeof data.ga4)[number]): AccountView => ({
@@ -94,6 +109,17 @@ export async function getConfigView(): Promise<ConfigView> {
       webhookTokenHint: data.general?.webhookTokenHint ?? null,
       webhookUrl: new URL("/api/webhook/compra", env().APP_URL).toString(),
       scriptUrl: new URL("/t.js", env().APP_URL).toString(),
+      ga4Debug: data.general?.ga4Debug ?? false,
+      timezone: data.general?.timezone ?? DEFAULT_TIMEZONE,
+      lastWebhook: data.lastWebhook
+        ? {
+            eventType: data.lastWebhook.eventType,
+            orderId: data.lastWebhook.orderId,
+            receivedAt: data.lastWebhook.receivedAt.toISOString(),
+            processed: Boolean(data.lastWebhook.processedAt),
+            error: data.lastWebhook.error,
+          }
+        : null,
     },
     accounts: {
       ga4: data.ga4.map(toView("ga4")),

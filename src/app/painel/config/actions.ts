@@ -176,11 +176,11 @@ export async function saveGeneral(input: unknown): Promise<ActionResult> {
   if (!parsed.success) {
     return { ok: false, error: "Confira os campos destacados.", fieldErrors: fieldErrors(parsed.error) };
   }
-  const { currency, testEventCode, allowedOrigins, checkoutDomains } = parsed.data;
+  const { currency, testEventCode, allowedOrigins, checkoutDomains, ga4Debug, timezone } = parsed.data;
   try {
     await serviceDb()
       .update(settings)
-      .set({ currency, testEventCode: testEventCode || null, allowedOrigins, checkoutDomains })
+      .set({ currency, testEventCode: testEventCode || null, allowedOrigins, checkoutDomains, ga4Debug, timezone })
       .where(eq(settings.id, 1));
   } catch (error) {
     return dbError(error);

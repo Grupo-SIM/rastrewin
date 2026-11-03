@@ -24,7 +24,7 @@ import { AccountDialog } from "./account-dialog";
 import { KIND_META } from "./kinds";
 import { TestStatus } from "./test-status";
 
-export function AccountCard({ account }: { account: AccountView }) {
+export function AccountCard({ account, timeZone }: { account: AccountView; timeZone: string }) {
   const meta = KIND_META[account.kind];
   const [testing, startTest] = useTransition();
   const [removing, startRemove] = useTransition();
@@ -62,7 +62,7 @@ export function AccountCard({ account }: { account: AccountView }) {
         />
       </div>
 
-      <TestStatus account={account} />
+      <TestStatus account={account} timeZone={timeZone} />
 
       <div className="flex flex-wrap gap-2 border-t pt-3">
         <Button

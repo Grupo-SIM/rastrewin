@@ -8,15 +8,23 @@ import { GlassCard } from "@/components/glass-card";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { GeneralView } from "@/lib/config/types";
+import { TIMEZONE_OPTIONS } from "@/lib/time";
 import { Field } from "./field";
 
 const CURRENCIES = ["BRL", "USD", "EUR", "GBP", "ARS", "MXN", "CLP", "COP", "PEN", "UYU", "PYG", "CAD", "AUD"];
 
 export function GeneralForm({ general }: { general: GeneralView }) {
   const [currency, setCurrency] = useState(general.currency);
+  const [ga4Debug, setGa4Debug] = useState(general.ga4Debug);
+  const [timezone, setTimezone] = useState(general.timezone);
+  const zones = TIMEZONE_OPTIONS.some((z) => z.value === general.timezone)
+    ? TIMEZONE_OPTIONS
+    : [{ value: general.timezone, label: general.timezone }, ...TIMEZONE_OPTIONS];
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
   const currencies = CURRENCIES.includes(general.currency) ? CURRENCIES : [general.currency, ...CURRENCIES];
@@ -30,6 +38,8 @@ export function GeneralForm({ general }: { general: GeneralView }) {
         testEventCode: String(form.get("testEventCode") ?? ""),
         allowedOrigins: String(form.get("allowedOrigins") ?? ""),
         checkoutDomains: String(form.get("checkoutDomains") ?? ""),
+        ga4Debug,
+        timezone,
       });
       if (!result.ok) {
         setErrors(result.fieldErrors ?? {});
@@ -57,6 +67,25 @@ export function GeneralForm({ general }: { general: GeneralView }) {
                 {currencies.map((c) => (
                   <SelectItem key={c} value={c}>
                     {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field
+            id="timezone"
+            label="Fuso horário do painel"
+            hint="Use o MESMO fuso da sua conta de anúncios da Meta, para os números por dia baterem."
+            error={errors.timezone}
+          >
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger id="timezone" className="h-11 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {zones.map((z) => (
+                  <SelectItem key={z.value} value={z.value}>
+                    {z.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -110,6 +139,15 @@ export function GeneralForm({ general }: { general: GeneralView }) {
               spellCheck={false}
             />
           </Field>
+          <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3 py-2 md:col-span-2">
+            <div>
+              <Label htmlFor="ga4Debug">Modo debug do GA4</Label>
+              <p className="text-xs text-muted-foreground">
+                As compras enviadas pelo servidor aparecem no DebugView do GA4 e são validadas antes. Ligue só para testar.
+              </p>
+            </div>
+            <Switch id="ga4Debug" checked={ga4Debug} onCheckedChange={setGa4Debug} />
+          </div>
           <div className="md:col-span-2">
             <Button type="submit" className="h-11 w-full sm:w-auto" disabled={pending}>
               {pending && <LoaderCircleIcon className="animate-spin" />}

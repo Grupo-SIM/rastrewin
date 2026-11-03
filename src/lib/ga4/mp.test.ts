@@ -1,0 +1,42 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { buildMpBody, syntheticClientId } from "./mp";
+
+const now = new Date("2026-11-02T18:00:00Z");
+
+test("purchase com client_id/session_id da visita e timestamp da venda", () => {
+  const body = buildMpBody({
+    name: "purchase",
+    clientId: "123.456",
+    sessionId: "1793600000",
+    transactionId: "tx_1",
+    occurredAt: new Date("2026-11-02T17:00:00Z"),
+    value: 27,
+    currency: "BRL",
+    items: [{ item_id: "Livro", item_name: "Livro", price: 27, quantity: 1 }],
+    now,
+  });
+  assert.equal(body.client_id, "123.456");
+  assert.equal(body.timestamp_micros, new Date("2026-11-02T17:00:00Z").getTime() * 1000);
+  const params = body.events[0].params;
+  assert.equal(body.events[0].name, "purchase");
+  assert.equal(params.transaction_id, "tx_1");
+  assert.equal(params.session_id, "1793600000");
+  assert.equal(params.currency, "BRL");
+  assert.equal(params.debug_mode, undefined);
+});
+
+test("sem visitante: client_id sintético e estável; venda antiga sem timestamp", () => {
+  const a = buildMpBody({ name: "purchase", clientId: null, transactionId: "tx_9", value: 1, currency: "BRL", occurredAt: new Date("2026-10-01T00:00:00Z"), now });
+  const b = buildMpBody({ name: "purchase", clientId: null, transactionId: "tx_9", value: 1, currency: "BRL", now });
+  assert.match(a.client_id, /^\d+\.\d+$/);
+  assert.equal(a.client_id, b.client_id);
+  assert.equal(a.client_id, syntheticClientId("tx_9"));
+  assert.equal(a.timestamp_micros, undefined); // > 72 h: o GA4 recusaria
+});
+
+test("modo debug marca debug_mode", () => {
+  const body = buildMpBody({ name: "refund", clientId: "1.2", transactionId: "tx", value: 5, currency: "BRL", debug: true, now });
+  assert.equal(body.events[0].name, "refund");
+  assert.equal(body.events[0].params.debug_mode, 1);
+});
