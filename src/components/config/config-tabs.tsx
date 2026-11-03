@@ -5,6 +5,7 @@ import type { ConfigView } from "@/lib/config/types";
 import { AccountsPanel } from "./accounts-panel";
 import { GeneralForm } from "./general-form";
 import { InstallCard } from "./install-card";
+import { MaintenanceCard } from "./maintenance-card";
 import { WebhookCard } from "./webhook-card";
 
 export function ConfigTabs({ config }: { config: ConfigView }) {
@@ -35,6 +36,7 @@ export function ConfigTabs({ config }: { config: ConfigView }) {
         <InstallCard general={config.general} />
         <GeneralForm general={config.general} />
         <WebhookCard general={config.general} />
+        <MaintenanceCard maintenance={config.maintenance} timeZone={config.general.timezone} />
       </TabsContent>
       <TabsContent value="ga4">
         <AccountsPanel kind="ga4" accounts={config.accounts.ga4} timeZone={config.general.timezone} />

@@ -22,7 +22,7 @@
 | 5 | Webhook SimIntPay + GA4 Measurement Protocol | ✅ |
 | 6 | Dashboard (visão geral, eventos, faturamento, geo) | ✅ |
 | 7 | Campanhas (Meta Ads insights, cache, ROAS/CPA) | ✅ |
-| 8 | Retenção (pg_cron), auditoria de segurança, go-live | ⏳ |
+| 8 | Retenção (pg_cron), auditoria de segurança, go-live | ✅ |
 
 ## Stack
 - Next.js 16.4 (App Router, Turbopack, React 19.3, **Cache Components ligado**, React Compiler) — `output: "standalone"`.
@@ -57,6 +57,8 @@
 - Em código que roda no render, chame `headers()`/`cookies()` ANTES de `getAuth()`/`serviceDb()` (senão o build tenta ler o env).
 - Cadastro público **desligado** (Better Auth `disableSignUp`); usuários só via `create-admin`. Login com rate limit (5 tentativas/min).
 - Endpoints públicos: validação Zod + limite de corpo + rate limit + CORS restrito. Webhook do SimIntPay: assinatura HMAC-SHA256 do corpo em `x-simintpay-signature` (comparação em tempo constante).
+- **Erros e logs:** a mensagem de erro do Drizzle traz os PARÂMETROS da query (inclui a `ENCRYPTION_KEY`, tokens e PII). Logue/grave erros SÓ com `safeErrorMessage()` (`src/lib/errors.ts`); escrita que cifra segredo fica em try/catch → `dbError()`. Rede de segurança: `installLogRedaction()` no `instrumentation.ts` troca os segredos do env por `[REDACTED]` no stdout/stderr.
+- Modelo de ameaça, riscos aceitos e checklist de produção: [SECURITY.md](SECURITY.md).
 
 ## Configurações (Fase 3)
 - Tela: `src/app/painel/config/` (page + `actions.ts`); componentes em `src/components/config/`.
@@ -80,7 +82,7 @@
 - **Endpoints públicos** (`src/app/api/identify`, `src/app/api/event`, `src/app/api/config/public`): origem (CORS via `allowed_origins`) → rate limit → limite de corpo → Zod (`src/lib/tracking/schemas.ts`). IP/UA/geo sempre do servidor.
   - Limites: identify 30/min (burst 15), event 120/min (burst 40), por IP. Corpo: 8 KB / 16 KB.
   - `/api/event` responde 202 e envia à Meta em `after()`; dedup por `event_id` (repetido → `duplicate: true`, sem reenvio).
-- **Proxy reverso obrigatório em produção** (nginx/Traefik/Cloudflare): o IP vem de `cf-connecting-ip` → `x-real-ip` → 1º válido do `x-forwarded-for`; o rate limit usa o ÚLTIMO IP do XFF (o que o proxy anexou — não forjável). Next só preenche XFF se ausente.
+- **Proxy reverso obrigatório em produção** (Caddy/nginx de `deploy/`): o IP vem SÓ do `X-Real-IP` que o proxy sobrescreve, ou do ÚLTIMO IP do `X-Forwarded-For` (`src/lib/http/client-ip.ts`, regra única para geo, Meta, rate limit e login). `cf-connecting-ip` é ignorado (forjável sem Cloudflare). Ver Fase 8.
 - **Config em memória** (`src/lib/tracking/runtime-config.ts`): cache de 30 s com tokens decifrados; as actions de Configurações chamam `invalidateRuntimeConfig()`.
 - **Meta CAPI:** `src/lib/meta/capi.ts` (montagem + envio a TODOS os pixels ativos); normalização/hash em `src/lib/tracking/normalize.ts` (telefone BR sem DDI ganha 55; com `+`/`00` mantém).
 - **Geo:** `src/lib/geo` lê `data/geo/dbip-city-lite.mmdb` (DB-IP Lite, **CC BY 4.0 — manter a atribuição no rodapé do painel**). `npm run geo:download` (local); no Docker, estágio `geo` (o CI roda todo mês para atualizar). `geo_region` = UF no Brasil.
@@ -121,6 +123,16 @@
 - **IMPORTANTE (Next 16 + partialPrefetching):** a página pode ser pré-renderizada no request e o Next ABORTA I/O dessa renderização. Antes de efeitos colaterais/chamadas externas no render, use `await connection()` (feito em `src/lib/campaigns/query.ts`) — sem isso a chamada à Meta era disparada, abortada e consumia o limite.
 - Tabela da árvore: Impressões e CTR somem abaixo de 1400 px para caber sem rolagem.
 
+## Retenção, segurança e go-live (Fase 8)
+- **Limpeza diária** (`drizzle/0005_retention.sql`): job `rastrewin-retencao` do pg_cron, `15 6 * * *` UTC = **03:15 Brasília**, roda `CALL app_private.run_retention()` como DONO do banco.
+  - Zera `payload_meta/response_meta/payload_ga4/response_ga4` do `events_log` com mais de 14 dias, em lotes de 5.000 com COMMIT (a linha fica). Índice parcial `events_log_retention_idx` só cobre linhas com payload.
+  - Também apaga sessões/verificações vencidas há 1 dia e `meta_insights_cache` com 30+ dias. Registra cada execução em `maintenance_runs` (painel: Configurações › Geral › "Manutenção e servidor").
+  - É PROCEDURE sem SECURITY DEFINER e sem `SET search_path` (os dois impedem COMMIT): todo nome é qualificado com schema. Policies `owner_maintenance` só para o dono (caso ele não seja superusuário).
+  - Teste: `npm run test:retention`. Rodar à mão: `CALL app_private.run_retention();`. Ver execuções: `select * from cron.job_run_details order by runid desc`.
+- **IP confiável:** o app só confia no `X-Real-IP` sobrescrito pelo proxy da mesma VPS; a porta 3000 fica em `127.0.0.1` (compose). O cartão de Manutenção mostra o IP visto e alerta "Proxy sem X-Real-IP".
+- **CSP** (`next.config.ts`): sem nonce (nonce é incompatível com Cache Components/PPR), então `script-src 'self' 'unsafe-inline'`; vale para as páginas, fora de `/api` e `/t.js`. Recurso externo novo no painel (fonte, imagem, API chamada do navegador) precisa entrar na CSP.
+- **Go-live:** `docs/go-live.md` (VPS + Caddy ou nginx), arquivos em `deploy/` (compose só com imagens do GHCR, `Caddyfile`, `nginx.conf`). A URL do webhook (`https://track.rastrewin.com/api/webhook/compra`) e o segredo são cadastrados pelo time do SimIntPay (`WEBHOOK_URL`/`WEBHOOK_SECRET` da integração da plataforma).
+
 ## Regras de tracking (não quebrar)
 - Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.
 - GA4: eventos web via **gtag no navegador** (measurement_id vindo da config). Measurement Protocol **só** para a compra do webhook, com o mesmo `client_id`/`session_id`. Nunca duplicar no MP o que a gtag já enviou.
@@ -137,7 +149,8 @@ docker compose up -d db          # Postgres local (pg_cron + pgcrypto)
 npm run db:migrate               # aplica migrations (papéis, RLS)
 npm run create-admin -- --email voce@empresa.com --name "Seu Nome"   # pede a senha sem mostrar
 npm run delete-user -- --email voce@empresa.com                      # apaga usuário (e sessões)
-npm run test:rls                 # 26 verificações de segurança do banco
+npm run test:rls                 # 30 verificações de segurança do banco
+npm run test:retention           # limpeza diária (pg_cron) — roda a procedure de verdade
 npm run geo:download             # base de geolocalização (uma vez; ~127 MB em data/geo)
 npm test                         # testes unitários (normalização/hash, IP, rate limit, CAPI, validação)
 npm run dev                      # desenvolvimento (http://localhost:3000)

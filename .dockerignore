@@ -13,3 +13,5 @@ coverage
 data
 public/t.js
 dist-scripts
+deploy
+docs

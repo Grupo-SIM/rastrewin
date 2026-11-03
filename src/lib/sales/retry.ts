@@ -1,5 +1,6 @@
 import "server-only";
 import { deliverPurchase, pendingPurchaseIds } from "./deliver";
+import { safeErrorMessage } from "@/lib/errors";
 
 /*
  * Reenvio automático: a cada 5 min, reprocessa compras com envio pendente
@@ -17,7 +18,7 @@ async function tick() {
     for (const id of ids) await deliverPurchase(id);
     if (ids.length) console.log(`[reenvio] ${ids.length} compra(s) reprocessada(s)`);
   } catch (error) {
-    console.error("[reenvio] falhou", error instanceof Error ? error.message : error);
+    console.error("[reenvio] falhou", safeErrorMessage(error));
   } finally {
     g.__salesRetryRunning = false;
   }

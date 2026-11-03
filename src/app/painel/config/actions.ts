@@ -21,6 +21,9 @@ import { decryptSecret, encryptSecret, secretHint } from "@/lib/secrets";
 import { invalidateRuntimeConfig } from "@/lib/tracking/runtime-config";
 
 /*
+ * Todo acesso que cifra segredo fica em try/catch → dbError(), que só registra o código do erro:
+ * a mensagem de erro do Drizzle traz os parâmetros (o token digitado e a ENCRYPTION_KEY).
+ *
  * Server Actions são endpoints públicos: TODA função aqui chama requireSession()
  * e valida a entrada com Zod antes de tocar no banco (sempre como app_service).
  * Segredos nunca voltam ao navegador, exceto o token do webhook recém-gerado, exibido uma vez.
@@ -194,10 +197,14 @@ export async function saveGeneral(input: unknown): Promise<ActionResult> {
 export async function generateWebhookSecret(): Promise<ActionResult<{ secret: string }>> {
   await requireSession();
   const secret = randomBytes(36).toString("base64url");
-  await serviceDb()
-    .update(settings)
-    .set({ webhookTokenEnc: encryptSecret(secret) as never, webhookTokenHint: secretHint(secret) })
-    .where(eq(settings.id, 1));
+  try {
+    await serviceDb()
+      .update(settings)
+      .set({ webhookTokenEnc: encryptSecret(secret) as never, webhookTokenHint: secretHint(secret) })
+      .where(eq(settings.id, 1));
+  } catch (error) {
+    return dbError(error);
+  }
   invalidateRuntimeConfig();
   refresh();
   return { ok: true, message: "Segredo gerado.", data: { secret } };
@@ -210,10 +217,14 @@ export async function setWebhookSecret(value: unknown): Promise<ActionResult> {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Segredo inválido.", fieldErrors: { secret: parsed.error.issues[0]?.message ?? "" } };
   }
-  await serviceDb()
-    .update(settings)
-    .set({ webhookTokenEnc: encryptSecret(parsed.data) as never, webhookTokenHint: secretHint(parsed.data) })
-    .where(eq(settings.id, 1));
+  try {
+    await serviceDb()
+      .update(settings)
+      .set({ webhookTokenEnc: encryptSecret(parsed.data) as never, webhookTokenHint: secretHint(parsed.data) })
+      .where(eq(settings.id, 1));
+  } catch (error) {
+    return dbError(error);
+  }
   invalidateRuntimeConfig();
   refresh();
   return { ok: true, message: "Segredo do webhook salvo." };

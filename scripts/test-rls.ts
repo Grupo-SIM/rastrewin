@@ -152,6 +152,15 @@ async function main() {
     await expectDenied(app, "app_reader NÃO lê tabelas de login (session)", "app_reader", validUser, "select count(*) from session");
     await expectDenied(app, "app_reader NÃO lê tabelas de login (account)", "app_reader", validUser, "select count(*) from account");
 
+    // ---------------------------------------------------------------- retenção (Fase 8)
+    record(
+      "app_reader com sessão lê o histórico da limpeza (maintenance_runs)",
+      (await countAs(app, "app_reader", validUser, "select count(*) as n from (select 1 from maintenance_runs limit 1) x")) >= 0,
+    );
+    await expectDenied(app, "app_reader NÃO grava em maintenance_runs", "app_reader", validUser, "insert into maintenance_runs (job) values ('x')");
+    await expectDenied(app, "app_service NÃO roda a retenção (só o dono, via pg_cron)", "app_service", null, "call app_private.run_retention()");
+    await expectDenied(app, "app_service NÃO mexe nos jobs do pg_cron", "app_service", null, "select count(*) from cron.job");
+
     // ---------------------------------------------------------------- cifra
     const decrypted = await asRole(app, "app_service", null, async () =>
       (await app.query("select pgp_sym_decrypt(capi_token_enc, $1) as v from meta_pixels where pixel_id = '999999999999'", [key])).rows[0].v,

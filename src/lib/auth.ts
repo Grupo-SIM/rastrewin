@@ -38,7 +38,9 @@ function createAuth() {
     },
     advanced: {
       useSecureCookies: APP_URL.startsWith("https://"),
-      ipAddress: { ipAddressHeaders: ["x-forwarded-for", "x-real-ip"] },
+      // Mesma regra de src/lib/http/client-ip.ts: X-Real-IP sobrescrito pelo nosso proxy.
+      // O Better Auth só aceita X-Forwarded-For de valor único (o proxy do deploy/ sobrescreve com o IP da conexão).
+      ipAddress: { ipAddressHeaders: ["x-real-ip", "x-forwarded-for"] },
     },
     plugins: [nextCookies()],
   });

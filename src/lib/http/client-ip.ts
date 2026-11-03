@@ -1,8 +1,12 @@
 import { isIP } from "node:net";
 
 /*
- * IP do visitante. O app deve rodar atrás de um proxy reverso (nginx, Traefik, Cloudflare...)
- * que preencha estes headers. Ordem: cf-connecting-ip → x-real-ip → 1º IP válido do x-forwarded-for.
+ * IP do visitante — UMA regra para geo, Meta, rate limit e login:
+ *   1. X-Real-IP, que o NOSSO proxy reverso (nginx/Caddy na mesma VPS) SOBRESCREVE com o IP da conexão;
+ *   2. senão, o ÚLTIMO IP do X-Forwarded-For (o que o proxy anexou; os anteriores vêm do cliente e são forjáveis).
+ * Cabeçalhos que o cliente pode inventar (cf-connecting-ip, true-client-ip, 1º IP do XFF) são ignorados.
+ * Isso só é seguro porque o app NÃO é acessível sem passar pelo proxy (porta 3000 presa em 127.0.0.1).
+ * Configuração do proxy: deploy/nginx.conf e deploy/Caddyfile.
  */
 
 function clean(value: string | null | undefined): string | null {
@@ -14,24 +18,26 @@ function clean(value: string | null | undefined): string | null {
   return isIP(ip) ? ip : null;
 }
 
-/** IP do visitante (vai para a Meta e para a geo). */
-export function clientIp(headers: Headers): string | null {
-  const direct = clean(headers.get("cf-connecting-ip")) ?? clean(headers.get("x-real-ip"));
-  if (direct) return direct;
-  for (const part of (headers.get("x-forwarded-for") ?? "").split(",")) {
-    const ip = clean(part);
-    if (ip) return ip;
-  }
-  return null;
+function trustedIp(headers: Headers): string | null {
+  const real = clean(headers.get("x-real-ip"));
+  if (real) return real;
+  const parts = (headers.get("x-forwarded-for") ?? "").split(",");
+  return clean(parts.at(-1));
 }
 
-/**
- * Chave do rate limit. Usa o ÚLTIMO IP do x-forwarded-for (o que o NOSSO proxy anexou),
- * que o visitante não consegue forjar trocando o header — diferente do primeiro.
- */
+/** IP do visitante (vai para a Meta e para a geo). */
+export function clientIp(headers: Headers): string | null {
+  return trustedIp(headers);
+}
+
+/** Chave do rate limit. Sem IP confiável, todos dividem um balde ("unknown"), o que é restritivo e nunca permissivo. */
 export function rateLimitKey(headers: Headers): string {
-  const cf = clean(headers.get("cf-connecting-ip"));
-  if (cf) return cf;
-  const parts = (headers.get("x-forwarded-for") ?? "").split(",").map((p) => clean(p)).filter(Boolean);
-  return parts.at(-1) ?? clean(headers.get("x-real-ip")) ?? "unknown";
+  return trustedIp(headers) ?? "unknown";
+}
+
+/** De onde veio o IP (diagnóstico do proxy em Configurações). */
+export function ipSource(headers: Headers): "x-real-ip" | "x-forwarded-for" | null {
+  if (clean(headers.get("x-real-ip"))) return "x-real-ip";
+  if (clean((headers.get("x-forwarded-for") ?? "").split(",").at(-1))) return "x-forwarded-for";
+  return null;
 }

@@ -162,6 +162,12 @@ export const eventsLog = pgTable(
     index("events_log_event_name_idx").on(t.eventName),
     index("events_log_created_at_idx").on(t.createdAt),
     index("events_log_event_name_created_at_idx").on(t.eventName, t.createdAt),
+    // Retenção: só linhas que ainda têm payload (o job diário não relê o que já limpou).
+    index("events_log_retention_idx")
+      .on(t.createdAt)
+      .where(
+        sql`${t.payloadMeta} is not null or ${t.responseMeta} is not null or ${t.payloadGa4} is not null or ${t.responseGa4} is not null`,
+      ),
   ],
 );
 
@@ -264,4 +270,27 @@ export const metaInsightsCache = pgTable(
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("meta_insights_cache_account_fetched_idx").on(t.adAccountId, t.fetchedAt)],
+);
+
+// ---------------------------------------------------------------- manutenção
+
+/** Execuções da limpeza diária (pg_cron → app_private.run_retention). Escrita só pelo dono do banco. */
+export const maintenanceRuns = pgTable(
+  "maintenance_runs",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    job: text("job").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    /** running | ok | erro */
+    status: text("status").notNull().default("running"),
+    rowsPayloads: integer("rows_payloads").notNull().default(0),
+    rowsSessions: integer("rows_sessions").notNull().default(0),
+    rowsCache: integer("rows_cache").notNull().default(0),
+    error: text("error"),
+  },
+  (t) => [
+    index("maintenance_runs_started_idx").on(t.startedAt),
+    check("maintenance_runs_status", sql`${t.status} in ('running', 'ok', 'erro')`),
+  ],
 );

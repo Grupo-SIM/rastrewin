@@ -1,9 +1,11 @@
 import "server-only";
 import { asc, desc, eq } from "drizzle-orm";
+import { headers } from "next/headers";
 import { ga4Accounts, metaAdAccounts, metaPixels, settings, webhookEvents } from "@/db/schema";
 import { readAsUser } from "@/lib/dal";
 import { env } from "@/lib/env";
 import { DEFAULT_TIMEZONE } from "@/lib/time";
+import { getMaintenanceView } from "./maintenance";
 import type { AccountView, ConfigView } from "./types";
 
 type TestCols = { lastTestAt: Date | null; lastTestStatus: string | null; lastTestMessage: string | null };
@@ -18,6 +20,8 @@ function testView(row: TestCols) {
 
 /** Lê a configuração como app_reader (RLS). Colunas *_enc nem são selecionáveis por esse papel. */
 export async function getConfigView(): Promise<ConfigView> {
+  const requestHeaders = await headers();
+  const production = env().APP_URL.startsWith("https://");
   const data = await readAsUser(async (tx) => {
     const [general] = await tx
       .select({
@@ -87,7 +91,8 @@ export async function getConfigView(): Promise<ConfigView> {
       .from(metaAdAccounts)
       .orderBy(asc(metaAdAccounts.createdAt));
 
-    return { general, lastWebhook, ga4, pixel, ads };
+    const maintenance = await getMaintenanceView(tx, requestHeaders, production);
+    return { general, lastWebhook, ga4, pixel, ads, maintenance };
   });
 
   const toView = (kind: AccountView["kind"]) => (row: (typeof data.ga4)[number]): AccountView => ({
@@ -121,6 +126,7 @@ export async function getConfigView(): Promise<ConfigView> {
           }
         : null,
     },
+    maintenance: data.maintenance,
     accounts: {
       ga4: data.ga4.map(toView("ga4")),
       pixel: data.pixel.map(toView("pixel")),

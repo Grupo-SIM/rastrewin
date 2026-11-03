@@ -6,6 +6,7 @@ import { buildEvent, sendToPixels, type CapiCustomData } from "@/lib/meta/capi";
 import type { Geo } from "@/lib/geo";
 import type { RuntimeConfig } from "./runtime-config";
 import type { VisitorRow } from "./visitors";
+import { safeErrorMessage } from "@/lib/errors";
 
 export type RecordEventInput = {
   eventName: string;
@@ -85,7 +86,7 @@ export async function deliverEventToMeta(rowId: number, input: RecordEventInput,
       .set({ payloadMeta: payload, responseMeta: responses })
       .where(eq(eventsLog.id, rowId));
   } catch (error) {
-    console.error("[capi] falha ao enviar evento", input.eventId, error instanceof Error ? error.message : error);
+    console.error("[capi] falha ao enviar evento", input.eventId, safeErrorMessage(error));
     await serviceDb()
       .update(eventsLog)
       .set({ payloadMeta: { data: [event] }, responseMeta: { error: "falha interna no envio" } })

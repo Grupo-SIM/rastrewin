@@ -1,0 +1,64 @@
+# Produção na VPS — usa SÓ as imagens publicadas pelo GitHub Actions (nada é compilado na VPS).
+# Passo a passo completo: docs/go-live.md
+#
+#   docker compose pull
+#   docker compose up -d db
+#   docker compose --profile tools run --rm migrate       # a cada versão nova
+#   docker compose run --rm -it app node scripts/create-admin.mjs --email voce@empresa.com --name "Seu Nome"
+#   docker compose up -d app
+#
+# O app e o banco escutam SÓ em 127.0.0.1. O acesso de fora passa pelo proxy (Caddy ou nginx),
+# que cuida do HTTPS e envia o IP real do visitante no X-Real-IP.
+name: rastrewin
+
+services:
+  db:
+    image: ghcr.io/grupo-sim/rastrewin-postgres:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rastrewin
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      CRON_DATABASE: rastrewin
+    volumes:
+      - pgdata:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d rastrewin"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  app:
+    image: ghcr.io/grupo-sim/rastrewin:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?defina DATABASE_URL}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?defina ENCRYPTION_KEY}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?defina BETTER_AUTH_SECRET}
+      APP_URL: ${APP_URL:?defina APP_URL}
+    ports:
+      - "127.0.0.1:3000:3000"
+    logging: *logging
+
+  # Tarefa avulsa (não fica rodando): docker compose --profile tools run --rm migrate
+  migrate:
+    image: ghcr.io/grupo-sim/rastrewin:${IMAGE_TAG:-latest}
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?defina DATABASE_URL}
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?defina MIGRATION_DATABASE_URL}
+    command: ["node", "scripts/migrate.mjs"]
+
+volumes:
+  pgdata:

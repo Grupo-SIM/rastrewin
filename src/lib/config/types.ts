@@ -28,8 +28,30 @@ export type GeneralView = {
   lastWebhook: { eventType: string; orderId: string | null; receivedAt: string; processed: boolean; error: string | null } | null;
 };
 
+/** Limpeza diária (pg_cron) + diagnóstico do proxy. Estados calculados no servidor. */
+export type MaintenanceView = {
+  /** nunca = ainda não rodou; rodando = em andamento; atrasada = última execução ok há mais de 2 dias. */
+  health: "ok" | "erro" | "rodando" | "atrasada" | "nunca";
+  lastRun: {
+    startedAt: string;
+    finishedAt: string | null;
+    rowsPayloads: number;
+    rowsSessions: number;
+    rowsCache: number;
+    error: string | null;
+  } | null;
+  nextRunAt: string;
+  retentionDays: number;
+  /** IP desta requisição como o servidor o enxerga, e de qual cabeçalho veio. */
+  ip: string | null;
+  ipSource: "x-real-ip" | "x-forwarded-for" | null;
+  /** APP_URL em https (produção atrás do proxy). */
+  production: boolean;
+};
+
 export type ConfigView = {
   general: GeneralView;
+  maintenance: MaintenanceView;
   accounts: Record<AccountKind, AccountView[]>;
 };
 

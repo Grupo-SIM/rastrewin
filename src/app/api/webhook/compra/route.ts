@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { serviceDb } from "@/db";
 import { webhookEvents } from "@/db/schema";
 import { readJsonBody } from "@/lib/http/body";
+import { safeErrorMessage } from "@/lib/errors";
 import { rateLimitKey } from "@/lib/http/client-ip";
 import { json } from "@/lib/http/cors";
 import { createRateLimiter } from "@/lib/http/rate-limit";
@@ -85,15 +86,15 @@ export async function POST(request: Request) {
           firstName: firstName || null,
           lastName: rest.at(-1) ?? null,
           geo: { country: null, region: null, city: null },
-        }).catch((e) => console.error("[webhook] falha ao atualizar visitante", e instanceof Error ? e.message : e));
+        }).catch((e) => console.error("[webhook] falha ao atualizar visitante", safeErrorMessage(e)));
       }
       await deliverPurchase(result.purchaseId).catch((e) =>
-        console.error("[webhook] falha no envio (o reenvio automático tenta de novo)", e instanceof Error ? e.message : e),
+        console.error("[webhook] falha no envio (o reenvio automático tenta de novo)", safeErrorMessage(e)),
       );
     });
     return json({ ok: true, status: result.status, matched: result.match.by }, 200);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = safeErrorMessage(error);
     await db.update(webhookEvents).set({ error: message.slice(0, 500) }).where(eq(webhookEvents.eventId, event.eventId));
     console.error("[webhook] falha ao processar", event.eventId, message);
     // 500 → o SimIntPay tenta de novo; como processed_at continua nulo, reprocessamos.

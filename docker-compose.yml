@@ -41,7 +41,8 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?defina BETTER_AUTH_SECRET}
       APP_URL: ${APP_URL:?defina APP_URL}
     ports:
-      - "3000:3000"
+      # Só a própria máquina: o acesso de fora passa SEMPRE pelo proxy reverso (HTTPS + IP confiável).
+      - "127.0.0.1:3000:3000"
 
   # Tarefa avulsa: docker compose run --rm migrate
   migrate:
