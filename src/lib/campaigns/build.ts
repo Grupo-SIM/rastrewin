@@ -1,0 +1,208 @@
+/*
+ * Campanhas: atribuição de vendas por UTM e árvore campanha → conjunto → anúncio.
+ * Funções PURAS (testadas). Convenção de UTM nos anúncios:
+ *   utm_campaign={{campaign.name}}|{{campaign.id}}  utm_term={{adset.name}}|{{adset.id}}  utm_content={{ad.name}}|{{ad.id}}
+ */
+
+/** Linha normalizada da Insights API (nível de anúncio; `date` existe quando é diário). */
+export type InsightRow = {
+  date: string | null;
+  campaignId: string;
+  campaignName: string;
+  adsetId: string;
+  adsetName: string;
+  adId: string;
+  adName: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  linkClicks: number;
+  metaPurchases: number;
+  metaPurchaseValue: number;
+};
+
+export type SalePurchase = {
+  id: number;
+  value: number;
+  day: string;
+  utmCampaign: string | null;
+  utmTerm: string | null;
+  utmContent: string | null;
+};
+
+export type Attribution = {
+  level: "ad" | "adset" | "campaign" | null;
+  campaignId?: string;
+  adsetId?: string;
+  adId?: string;
+};
+
+/** "Nome qualquer|120201234567" → "120201234567". Só aceita ID numérico no FIM (após o último "|"). */
+export function parseUtmId(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const last = value.split("|").at(-1)?.trim() ?? "";
+  return /^\d{6,25}$/.test(last) ? last : null;
+}
+
+/** Nome sem o "|id" do fim, normalizado para comparação. */
+export function utmName(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parts = value.split("|");
+  const name = (parseUtmId(value) ? parts.slice(0, -1).join("|") : value).trim().toLowerCase();
+  return name || null;
+}
+
+type AdsIndex = {
+  ads: Map<string, { adsetId: string; campaignId: string }>;
+  adsets: Map<string, string>;
+  campaigns: Set<string>;
+  campaignByName: Map<string, string>;
+};
+
+export function indexInsights(rows: InsightRow[]): AdsIndex {
+  const idx: AdsIndex = { ads: new Map(), adsets: new Map(), campaigns: new Set(), campaignByName: new Map() };
+  for (const r of rows) {
+    idx.ads.set(r.adId, { adsetId: r.adsetId, campaignId: r.campaignId });
+    idx.adsets.set(r.adsetId, r.campaignId);
+    idx.campaigns.add(r.campaignId);
+    idx.campaignByName.set(r.campaignName.trim().toLowerCase(), r.campaignId);
+  }
+  return idx;
+}
+
+/** Liga a venda à campanha: ID do anúncio > ID do conjunto > ID da campanha > nome da campanha. */
+export function attributePurchase(p: SalePurchase, idx: AdsIndex): Attribution {
+  const adId = parseUtmId(p.utmContent);
+  const ad = adId ? idx.ads.get(adId) : undefined;
+  if (adId && ad) return { level: "ad", adId, adsetId: ad.adsetId, campaignId: ad.campaignId };
+  const adsetId = parseUtmId(p.utmTerm);
+  const adsetCampaign = adsetId ? idx.adsets.get(adsetId) : undefined;
+  if (adsetId && adsetCampaign) return { level: "adset", adsetId, campaignId: adsetCampaign };
+  const campaignId = parseUtmId(p.utmCampaign);
+  if (campaignId && idx.campaigns.has(campaignId)) return { level: "campaign", campaignId };
+  const byName = utmName(p.utmCampaign);
+  const nameCampaign = byName ? idx.campaignByName.get(byName) : undefined;
+  if (nameCampaign) return { level: "campaign", campaignId: nameCampaign };
+  return { level: null };
+}
+
+export type Metrics = {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  linkClicks: number;
+  purchases: number;
+  revenue: number;
+  metaPurchases: number;
+  metaPurchaseValue: number;
+};
+
+export type TreeNode = Metrics & {
+  id: string;
+  name: string;
+  level: "campaign" | "adset" | "ad";
+  children: TreeNode[];
+};
+
+const METRIC_KEYS = ["spend", "impressions", "clicks", "linkClicks", "purchases", "revenue", "metaPurchases", "metaPurchaseValue"] as const;
+const zero = (): Metrics => ({ spend: 0, impressions: 0, clicks: 0, linkClicks: 0, purchases: 0, revenue: 0, metaPurchases: 0, metaPurchaseValue: 0 });
+/** Soma SÓ os campos numéricos (um TreeNode também tem id/name/children). */
+const addInto = (target: Metrics, src: Metrics) => {
+  for (const k of METRIC_KEYS) target[k] += src[k];
+};
+
+export function roas(m: Pick<Metrics, "revenue" | "spend">): number | null {
+  return m.spend > 0 ? m.revenue / m.spend : null;
+}
+export function cpa(m: Pick<Metrics, "purchases" | "spend">): number | null {
+  return m.purchases > 0 ? m.spend / m.purchases : null;
+}
+export function ctr(m: Pick<Metrics, "clicks" | "impressions">): number | null {
+  return m.impressions > 0 ? m.clicks / m.impressions : null;
+}
+
+/**
+ * Árvore campanha → conjunto → anúncio, ordenada por gasto.
+ * Vendas ligadas só ao conjunto/campanha contam no nível delas (e acima), não num anúncio específico.
+ */
+export function buildTree(rows: InsightRow[], purchases: SalePurchase[]) {
+  const idx = indexInsights(rows);
+  const campaigns = new Map<string, TreeNode>();
+  const adsets = new Map<string, TreeNode>();
+  const ads = new Map<string, TreeNode>();
+  const node = (map: Map<string, TreeNode>, id: string, name: string, level: TreeNode["level"]) => {
+    let n = map.get(id);
+    if (!n) map.set(id, (n = { id, name, level, children: [], ...zero() }));
+    return n;
+  };
+
+  for (const r of rows) {
+    const ad = node(ads, r.adId, r.adName, "ad");
+    node(adsets, r.adsetId, r.adsetName, "adset");
+    node(campaigns, r.campaignId, r.campaignName, "campaign");
+    addInto(ad, { ...zero(), spend: r.spend, impressions: r.impressions, clicks: r.clicks, linkClicks: r.linkClicks, metaPurchases: r.metaPurchases, metaPurchaseValue: r.metaPurchaseValue });
+  }
+
+  // vendas atribuídas: contadas no nível mais específico; os pais somam depois
+  const direct = { adset: new Map<string, Metrics>(), campaign: new Map<string, Metrics>() };
+  const unattributed = zero();
+  const attributions = new Map<number, Attribution>();
+  for (const p of purchases) {
+    const a = attributePurchase(p, idx);
+    attributions.set(p.id, a);
+    const sale = { ...zero(), purchases: 1, revenue: p.value };
+    if (a.level === "ad") addInto(ads.get(a.adId!)!, sale);
+    else if (a.level === "adset") addInto(direct.adset.get(a.adsetId!) ?? direct.adset.set(a.adsetId!, zero()).get(a.adsetId!)!, sale);
+    else if (a.level === "campaign") addInto(direct.campaign.get(a.campaignId!) ?? direct.campaign.set(a.campaignId!, zero()).get(a.campaignId!)!, sale);
+    else addInto(unattributed, sale);
+  }
+
+  // monta a hierarquia e soma de baixo para cima
+  for (const [adId, ad] of ads) {
+    const { adsetId, campaignId } = idx.ads.get(adId)!;
+    adsets.get(adsetId)!.children.push(ad);
+    const campaign = campaigns.get(campaignId)!;
+    if (!campaign.children.includes(adsets.get(adsetId)!)) campaign.children.push(adsets.get(adsetId)!);
+  }
+  for (const adset of adsets.values()) {
+    for (const ad of adset.children) addInto(adset, ad);
+    const extra = direct.adset.get(adset.id);
+    if (extra) addInto(adset, extra);
+  }
+  for (const campaign of campaigns.values()) {
+    for (const adset of campaign.children) addInto(campaign, adset);
+    const extra = direct.campaign.get(campaign.id);
+    if (extra) addInto(campaign, extra);
+  }
+  const sortBySpend = (list: TreeNode[]) => {
+    list.sort((a, b) => b.spend - a.spend || b.revenue - a.revenue);
+    list.forEach((n) => sortBySpend(n.children));
+    return list;
+  };
+  const tree = sortBySpend([...campaigns.values()]);
+  const totals = zero();
+  tree.forEach((c) => addInto(totals, c));
+  return { tree, totals, unattributed, attributions };
+}
+
+/** Série diária de gasto (Meta) e receita atribuída, preenchendo dias vazios. */
+export function dailySeries(days: string[], rows: InsightRow[], purchases: SalePurchase[], attributions: Map<number, Attribution>) {
+  const spend = new Map<string, number>();
+  for (const r of rows) if (r.date) spend.set(r.date, (spend.get(r.date) ?? 0) + r.spend);
+  const revenue = new Map<string, number>();
+  for (const p of purchases) if (attributions.get(p.id)?.level) revenue.set(p.day, (revenue.get(p.day) ?? 0) + p.value);
+  return days.map((day) => ({ day, spend: round2(spend.get(day) ?? 0), revenue: round2(revenue.get(day) ?? 0) }));
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Compras e valor reportados pela própria Meta (sem somar tipos sobrepostos). */
+const PURCHASE_TYPES = ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"];
+export function metaPurchase(list: { action_type: string; value: string }[] | undefined): number {
+  if (!list) return 0;
+  for (const t of PURCHASE_TYPES) {
+    const hit = list.find((a) => a.action_type === t);
+    if (hit) return Number(hit.value) || 0;
+  }
+  return 0;
+}

@@ -19,6 +19,8 @@ export type GraphUsage = {
   app?: unknown;
   businessUseCase?: unknown;
   adAccount?: unknown;
+  /** x-fb-ads-insights-throttle (específico da Insights API) */
+  insights?: unknown;
 };
 
 export type GraphResult<T> =
@@ -41,6 +43,7 @@ function readUsage(headers: Headers): GraphUsage {
     app: parseJsonHeader(headers.get("x-app-usage")),
     businessUseCase: parseJsonHeader(headers.get("x-business-use-case-usage")),
     adAccount: parseJsonHeader(headers.get("x-ad-account-usage")),
+    insights: parseJsonHeader(headers.get("x-fb-ads-insights-throttle")),
   };
 }
 
@@ -77,6 +80,15 @@ export function graphGet<T>(path: string, token: string, params: Record<string, 
   const url = new URL(`${META_GRAPH_BASE_URL}/${path}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   url.searchParams.set("access_token", token);
+  return request<T>(url, { method: "GET" });
+}
+
+/** GET de uma URL de paginação (`paging.next`) devolvida pela própria Meta. */
+export function graphGetUrl<T>(next: string) {
+  const url = new URL(next);
+  if (url.protocol !== "https:" || url.hostname !== "graph.facebook.com") {
+    return Promise.resolve({ ok: false, status: 0, error: { message: "URL de paginação inválida" }, usage: {} } as GraphResult<T>);
+  }
   return request<T>(url, { method: "GET" });
 }
 

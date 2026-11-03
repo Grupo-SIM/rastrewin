@@ -21,7 +21,7 @@
 | 4 | Captura: `/t.js`, `/api/identify`, `/api/event`, Meta CAPI | ✅ |
 | 5 | Webhook SimIntPay + GA4 Measurement Protocol | ✅ |
 | 6 | Dashboard (visão geral, eventos, faturamento, geo) | ✅ |
-| 7 | Campanhas (Meta Ads insights, cache, ROAS/CPA) | ⏳ |
+| 7 | Campanhas (Meta Ads insights, cache, ROAS/CPA) | ✅ |
 | 8 | Retenção (pg_cron), auditoria de segurança, go-live | ⏳ |
 
 ## Stack
@@ -110,6 +110,16 @@
 - **Paleta de gráficos** (`--viz-*` em `globals.css`, validada com `validate_palette.js` nas superfícies reais #fdfefd / #0b120f): claro `#159946,#098faa,#c37e05,#5b17cf,#d0255e`; escuro `#18af4f,#0aa3c1,#c88005,#a274f0,#ea5587` (ordem fixa verde→ciano→âmbar→violeta→rosa). O neon da UI é claro demais para gráfico no escuro — não use `--primary` em marcas de dados. Funil: `--viz-fun-*` (validado com `--ordinal`); mapa: `--viz-seq-*`; status: `--status-*` (sempre com ícone + rótulo).
 - **Mapa**: `react-simple-maps` + malha oficial do IBGE (`src/components/charts/geo/br-uf.topo.json`, códigos IBGE → UF em `src/lib/geo/br-states.ts`). Créditos "Malha: IBGE" e DB-IP no rodapé.
 - KPIs: número nunca quebra; fonte reduz conforme o tamanho do valor no celular.
+
+## Campanhas (Fase 7)
+- **Convenção de UTM** (o SimIntPay só repassa utm_*/src/fbc/fbp, então o ID vai DENTRO da UTM). Parâmetros de URL dos anúncios (texto em `src/components/campaigns/utm-guide.tsx`):
+  `utm_source={{site_source_name}}&utm_medium=paid&utm_campaign={{campaign.name}}|{{campaign.id}}&utm_term={{adset.name}}|{{adset.id}}&utm_content={{ad.name}}|{{ad.id}}`
+  Em 03/11/2026 a conta do usuário (act_269366881996053) NÃO tinha url_tags — ele precisa configurar.
+- **Atribuição** (`src/lib/campaigns/build.ts`, puro/testado): ID do anúncio (fim do utm_content) > ID do conjunto (utm_term) > ID da campanha (utm_campaign) > nome da campanha. Sem match → "Sem campanha identificada" (só na visão "todas as contas"). ROAS = receita BRUTA ÷ gasto; CPA = gasto ÷ vendas atribuídas. Ao lado, compras que a própria Meta reporta (use_unified_attribution_setting=true).
+- **Insights** (`src/lib/meta/insights.ts`): uma chamada por conta e período, `level=ad`, diário se ≤ 90 dias, paginação até 10 páginas.
+- **Cache + limite** (`src/lib/campaigns/cache.ts`, `limiter.ts`): tabela `meta_insights_cache`; válido 1 h (período com hoje) / 12 h (passado); vencido → mostra cache e atualiza em `after()`. Limite próprio por conta: ≥ 10 s entre chamadas, ≤ 20/h, pausa de 15 min se uso da Meta > 50% ou erro de limite; "Atualizar agora" a cada 15 min. Chamada que nem chegou à Meta (rede/abortada) não conta. Conta em `development_access` (600 pontos/h na Meta).
+- **IMPORTANTE (Next 16 + partialPrefetching):** a página pode ser pré-renderizada no request e o Next ABORTA I/O dessa renderização. Antes de efeitos colaterais/chamadas externas no render, use `await connection()` (feito em `src/lib/campaigns/query.ts`) — sem isso a chamada à Meta era disparada, abortada e consumia o limite.
+- Tabela da árvore: Impressões e CTR somem abaixo de 1400 px para caber sem rolagem.
 
 ## Regras de tracking (não quebrar)
 - Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.
