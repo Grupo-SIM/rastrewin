@@ -26,7 +26,9 @@ export const PageConfigSchema = z.strictObject({
 		}, "O destino não pode ter porta nem credenciais."),
 	posterSrc: z
 		.string()
-		.regex(/^\/[\w\-/]+\.(webp|avif|jpg|png)$/, "A capa precisa ser um arquivo local em /public."),
+		.regex(/^\/[\w\-/]+\.(webp|avif|jpg|png)$/, "A capa precisa ser um arquivo local em /public.")
+		// O navegador guarda a capa por 1 ano (next.config.ts): capa nova = nome novo.
+		.regex(/^\/poster-v\d+\.\w+$/, "Nome da capa: poster-v<número> (ex.: /poster-v3.webp)."),
 	/** Endereço público da VSL (usado nos metadados de compartilhamento). */
 	siteUrl: z.url({ error: "O endereço do site precisa ser https.", protocol: /^https$/ }),
 	unlockAtSeconds: z

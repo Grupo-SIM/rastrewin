@@ -10,7 +10,7 @@ const valid: PageConfig = {
 		title: "Título",
 	},
 	destinationUrl: "https://rastrewin.com",
-	posterSrc: "/poster.webp",
+	posterSrc: "/poster-v2.webp",
 	siteUrl: "https://vsl.rastrewin.com",
 	unlockAtSeconds: 165,
 	vimeoId: "1243006876",
@@ -55,6 +55,7 @@ describe("PageConfigSchema", () => {
 		["destino javascript:", { destinationUrl: "javascript:alert(1)" }],
 		["capa externa", { posterSrc: "https://cdn.com/a.webp" }],
 		["capa com path traversal", { posterSrc: "/../etc/passwd.png" }],
+		["capa sem versão no nome", { posterSrc: "/poster.webp" }],
 		["site em http", { siteUrl: "http://vsl.rastrewin.com" }],
 		["chave desconhecida", { extra: true }],
 	])("rejeita %s", (_label, changes) => {

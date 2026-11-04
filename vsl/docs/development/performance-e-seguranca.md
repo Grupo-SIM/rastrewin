@@ -31,6 +31,8 @@
 
 FCP 0,8s · LCP 2,8s (a capa) · TBT 0ms · CLS 0.
 Capa definitiva: **WebP 720×1280, 41KB** (a provisória medida acima tinha 59KB em JPG).
+A capa fica guardada no navegador por 1 ano (`next.config.ts`): para trocá-la, use um nome novo
+(`poster-v3.webp`), que o Zod do `page-config` exige.
 
 ## Segurança
 
