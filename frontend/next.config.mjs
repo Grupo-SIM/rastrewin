@@ -7,9 +7,12 @@ import { fileURLToPath } from "node:url";
 const API_TARGET = process.env.API_INTERNAL_URL ?? "http://localhost:3011";
 
 export default {
+	// Raiz do monorepo: o standalone passa a gerar frontend/server.js. No Next 14 a opção
+	// ainda fica em experimental (no topo ela é ignorada e o server.js sai na raiz).
+	experimental: {
+		outputFileTracingRoot: path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
+	},
 	output: "standalone",
-	// Raiz do monorepo: o standalone passa a gerar frontend/server.js.
-	outputFileTracingRoot: path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
 	async rewrites() {
 		return [{ destination: `${API_TARGET}/:path*`, source: "/api/:path*" }];
 	},
