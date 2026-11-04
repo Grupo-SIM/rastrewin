@@ -3,6 +3,12 @@ services:
     image: ghcr.io/grupo-sim/rastrewin_vsl:${VSL_IMAGE_TAG:-latest}
     pull_policy: always
     restart: unless-stopped
+    # O Next standalone só lê do disco (a página é pré-renderizada no build): nada a gravar no container.
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     labels:
       caddy: vsl.rastrewin.com
       caddy.reverse_proxy: "{{upstreams 3000}}"
