@@ -3,7 +3,7 @@ import { PageConfigSchema } from "./page-config.schema";
 
 /**
  * Tudo que é editável na VSL. Valor inválido quebra o build com a mensagem do Zod.
- * Provisórios: youtubeId, unlockAtSeconds, posterSrc e copy.cta.
+ * Para trocar o vídeo, a liberação no Vimeo precisa incluir vsl.rastrewin.com (ver README).
  */
 export const pageConfig = PageConfigSchema.parse({
 	copy: {
@@ -15,10 +15,8 @@ export const pageConfig = PageConfigSchema.parse({
 		title: "Nós inscrevemos você em milhares de sorteios.",
 	},
 	destinationUrl: "https://rastrewin.com",
-	posterSrc: "/poster.jpg",
+	posterSrc: "/poster-v2.webp",
 	siteUrl: "https://vsl.rastrewin.com",
-	unlockAtSeconds: 5,
-	// TEMPORÁRIO (testes): Short vertical público do canal oficial do Google e liberação em 5s.
-	// Trocar pelo ID do vídeo real da VSL e pelo segundo definitivo do botão.
-	youtubeId: "yI5C7LqBVEM",
+	unlockAtSeconds: 150,
+	vimeoId: "1243006876",
 });

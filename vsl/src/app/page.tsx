@@ -44,7 +44,7 @@ export default function Home() {
 				</p>
 
 				<VslSection
-					youtubeId={pageConfig.youtubeId}
+					videoId={pageConfig.vimeoId}
 					unlockAtSeconds={pageConfig.unlockAtSeconds}
 					posterSrc={pageConfig.posterSrc}
 					title={copy.title}

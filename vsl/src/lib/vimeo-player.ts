@@ -1,18 +1,13 @@
-declare global {
-	interface Window {
-		onYouTubeIframeAPIReady?: () => void;
-	}
-}
+import type Player from "@vimeo/player";
 
-export const YOUTUBE_API_SRC = "https://www.youtube.com/iframe_api";
-export const YOUTUBE_EMBED_HOST = "https://www.youtube-nocookie.com";
+export const VIMEO_PLAYER_ORIGIN = "https://player.vimeo.com";
 
-const PRECONNECT_ORIGINS = ["https://www.youtube.com", YOUTUBE_EMBED_HOST, "https://i.ytimg.com"];
+const PRECONNECT_ORIGINS = [VIMEO_PLAYER_ORIGIN, "https://f.vimeocdn.com", "https://i.vimeocdn.com"];
 
 let preconnected = false;
 
-/** Abre as conexões com o YouTube antes do clique (quando o dedo/mouse chega na capa). */
-export function preconnectYouTube() {
+/** Abre as conexões com o Vimeo antes do clique (quando o dedo/mouse chega na capa). */
+export function preconnectVimeo() {
 	if (preconnected) return;
 	preconnected = true;
 	for (const href of PRECONNECT_ORIGINS) {
@@ -63,29 +58,28 @@ export function whenPageIdle(callback: () => void): () => void {
 	};
 }
 
-let apiPromise: Promise<typeof YT> | null = null;
-
-/** Carrega a IFrame API uma única vez (no pré-carregamento do player ou no toque). */
-export function loadYouTubeApi(): Promise<typeof YT> {
-	if (window.YT?.Player) return Promise.resolve(window.YT);
-
-	apiPromise ??= new Promise<typeof YT>((resolve, reject) => {
-		const previousReady = window.onYouTubeIframeAPIReady;
-		window.onYouTubeIframeAPIReady = () => {
-			previousReady?.();
-			resolve(window.YT);
-		};
-
-		const script = document.createElement("script");
-		script.src = YOUTUBE_API_SRC;
-		script.async = true;
-		script.onerror = () => {
-			apiPromise = null;
-			script.remove();
-			reject(new Error("Falha ao carregar a API do YouTube."));
-		};
-		document.head.append(script);
+/**
+ * Endereço do player. Sem barra nem logo (`controls=0`, exige plano pago do Vimeo): a página tem os
+ * próprios controles e pular não conta. `controls=1` só no plano B, quando o navegador bloqueia o play
+ * com som e a pessoa precisa tocar no play do próprio Vimeo.
+ */
+export function vimeoEmbedUrl(videoId: string, { controls }: { controls: boolean }): string {
+	const params = new URLSearchParams({
+		autopause: "0",
+		badge: "0",
+		byline: "0",
+		controls: controls ? "1" : "0",
+		keyboard: "0",
+		pip: "0",
+		playsinline: "1",
+		portrait: "0",
+		title: "0",
+		vimeo_logo: "0",
 	});
+	return `${VIMEO_PLAYER_ORIGIN}/video/${videoId}?${params}`;
+}
 
-	return apiPromise;
+/** Biblioteca oficial do Vimeo, servida pelo próprio site e baixada só quando o player é criado. */
+export async function loadVimeoPlayer(): Promise<typeof Player> {
+	return (await import("@vimeo/player")).default;
 }

@@ -33,8 +33,8 @@ if (hashes.size === 0) {
 
 const policy = [
 	"default-src 'self'",
-	`script-src 'self' ${[...hashes].sort().join(" ")} https://www.youtube.com`,
-	"frame-src https://www.youtube-nocookie.com",
+	`script-src 'self' ${[...hashes].sort().join(" ")}`,
+	"frame-src https://player.vimeo.com",
 	"img-src 'self' data:",
 	"style-src 'self' 'unsafe-inline'",
 	"font-src 'self'",

@@ -5,7 +5,7 @@
  */
 
 /**
- * Folga além do tempo real entre leituras: a posição informada pelo YouTube chega com atraso e em saltos.
+ * Folga além do tempo real entre leituras: a posição informada pelo player chega com atraso e em saltos.
  * Avanço maior que "tempo real + folga" é pulo e não conta.
  */
 export const STEP_TOLERANCE_SECONDS = 2;

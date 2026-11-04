@@ -6,7 +6,7 @@ import { UnlockCta } from "./unlock-cta";
 import { type UnlockReason, VslPlayer } from "./vsl-player";
 
 interface VslSectionProps {
-	youtubeId: string;
+	videoId: string;
 	unlockAtSeconds: number;
 	posterSrc: string;
 	title: string;
@@ -15,7 +15,7 @@ interface VslSectionProps {
 }
 
 export function VslSection({
-	youtubeId,
+	videoId,
 	unlockAtSeconds,
 	posterSrc,
 	title,
@@ -26,13 +26,13 @@ export function VslSection({
 
 	// Lido depois da hidratação: o HTML estático sai sempre sem o botão.
 	useEffect(() => {
-		if (readUnlocked(youtubeId)) setUnlocked(true);
-	}, [youtubeId]);
+		if (readUnlocked(videoId)) setUnlocked(true);
+	}, [videoId]);
 
 	const handleUnlock = (reason: UnlockReason) => {
 		setUnlocked(true);
 		// Falha do vídeo libera só nesta visita; quem assistiu fica lembrado.
-		if (reason === "watched") saveUnlocked(youtubeId);
+		if (reason === "watched") saveUnlocked(videoId);
 	};
 
 	return (
@@ -45,7 +45,7 @@ export function VslSection({
 		>
 			<div className="landscape-short:col-start-2 landscape-short:row-span-4 landscape-short:row-start-1 landscape-short:w-[calc((100svh-2rem)*0.5625)] w-full">
 				<VslPlayer
-					youtubeId={youtubeId}
+					videoId={videoId}
 					unlockAtSeconds={unlockAtSeconds}
 					posterSrc={posterSrc}
 					title={title}

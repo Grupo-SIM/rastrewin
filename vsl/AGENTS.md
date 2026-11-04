@@ -1,6 +1,6 @@
 # VSL Rastrewin
 
-Página de VSL (título, subtítulo, vídeo vertical do YouTube, botão com delay e rodapé) que antecede
+Página de VSL (título, subtítulo, vídeo vertical do Vimeo, botão com delay e rodapé) que antecede
 https://rastrewin.com. Fica em **vsl.rastrewin.com**. Conteúdo **estático**: sem backend, sem banco,
 sem coleta de dados, sem pixel/UTM (rastreamento será tratado em outro momento).
 
@@ -49,7 +49,7 @@ fica em `src/config/page-config.ts`, validado com Zod no build. Valor inválido 
   com texto e botão à esquerda e vídeo à direita, para o play caber sem rolar.
 - Identidade visual da Rastrewin: tokens em `src/app/globals.css`.
 - Nada de `dangerouslySetInnerHTML`. Nenhum segredo no código; nenhuma variável sensível `NEXT_PUBLIC_`.
-- Único script de terceiros: o player do YouTube, pré-carregado só depois de a página abrir (nunca com
+- Único terceiro: o player do Vimeo (iframe `player.vimeo.com`), pré-carregado só depois de a página abrir (nunca com
   economia de dados ou 2G). Nada de terceiros no carregamento inicial.
 - Antes de adicionar dependência: justificar e preferir o que já existe. Lockfile sempre commitado.
 - `bunfig.toml` (raiz do monorepo) aplica `minimumReleaseAge` (1 dia) e as dependências do `vsl` usam versões exatas: não abra exceções para versões

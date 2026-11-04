@@ -13,7 +13,7 @@ const valid: PageConfig = {
 	posterSrc: "/poster.webp",
 	siteUrl: "https://vsl.rastrewin.com",
 	unlockAtSeconds: 165,
-	youtubeId: "abcDEF12_-3",
+	vimeoId: "1243006876",
 };
 
 const withChanges = (changes: Record<string, unknown>) => ({ ...valid, ...changes });
@@ -40,8 +40,10 @@ describe("PageConfigSchema", () => {
 	});
 
 	it.each([
-		["ID do YouTube curto", { youtubeId: "abc" }],
-		["ID do YouTube com caractere inválido", { youtubeId: "abc<script>1" }],
+		["ID do Vimeo curto", { vimeoId: "123" }],
+		["ID do Vimeo com letras", { vimeoId: "12345abc" }],
+		["link do Vimeo no lugar do ID", { vimeoId: "https://vimeo.com/1243006876" }],
+		["ID do Vimeo com caractere inválido", { vimeoId: "123456<script>" }],
 		["segundos negativos", { unlockAtSeconds: -5 }],
 		["segundos fracionados", { unlockAtSeconds: 1.5 }],
 		["segundos acima do limite", { unlockAtSeconds: 9999 }],

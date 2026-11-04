@@ -34,9 +34,8 @@ export const PageConfigSchema = z.strictObject({
 		.int("Use um número inteiro de segundos.")
 		.positive("O tempo precisa ser maior que zero.")
 		.max(7200, "Máximo de 2 horas."),
-	youtubeId: z
-		.string()
-		.regex(/^[A-Za-z0-9_-]{11}$/, "ID do YouTube inválido: são 11 letras, números, - ou _."),
+	/** Número do vídeo no Vimeo (o final do link: vimeo.com/1243006876). */
+	vimeoId: z.string().regex(/^\d{6,12}$/, "ID do Vimeo inválido: só os números do link do vídeo."),
 });
 
 export type PageConfig = z.infer<typeof PageConfigSchema>;

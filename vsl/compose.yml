@@ -12,7 +12,7 @@ services:
       caddy.header.Referrer-Policy: strict-origin-when-cross-origin
       caddy.header.X-Frame-Options: DENY
       caddy.header.Cross-Origin-Opener-Policy: same-origin
-      caddy.header.Permissions-Policy: 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), autoplay=(self "https://www.youtube-nocookie.com"), encrypted-media=(self "https://www.youtube-nocookie.com"), picture-in-picture=(self "https://www.youtube-nocookie.com"), fullscreen=(self "https://www.youtube-nocookie.com")'
+      caddy.header.Permissions-Policy: 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), autoplay=(self "https://player.vimeo.com"), encrypted-media=(self "https://player.vimeo.com"), picture-in-picture=(self "https://player.vimeo.com"), fullscreen=(self "https://player.vimeo.com")'
       caddy.header.X-Robots-Tag: noindex, nofollow
       caddy.header.Content-Security-Policy: "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
       caddy.header.-Server: ""

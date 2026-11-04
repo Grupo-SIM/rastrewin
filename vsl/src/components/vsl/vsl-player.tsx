@@ -1,21 +1,22 @@
 "use client";
 
+import type Player from "@vimeo/player";
 import { LoaderCircle, Play } from "lucide-react";
 import Image from "next/image";
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
-import { advanceWatchProgress, initialWatchProgress } from "@/lib/watch-progress";
 import {
 	canPreloadPlayer,
-	loadYouTubeApi,
-	preconnectYouTube,
+	loadVimeoPlayer,
+	preconnectVimeo,
+	vimeoEmbedUrl,
 	whenPageIdle,
-	YOUTUBE_EMBED_HOST,
-} from "@/lib/youtube-api";
+} from "@/lib/vimeo-player";
+import { advanceWatchProgress, initialWatchProgress } from "@/lib/watch-progress";
 
 const TICK_MS = 250;
 /** Sem player pronto nesse tempo (rede travada, bloqueador), mostra o erro e libera o botão. */
 const LOAD_TIMEOUT_MS = 15_000;
-/** Play pedido e o vídeo não começou nesse tempo (ex.: iPhone bloqueia): mostra o play do próprio YouTube. */
+/** Play pedido e o vídeo não começou nesse tempo (ex.: iPhone bloqueia): mostra o play do próprio Vimeo. */
 const PLAY_FALLBACK_MS = 2000;
 
 export type UnlockReason = "watched" | "error";
@@ -25,7 +26,7 @@ type Status = "idle" | "loading" | "ready" | "error";
 type Playback = "playing" | "buffering" | "paused";
 
 interface VslPlayerProps {
-	youtubeId: string;
+	videoId: string;
 	unlockAtSeconds: number;
 	posterSrc: string;
 	title: string;
@@ -35,7 +36,7 @@ interface VslPlayerProps {
 }
 
 export function VslPlayer({
-	youtubeId,
+	videoId,
 	unlockAtSeconds,
 	posterSrc,
 	title,
@@ -45,10 +46,11 @@ export function VslPlayer({
 	const containerRef = useRef<HTMLDivElement>(null);
 	const frameRef = useRef<HTMLDivElement>(null);
 	const overlayRef = useRef<HTMLButtonElement>(null);
-	const errorLinkRef = useRef<HTMLAnchorElement>(null);
+	const retryRef = useRef<HTMLButtonElement>(null);
 	/** O foco estava na capa ao dar play: acompanha o player para não voltar ao topo da página. */
 	const keepFocusRef = useRef(false);
-	const playerRef = useRef<YT.Player | null>(null);
+	const playerRef = useRef<Player | null>(null);
+	const iframeRef = useRef<HTMLIFrameElement | null>(null);
 	const tickRef = useRef<number | null>(null);
 	const lastTickAtRef = useRef(0);
 	const loadTimeoutRef = useRef<number | null>(null);
@@ -58,6 +60,14 @@ export function VslPlayer({
 	const wantsPlayRef = useRef(false);
 	const playerReadyRef = useRef(false);
 	const creatingRef = useRef(false);
+	/** Plano B: player com os controles do próprio Vimeo (o navegador bloqueou o play com som). */
+	const nativeControlsRef = useRef(false);
+	/** O Vimeo aceitou o play (evento "play") ou está baixando: não está bloqueado, só lento. */
+	const playAcceptedRef = useRef(false);
+	const startedRef = useRef(false);
+	const pausedRef = useRef(true);
+	/** Posição do vídeo, do último evento "timeupdate" do Vimeo. */
+	const positionRef = useRef<number | null>(null);
 	const progressRef = useRef(initialWatchProgress);
 	const unlockedRef = useRef(unlocked);
 	const onUnlockRef = useRef(onUnlock);
@@ -99,16 +109,12 @@ export function VslPlayer({
 		// Recomeça a cada play: o tempo pausado não entra no tempo real entre leituras.
 		lastTickAtRef.current = performance.now();
 		tickRef.current = window.setInterval(() => {
-			const player = playerRef.current;
-			if (!player) return;
+			const position = positionRef.current;
+			if (position === null) return;
 			const now = performance.now();
 			const elapsedSeconds = (now - lastTickAtRef.current) / 1000;
 			lastTickAtRef.current = now;
-			progressRef.current = advanceWatchProgress(
-				progressRef.current,
-				player.getCurrentTime(),
-				elapsedSeconds,
-			);
+			progressRef.current = advanceWatchProgress(progressRef.current, position, elapsedSeconds);
 			if (progressRef.current.watchedSeconds >= unlockAtSeconds) {
 				stopTicking();
 				unlock("watched");
@@ -116,48 +122,69 @@ export function VslPlayer({
 		}, TICK_MS);
 	}, [stopTicking, unlock, unlockAtSeconds]);
 
+	/** Descarta o player atual (o iframe sai da página). */
+	const discardPlayer = useCallback(() => {
+		void playerRef.current?.destroy();
+		playerRef.current = null;
+		iframeRef.current = null;
+		playerReadyRef.current = false;
+	}, []);
+
 	// Se o vídeo falhar, libera o botão para não travar o funil.
 	const fail = useCallback(() => {
 		failedRef.current = true;
 		clearLoadTimeout();
 		clearPlayFallback();
 		stopTicking();
-		playerRef.current?.destroy();
-		playerRef.current = null;
+		discardPlayer();
 		setStatus("error");
 		unlock("error");
-	}, [clearLoadTimeout, clearPlayFallback, stopTicking, unlock]);
+	}, [clearLoadTimeout, clearPlayFallback, discardPlayer, stopTicking, unlock]);
 
 	useEffect(
 		() => () => {
 			clearLoadTimeout();
 			clearPlayFallback();
 			stopTicking();
-			playerRef.current?.destroy();
+			void playerRef.current?.destroy();
 			playerRef.current = null;
 		},
 		[clearLoadTimeout, clearPlayFallback, stopTicking],
 	);
 
+	// As funções abaixo se chamam em ciclo (criar → tocar → plano B → criar); a ref quebra o ciclo.
+	const createPlayerRef = useRef<(withControls?: boolean) => Promise<void>>(async () => {});
+
+	/** Plano B: troca pelo player com o play do próprio Vimeo, para a pessoa tocar nele. */
+	const showNativeControls = useCallback(() => {
+		if (nativeControlsRef.current || startedRef.current || failedRef.current) return;
+		nativeControlsRef.current = true;
+		clearPlayFallback();
+		discardPlayer();
+		loadTimeoutRef.current = window.setTimeout(fail, LOAD_TIMEOUT_MS);
+		void createPlayerRef.current(true);
+	}, [clearPlayFallback, discardPlayer, fail]);
+
 	const play = useCallback(() => {
 		const player = playerRef.current;
 		if (!player) return;
 		clearLoadTimeout();
-		player.playVideo();
+		player.play().catch((error: Error) => {
+			if (playerRef.current === player && error.name === "NotAllowedError") showNativeControls();
+		});
 		const requestedAt = performance.now();
 		const revealIfBlocked = () => {
 			playFallbackRef.current = null;
-			// Ainda baixando (rede lenta), não bloqueado: a capa fica, para não mostrar o título e o canal
-			// do YouTube (links que tiram a pessoa do funil). Com limite, para não girar para sempre.
-			const buffering = playerRef.current?.getPlayerState() === YT.PlayerState.BUFFERING;
-			if (buffering && performance.now() - requestedAt < LOAD_TIMEOUT_MS) {
+			if (startedRef.current) return;
+			// Aceito mas ainda baixando (rede lenta), não bloqueado: a capa fica, com limite de tempo.
+			if (playAcceptedRef.current && performance.now() - requestedAt < LOAD_TIMEOUT_MS) {
 				playFallbackRef.current = window.setTimeout(revealIfBlocked, TICK_MS);
 				return;
 			}
-			setStatus(current => (current === "loading" ? "ready" : current));
+			showNativeControls();
 		};
 		playFallbackRef.current = window.setTimeout(revealIfBlocked, PLAY_FALLBACK_MS);
-	}, [clearLoadTimeout]);
+	}, [clearLoadTimeout, showNativeControls]);
 
 	useEffect(() => {
 		if (!keepFocusRef.current) return;
@@ -165,93 +192,159 @@ export function VslPlayer({
 			overlayRef.current?.focus({ preventScroll: true });
 			keepFocusRef.current = false;
 		} else if (status === "ready") {
-			// Autoplay ainda não começou (ou foi bloqueado): foco dentro do player, perto do play do YouTube.
-			(playerRef.current?.getIframe() ?? frameRef.current)?.focus({ preventScroll: true });
+			// Plano B: foco dentro do player, perto do play do Vimeo.
+			(iframeRef.current ?? frameRef.current)?.focus({ preventScroll: true });
 		} else if (status === "error") {
-			errorLinkRef.current?.focus({ preventScroll: true });
+			retryRef.current?.focus({ preventScroll: true });
 			keepFocusRef.current = false;
 		}
 	}, [status, started]);
 
 	/**
-	 * Cria o player uma única vez: no pré-carregamento (escondido atrás da capa, sem tocar)
-	 * ou no toque, se o pré-carregamento não rodou ou falhou.
+	 * Cria o player uma única vez: no pré-carregamento (escondido atrás da capa, sem tocar),
+	 * no toque (se o pré-carregamento não rodou ou falhou) ou no plano B, com os controles do Vimeo.
 	 */
-	const createPlayer = useCallback(async () => {
-		if (playerRef.current || creatingRef.current) return;
-		creatingRef.current = true;
-		try {
-			const api = await loadYouTubeApi();
-			const container = containerRef.current;
-			// A API pode chegar depois do limite: nesse caso o erro já foi mostrado.
-			if (!container || failedRef.current) return;
+	const createPlayer = useCallback(
+		async (withControls = false) => {
+			if (playerRef.current || creatingRef.current) return;
+			creatingRef.current = true;
+			try {
+				const VimeoPlayer = await loadVimeoPlayer();
+				const container = containerRef.current;
+				// A biblioteca pode chegar depois do limite: nesse caso o erro já foi mostrado.
+				if (!container || failedRef.current || playerRef.current) return;
 
-			// O YouTube troca este elemento por um iframe; ele fica fora do controle do React.
-			const mount = document.createElement("div");
-			container.replaceChildren(mount);
+				// O iframe fica fora do controle do React.
+				const iframe = document.createElement("iframe");
+				iframe.src = vimeoEmbedUrl(videoId, { controls: withControls });
+				iframe.title = `Vídeo: ${title}`;
+				iframe.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media";
+				container.replaceChildren(iframe);
 
-			playerRef.current = new api.Player(mount, {
-				events: {
-					onError: () => {
-						if (wantsPlayRef.current) {
-							fail();
+				const player = new VimeoPlayer(iframe);
+				playerRef.current = player;
+				iframeRef.current = iframe;
+				positionRef.current = null;
+				playAcceptedRef.current = false;
+
+				player.on("timeupdate", ({ seconds }) => {
+					positionRef.current = seconds;
+				});
+				player.on("play", () => {
+					playAcceptedRef.current = true;
+				});
+				const markPlaying = () => {
+					clearPlayFallback();
+					pausedRef.current = false;
+					startedRef.current = true;
+					// Só depois de começar: fora da ordem do Tab. Antes disso (plano B) o iframe precisa ser
+					// alcançável, porque o play é o botão do próprio Vimeo.
+					iframe.tabIndex = -1;
+					setPlayback("playing");
+					setStatus("ready");
+					setStarted(true);
+					startTicking();
+				};
+				player.on("playing", () => {
+					if (startedRef.current || nativeControlsRef.current) {
+						markPlaying();
+						return;
+					}
+					// iPhone: o play pedido pela página pode ser aceito sem som (o Vimeo toca mudo em vez de
+					// recusar). Mudo no primeiro play: plano B, cujo play (tocado dentro do player) libera o som.
+					Promise.all([player.getMuted(), player.getVolume()])
+						.then(([muted, volume]) => {
+							if (playerRef.current !== player) return;
+							if (muted || volume === 0) showNativeControls();
+							else markPlaying();
+						})
+						.catch(() => {
+							if (playerRef.current === player) markPlaying();
+						});
+				});
+				player.on("bufferstart", () => {
+					playAcceptedRef.current = true;
+					setPlayback("buffering");
+					stopTicking();
+				});
+				player.on("bufferend", () => {
+					if (!startedRef.current || pausedRef.current) return;
+					setPlayback("playing");
+					startTicking();
+				});
+				player.on("pause", () => {
+					pausedRef.current = true;
+					setPlayback("paused");
+					stopTicking();
+				});
+				player.on("ended", () => {
+					pausedRef.current = true;
+					setPlayback("paused");
+					stopTicking();
+					// Assistiu até o fim: libera mesmo que o vídeo seja mais curto que unlockAtSeconds.
+					unlock("watched");
+				});
+				player.on("error", error => {
+					// Erros de um comando (ex.: play bloqueado) são tratados em quem o chamou.
+					if (error.method) return;
+					if (wantsPlayRef.current) {
+						fail();
+						return;
+					}
+					// Falhou no pré-carregamento: descarta em silêncio; o toque tenta de novo.
+					if (playerRef.current === player) discardPlayer();
+				});
+				// O vídeo já tem a legenda editada; a automática do Vimeo (que o iPhone pode ligar sozinho) duplicaria.
+				player.on("texttrackchange", ({ kind }) => {
+					if (kind) player.disableTextTrack().catch(() => {});
+				});
+
+				player
+					.ready()
+					.then(() => {
+						if (playerRef.current !== player) return;
+						player.disableTextTrack().catch(() => {});
+						playerReadyRef.current = true;
+						if (!wantsPlayRef.current) return;
+						if (!nativeControlsRef.current) {
+							play();
 							return;
 						}
-						// Falhou no pré-carregamento: descarta em silêncio; o toque tenta de novo.
-						playerRef.current?.destroy();
-						playerRef.current = null;
-						playerReadyRef.current = false;
-					},
-					onReady: event => {
-						playerReadyRef.current = true;
-						event.target.getIframe().title = `Vídeo: ${title}`;
-						if (wantsPlayRef.current) play();
-					},
-					onStateChange: event => {
-						const { PLAYING, BUFFERING, ENDED } = api.PlayerState;
-						const isPlaying = event.data === PLAYING;
-						setPlayback(
-							isPlaying ? "playing" : event.data === BUFFERING ? "buffering" : "paused",
-						);
-						if (isPlaying) {
-							clearPlayFallback();
-							// Só depois de começar: fora da ordem do Tab, para os links do YouTube (título, canal)
-							// não tirarem a pessoa do funil. Antes disso o iframe precisa ser alcançável, porque
-							// com autoplay bloqueado o play é o botão do próprio YouTube.
-							event.target.getIframe().tabIndex = -1;
-							setStatus("ready");
-							setStarted(true);
-							startTicking();
-						} else {
-							stopTicking();
-						}
-						// Assistiu até o fim: libera mesmo que o vídeo seja mais curto que unlockAtSeconds.
-						if (event.data === ENDED) unlock("watched");
-					},
-				},
-				height: "100%",
-				host: YOUTUBE_EMBED_HOST,
-				playerVars: {
-					autoplay: wantsPlayRef.current ? 1 : 0,
-					controls: 0,
-					disablekb: 1,
-					fs: 0,
-					iv_load_policy: 3,
-					// Sem origin explícito, os eventos do player não chegam quando o host é youtube-nocookie.
-					origin: window.location.origin,
-					playsinline: 1,
-					rel: 0,
-				},
-				videoId: youtubeId,
-				width: "100%",
-			});
-		} catch {
-			// Sem a API no pré-carregamento, o toque tenta de novo.
-			if (wantsPlayRef.current) fail();
-		} finally {
-			creatingRef.current = false;
-		}
-	}, [clearPlayFallback, fail, play, startTicking, stopTicking, title, unlock, youtubeId]);
+						// Plano B: mostra o player e deixa o play para o toque da pessoa. Um play pedido pela página
+						// poderia tocar mudo de novo, com a nossa camada por cima dos controles do Vimeo.
+						clearLoadTimeout();
+						setStatus(current => (current === "loading" ? "ready" : current));
+					})
+					.catch(() => {
+						if (playerRef.current !== player) return;
+						if (wantsPlayRef.current) fail();
+						else discardPlayer();
+					});
+			} catch {
+				// Sem a biblioteca no pré-carregamento, o toque tenta de novo.
+				if (wantsPlayRef.current) fail();
+			} finally {
+				creatingRef.current = false;
+			}
+		},
+		[
+			clearLoadTimeout,
+			clearPlayFallback,
+			discardPlayer,
+			fail,
+			play,
+			showNativeControls,
+			startTicking,
+			stopTicking,
+			title,
+			unlock,
+			videoId,
+		],
+	);
+
+	useEffect(() => {
+		createPlayerRef.current = createPlayer;
+	}, [createPlayer]);
 
 	// Pré-carrega o player depois de a página abrir: no toque, o vídeo começa quase na hora.
 	useEffect(() => {
@@ -269,7 +362,7 @@ export function VslPlayer({
 			wantsPlayRef.current = true;
 			setStatus("loading");
 			loadTimeoutRef.current = window.setTimeout(fail, LOAD_TIMEOUT_MS);
-			// Pronto: toca já. Ainda carregando: toca no onReady. Sem player: cria agora.
+			// Pronto: toca já. Ainda carregando: toca quando ficar pronto. Sem player: cria agora.
 			if (playerReadyRef.current) play();
 			else void createPlayer();
 		},
@@ -279,16 +372,14 @@ export function VslPlayer({
 	const togglePlayback = () => {
 		const player = playerRef.current;
 		if (!player) return;
-		if (playback === "paused") player.playVideo();
-		else player.pauseVideo();
+		if (playback === "paused") player.play().catch(() => {});
+		else player.pause().catch(() => {});
 	};
 
 	const warmUp = () => {
-		preconnectYouTube();
-		loadYouTubeApi().catch(() => {});
+		preconnectVimeo();
+		loadVimeoPlayer().catch(() => {});
 	};
-
-	const watchOnYouTube = `https://www.youtube.com/watch?v=${youtubeId}`;
 
 	return (
 		<div className="w-full">
@@ -310,15 +401,14 @@ export function VslPlayer({
 						className="bg-ink absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-white"
 					>
 						<p className="font-semibold">Não foi possível carregar o vídeo.</p>
-						<a
-							ref={errorLinkRef}
-							href={watchOnYouTube}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="text-ink rounded-full bg-white px-4 py-2 text-sm font-semibold outline-offset-4 focus-visible:outline-2 focus-visible:outline-white"
+						<button
+							ref={retryRef}
+							type="button"
+							onClick={() => window.location.reload()}
+							className="text-ink cursor-pointer rounded-full bg-white px-4 py-2 text-sm font-semibold outline-offset-4 focus-visible:outline-2 focus-visible:outline-white"
 						>
-							Assistir no YouTube
-						</a>
+							Tentar de novo
+						</button>
 					</div>
 				) : null}
 
@@ -326,9 +416,9 @@ export function VslPlayer({
 					<button
 						type="button"
 						onClick={start}
-						onPointerEnter={preconnectYouTube}
+						onPointerEnter={preconnectVimeo}
 						onPointerDown={warmUp}
-						onFocus={preconnectYouTube}
+						onFocus={preconnectVimeo}
 						// aria-disabled (e não disabled): desabilitar um botão com foco joga o foco para o topo.
 						aria-disabled={status === "loading"}
 						aria-label={`Assistir ao vídeo: ${title}`}
@@ -378,9 +468,7 @@ export function VslPlayer({
 			</div>
 
 			<noscript>
-				<a href={watchOnYouTube} className="mt-3 inline-block text-sm font-semibold underline">
-					Assistir no YouTube
-				</a>
+				<p className="mt-3 text-sm font-semibold">Ative o JavaScript para assistir ao vídeo.</p>
 			</noscript>
 		</div>
 	);
