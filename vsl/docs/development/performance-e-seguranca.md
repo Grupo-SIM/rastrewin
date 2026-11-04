@@ -3,23 +3,22 @@
 ## Performance
 
 - **Estático:** HTML pré-renderizado no build (título, subtítulo, capa e logo aparecem sem esperar JS).
-- **Player pré-carregado:** a página abre só com a capa (uma imagem). Depois que ela termina de abrir
-  e o navegador fica ocioso, o player do Vimeo (~550KB) carrega escondido atrás da capa, sem tocar.
-  No toque, o vídeo começa em **~0,85s a 1,9s** (Wi-Fi, Chrome e Safari/WebKit, medido com o vídeo real).
+- **Player pré-carregado, play do próprio Vimeo:** a página abre só com a capa (uma imagem). Depois que
+  ela termina de abrir e o navegador fica ocioso, o player do Vimeo (~550KB) carrega embaixo da capa,
+  sem tocar. A capa vira só imagem (`pointer-events: none`): o toque atravessa e cai no play do Vimeo,
+  que fica no centro, embaixo do play colorido da capa. A capa some quando o Vimeo começa a tocar.
   A biblioteca `@vimeo/player` (~8KB comprimida) vem do próprio site, só nesse momento.
 
-    Sem pré-carregamento (carrega só no toque): economia de dados ligada, rede 2G e quem já liberou o
-    botão em visita anterior. Se o navegador recusar o play com som ou o Vimeo começar mudo (no Safari e no
-    iPhone é comum no 1º play), a capa volta com "Assistir com som": o 2º toque, com o player já pronto,
-    toca com som em ~0,15s. Se sair mudo de novo (ou o Vimeo nem aceitar o pedido em 2s), o plano B troca o
-    player pelo que tem o play do próprio Vimeo; nele a página não dá play sozinha, e o toque dentro do
-    player é o que libera o som.
+    Por que o play é o do Vimeo: o iPhone só libera o som quando o toque acontece dentro do documento
+    do vídeo. Um play pedido pela página (mensagem para o iframe) saía mudo e pedia um 2º toque.
 
-    No iPhone/iPad, para o 1º toque já sair com som, o player pré-carregado dá um play **sem som**
-    escondido atrás da capa e pausa no 1º quadro, de volta ao início e com o som ligado. Custa o começo do
-    vídeo em dados e pode contar como play nas estatísticas do Vimeo; por isso só roda nesses aparelhos.
-    Se o iPhone recusar até o play sem som (Modo de Pouca Energia) ou o toque vier antes de o player
-    carregar, vale a capa "Assistir com som" acima.
+    O player do Vimeo mostra só o play (`progress_bar=0`, `skipping_forward=0`, sem volume, tela cheia,
+    qualidade, legendas, logo), na cor `--ink`. Pausar e continuar é tocar no vídeo, pelo próprio Vimeo.
+
+    Sem pré-carregamento (economia de dados ou 2G; só o Chrome informa isso, então o iPhone sempre
+    pré-carrega): a capa tem o play do site, e o toque cria o player com `autoplay`. O toque na página
+    libera o som no Chrome; se mesmo assim sair mudo, o Vimeo mostra o botão de som dele. Tocar na capa
+    antes de o pré-carregamento terminar mostra o carregamento; pronto, o próximo toque já cai no Vimeo.
 
 - **Fontes:** `next/font` serve Plus Jakarta Sans e Manrope do próprio domínio, só com os pesos usados.
 - **Cache:** `/_next/static/*` imutável por 1 ano; HTML e `.txt` do Next sempre revalidam; imagens com 1h.
@@ -67,8 +66,7 @@ perderia a venda.
 
 ### Acessibilidade do player
 
-- Ao dar play pelo teclado, o foco acompanha o player (quadro → "Pausar vídeo"; em erro, "Tentar de novo").
-- Depois que o vídeo começa, o iframe do Vimeo fica fora da ordem do Tab (no plano B, antes disso, ele
-  precisa ser alcançável, porque o play é o do próprio Vimeo).
-  Pré-carregado atrás da capa, fica `inert` (fora do Tab e do leitor de tela) até o play.
-- Durante o buffering aparece um spinner (e não o ícone de play).
+- Até ficar pronto, o player fica `inert` (fora do Tab e do leitor de tela) e a capa é um botão
+  "Assistir ao vídeo". Pronto, o Tab chega ao play do Vimeo, embaixo da capa, e o quadro mostra o anel
+  de foco. Tocar na capa pelo teclado leva o foco ao player quando ele fica pronto; em erro, a "Tentar de novo".
+- Pausar, continuar e o carregamento durante o vídeo são os do próprio Vimeo.

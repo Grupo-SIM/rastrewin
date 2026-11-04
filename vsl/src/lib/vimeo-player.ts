@@ -33,17 +33,6 @@ export function canPreloadPlayer(): boolean {
 }
 
 /**
- * iPhone ou iPad (no iOS todo navegador usa o motor do Safari). O iPadOS se apresenta como Mac, mas tem
- * toque. Neles o 1º play pedido pela página costuma sair sem som, por isso o player é preparado antes.
- */
-export function isAppleTouchDevice({
-	userAgent,
-	maxTouchPoints,
-}: Pick<Navigator, "userAgent" | "maxTouchPoints"> = navigator): boolean {
-	return /iPhone|iPad|iPod/.test(userAgent) || (userAgent.includes("Macintosh") && maxTouchPoints > 1);
-}
-
-/**
  * Roda `callback` depois de a página terminar de abrir e o navegador ficar ocioso,
  * para o pré-carregamento não disputar banda nem CPU com título, capa e fontes. Devolve o cancelamento.
  */
@@ -69,23 +58,39 @@ export function whenPageIdle(callback: () => void): () => void {
 	};
 }
 
+/** Cor dos controles do Vimeo: `--ink` do site, sem o `#`. */
+export const VIMEO_CONTROLS_COLOR = "08304c";
+
 /**
- * Endereço do player. Sem barra nem logo (`controls=0`, exige plano pago do Vimeo): a página tem os
- * próprios controles e pular não conta. `controls=1` só no plano B, quando o navegador bloqueia o play
- * com som e a pessoa precisa tocar no play do próprio Vimeo.
+ * Endereço do player. O play é o do próprio Vimeo, no centro, embaixo da capa do site: o toque atravessa
+ * a capa e acontece dentro do player, o único jeito de o iPhone liberar o som no 1º toque. O resto fica
+ * escondido (exige plano pago do Vimeo): sem barra de progresso, sem pular para frente, sem logo.
+ * `autoplay` só quando a página não pré-carrega (economia de dados, 2G) e a pessoa já tocou na capa.
  */
-export function vimeoEmbedUrl(videoId: string, { controls }: { controls: boolean }): string {
+export function vimeoEmbedUrl(videoId: string, { autoplay }: { autoplay: boolean }): string {
 	const params = new URLSearchParams({
+		airplay: "0",
 		autopause: "0",
+		autoplay: autoplay ? "1" : "0",
 		badge: "0",
 		byline: "0",
-		controls: controls ? "1" : "0",
+		cc: "0",
+		chromecast: "0",
+		color: VIMEO_CONTROLS_COLOR,
+		controls: "1",
+		fullscreen: "0",
 		keyboard: "0",
 		pip: "0",
+		play_button_position: "center",
 		playsinline: "1",
 		portrait: "0",
+		progress_bar: "0",
+		quality_selector: "0",
+		skipping_forward: "0",
+		speed: "0",
 		title: "0",
 		vimeo_logo: "0",
+		volume: "0",
 	});
 	return `${VIMEO_PLAYER_ORIGIN}/video/${videoId}?${params}`;
 }

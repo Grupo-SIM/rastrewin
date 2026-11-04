@@ -1,27 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { isAppleTouchDevice } from "./vimeo-player";
+import { VIMEO_PLAYER_ORIGIN, vimeoEmbedUrl } from "./vimeo-player";
 
-const IPHONE =
-	"Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1";
-const IPHONE_CHROME =
-	"Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/138.0.7204.156 Mobile/15E148 Safari/604.1";
-const MAC_SAFARI =
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15";
-const ANDROID_CHROME =
-	"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36";
+const paramsOf = (url: string) => new URL(url).searchParams;
 
-describe("isAppleTouchDevice", () => {
-	it("reconhece o iPhone, em qualquer navegador", () => {
-		expect(isAppleTouchDevice({ maxTouchPoints: 5, userAgent: IPHONE })).toBe(true);
-		expect(isAppleTouchDevice({ maxTouchPoints: 5, userAgent: IPHONE_CHROME })).toBe(true);
+describe("vimeoEmbedUrl", () => {
+	it("aponta para o player do Vimeo com o ID do vídeo", () => {
+		const url = new URL(vimeoEmbedUrl("1243006876", { autoplay: false }));
+		expect(url.origin).toBe(VIMEO_PLAYER_ORIGIN);
+		expect(url.pathname).toBe("/video/1243006876");
 	});
 
-	it("reconhece o iPad que se apresenta como Mac, pelo toque", () => {
-		expect(isAppleTouchDevice({ maxTouchPoints: 5, userAgent: MAC_SAFARI })).toBe(true);
+	it("mostra só o play do Vimeo, no centro, sem barra nem pular para frente", () => {
+		const params = paramsOf(vimeoEmbedUrl("1243006876", { autoplay: false }));
+		expect(params.get("controls")).toBe("1");
+		expect(params.get("play_button_position")).toBe("center");
+		expect(params.get("progress_bar")).toBe("0");
+		expect(params.get("skipping_forward")).toBe("0");
+		expect(params.get("playsinline")).toBe("1");
 	});
 
-	it("não confunde Mac sem toque nem Android", () => {
-		expect(isAppleTouchDevice({ maxTouchPoints: 0, userAgent: MAC_SAFARI })).toBe(false);
-		expect(isAppleTouchDevice({ maxTouchPoints: 5, userAgent: ANDROID_CHROME })).toBe(false);
+	it("só pede autoplay quando a pessoa já tocou na capa", () => {
+		expect(paramsOf(vimeoEmbedUrl("1243006876", { autoplay: false })).get("autoplay")).toBe("0");
+		expect(paramsOf(vimeoEmbedUrl("1243006876", { autoplay: true })).get("autoplay")).toBe("1");
 	});
 });
