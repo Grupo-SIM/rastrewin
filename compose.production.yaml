@@ -1,0 +1,36 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    environment:
+      - WEB_ORIGIN=https://rastrewin.com
+    networks:
+      - internal
+      - proxy
+    restart: unless-stopped
+    labels:
+      caddy: api.rastrewin.com
+      caddy.import: cloudflare
+      caddy.reverse_proxy: "{{upstreams 3011}}"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      - PORT=3000
+      - API_INTERNAL_URL=http://backend:3011
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      caddy: rastrewin.com
+      caddy.import: cloudflare
+      caddy.reverse_proxy: "{{upstreams 3000}}"
+
+networks:
+  internal:
+  proxy:
+    external: true

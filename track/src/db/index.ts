@@ -23,27 +23,27 @@ const globalForDb = globalThis as unknown as { __rastrewinDb?: Partial<Record<Ro
 const cache = (globalForDb.__rastrewinDb ??= {});
 
 function connect(role: Role, max: number): Database {
-  const existing = cache[role];
-  if (existing) return existing;
+	const existing = cache[role];
+	if (existing) return existing;
 
-  const pool = new Pool({
-    connectionString: env().DATABASE_URL,
-    max,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
-    application_name: `rastrewin:${role}`,
-    options: `-c role=${role}`,
-  });
-  pool.on("error", (error) => console.error(`[db] erro no pool ${role}`, error));
+	const pool = new Pool({
+		application_name: `rastrewin:${role}`,
+		connectionString: env().DATABASE_URL,
+		connectionTimeoutMillis: 10_000,
+		idleTimeoutMillis: 30_000,
+		max,
+		options: `-c role=${role}`,
+	});
+	pool.on("error", error => console.error(`[db] erro no pool ${role}`, error));
 
-  const db = drizzle(pool, { schema });
-  cache[role] = db;
-  return db;
+	const db = drizzle(pool, { schema });
+	cache[role] = db;
+	return db;
 }
 
 /** Conexão de ESCRITA (app_service). Nunca exponha para o cliente. */
 export function serviceDb(): Database {
-  return connect("app_service", 10);
+	return connect("app_service", 10);
 }
 
 export type ReaderTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -53,8 +53,8 @@ export type ReaderTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
  * que valida a sessão antes de chamar esta função.
  */
 export async function withReader<T>(userId: string, fn: (tx: ReaderTx) => Promise<T>): Promise<T> {
-  return connect("app_reader", 5).transaction(async (tx) => {
-    await tx.execute(sql`select set_config('app.user_id', ${userId}, true)`);
-    return fn(tx);
-  });
+	return connect("app_reader", 5).transaction(async tx => {
+		await tx.execute(sql`select set_config('app.user_id', ${userId}, true)`);
+		return fn(tx);
+	});
 }

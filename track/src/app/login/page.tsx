@@ -9,23 +9,23 @@ import { CardContent, CardDescription, CardHeader, CardTitle } from "@/component
 export const metadata: Metadata = { title: "Entrar" };
 
 export default function LoginPage() {
-  return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 px-4 py-10">
-      <div className="flex w-full max-w-sm items-center justify-between">
-        <Logo />
-        <ThemeToggle />
-      </div>
-      <GlassCard className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Entrar no painel</CardTitle>
-          <CardDescription>Acesso restrito. Não há cadastro público.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Suspense>
-            <LoginForm />
-          </Suspense>
-        </CardContent>
-      </GlassCard>
-    </main>
-  );
+	return (
+		<main className="flex min-h-dvh flex-col items-center justify-center gap-6 px-4 py-10">
+			<div className="flex w-full max-w-sm items-center justify-between">
+				<Logo />
+				<ThemeToggle />
+			</div>
+			<GlassCard className="w-full max-w-sm">
+				<CardHeader>
+					<CardTitle className="text-lg font-semibold">Entrar no painel</CardTitle>
+					<CardDescription>Acesso restrito. Não há cadastro público.</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<Suspense>
+						<LoginForm />
+					</Suspense>
+				</CardContent>
+			</GlassCard>
+		</main>
+	);
 }

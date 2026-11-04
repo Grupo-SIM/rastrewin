@@ -1,0 +1,41 @@
+{
+	"name": "backend",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"build": "nest build",
+		"check-types": "tsc --noEmit",
+		"db:push": "prisma db push",
+		"db:seed": "tsx --env-file=.env prisma/seed.ts",
+		"db:seed-admin": "tsx --env-file=.env prisma/seed-admin.ts",
+		"db:studio": "prisma studio",
+		"dev": "nest start --watch",
+		"generate": "prisma generate",
+		"start": "node dist/main"
+	},
+	"dependencies": {
+		"@nestjs/common": "^10.4.0",
+		"@nestjs/config": "^3.2.3",
+		"@nestjs/core": "^10.4.0",
+		"@nestjs/platform-express": "^10.4.0",
+		"@prisma/client": "^5.22.0",
+		"bcryptjs": "^3.0.3",
+		"class-transformer": "^0.5.1",
+		"class-validator": "^0.14.1",
+		"jsonwebtoken": "^9.0.3",
+		"nodemailer": "^10.1.7",
+		"reflect-metadata": "^0.2.2",
+		"rxjs": "^7.8.1"
+	},
+	"devDependencies": {
+		"@nestjs/cli": "^10.4.0",
+		"@types/bcryptjs": "^2.4.6",
+		"@types/express": "^4.17.21",
+		"@types/jsonwebtoken": "^9.0.10",
+		"@types/node": "^22.0.0",
+		"@types/nodemailer": "^8.0.2",
+		"prisma": "^5.22.0",
+		"tsx": "^4.19.0",
+		"typescript": "^5.6.0"
+	}
+}

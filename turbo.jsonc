@@ -1,0 +1,43 @@
+{
+	"$schema": "https://turborepo.dev/schema.json",
+	"globalPassThroughEnv": ["DATABASE_URL"],
+	"tasks": {
+		"build": {
+			"cache": false,
+			"dependsOn": ["^export", "generate"],
+			"env": ["NEXT_PUBLIC_API_URL"],
+			"outputLogs": "new-only",
+			"outputs": [".next/**", "!.next/cache/**", "dist/**", "out/**"]
+		},
+		"check-types": {
+			"cache": false,
+			"dependsOn": ["^export", "generate"],
+			"inputs": ["$TURBO_DEFAULT$", "tsconfig*.json"],
+			"outputLogs": "new-only"
+		},
+		"dev": {
+			"cache": false,
+			"dependsOn": ["^export", "generate"],
+			"persistent": true
+		},
+		"export": {
+			"cache": false,
+			"dependsOn": ["^export"],
+			"outputLogs": "new-only",
+			"outputs": ["out/**"]
+		},
+		"generate": {
+			"cache": false,
+			"outputLogs": "new-only"
+		},
+		"start": {
+			"cache": false,
+			"persistent": true
+		},
+		"test": {
+			"cache": false,
+			"dependsOn": ["^export", "generate"],
+			"outputLogs": "new-only"
+		}
+	}
+}

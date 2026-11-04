@@ -1,0 +1,29 @@
+{
+	"compilerOptions": {
+		"allowJs": false,
+		"esModuleInterop": true,
+		"exactOptionalPropertyTypes": true,
+		"incremental": true,
+		"isolatedModules": true,
+		"jsx": "react-jsx",
+		"lib": ["dom", "dom.iterable", "esnext"],
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"noEmit": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitOverride": true,
+		"noUncheckedIndexedAccess": true,
+		"paths": {
+			"@/*": ["./src/*"]
+		},
+		"plugins": [{ "name": "next" }],
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "ES2022",
+		"types": ["youtube", "node"],
+		"verbatimModuleSyntax": true
+	},
+	"exclude": ["node_modules", "out"],
+	"include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"]
+}

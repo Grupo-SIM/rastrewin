@@ -1,55 +1,55 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1793639278429,
-      "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1793639278782,
-      "tag": "0001_security",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1793663349364,
-      "tag": "0002_purchases_delivery",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1793664524967,
-      "tag": "0003_settings_timezone",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1793722874968,
-      "tag": "0004_maintenance_runs",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1793722903351,
-      "tag": "0005_retention",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1793737409928,
-      "tag": "0006_retention_app_scheduler",
-      "breakpoints": true
-    }
-  ]
+	"dialect": "postgresql",
+	"entries": [
+		{
+			"breakpoints": true,
+			"idx": 0,
+			"tag": "0000_init",
+			"version": "7",
+			"when": 1793639278429
+		},
+		{
+			"breakpoints": true,
+			"idx": 1,
+			"tag": "0001_security",
+			"version": "7",
+			"when": 1793639278782
+		},
+		{
+			"breakpoints": true,
+			"idx": 2,
+			"tag": "0002_purchases_delivery",
+			"version": "7",
+			"when": 1793663349364
+		},
+		{
+			"breakpoints": true,
+			"idx": 3,
+			"tag": "0003_settings_timezone",
+			"version": "7",
+			"when": 1793664524967
+		},
+		{
+			"breakpoints": true,
+			"idx": 4,
+			"tag": "0004_maintenance_runs",
+			"version": "7",
+			"when": 1793722874968
+		},
+		{
+			"breakpoints": true,
+			"idx": 5,
+			"tag": "0005_retention",
+			"version": "7",
+			"when": 1793722903351
+		},
+		{
+			"breakpoints": true,
+			"idx": 6,
+			"tag": "0006_retention_app_scheduler",
+			"version": "7",
+			"when": 1793737409928
+		}
+	],
+	"version": "7"
 }

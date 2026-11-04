@@ -1,0 +1,37 @@
+{
+	"$schema": "../node_modules/@biomejs/biome/configuration_schema.json",
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "off",
+				"useSortedAttributes": "off",
+				"useSortedProperties": "off"
+			}
+		}
+	},
+	"extends": ["@hyoretsu/configs/biome-react"],
+	"formatter": {
+		"enabled": false
+	},
+	"linter": {
+		"rules": {
+			"a11y": {
+				"noLabelWithoutControl": "off",
+				"useAriaPropsSupportedByRole": "off",
+				"useFocusableInteractive": "off",
+				"useSemanticElements": "off",
+				"useValidAriaProps": "off"
+			},
+			"correctness": {
+				"useExhaustiveDependencies": "off"
+			},
+			"nursery": {
+				"useSortedClasses": "off"
+			},
+			"suspicious": {
+				"noShorthandPropertyOverrides": "off"
+			}
+		}
+	},
+	"root": false
+}

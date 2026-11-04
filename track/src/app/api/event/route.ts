@@ -16,70 +16,80 @@ import { upsertVisitor } from "@/lib/tracking/visitors";
  * O envio à Meta roda depois da resposta (after), para o site não esperar.
  */
 
-const limiter = createRateLimiter({ perMinute: 120, burst: 40 });
+const limiter = createRateLimiter({ burst: 40, perMinute: 120 });
 const MAX_BYTES = 16 * 1024;
 
 export function OPTIONS(request: Request) {
-  return preflight(request);
+	return preflight(request);
 }
 
 export async function POST(request: Request) {
-  const origin = await allowedOrigin(request);
-  if (!origin) return json({ error: "origem não autorizada" }, 403);
-  const cors = corsHeaders(origin);
+	const origin = await allowedOrigin(request);
+	if (!origin) return json({ error: "origem não autorizada" }, 403);
+	const cors = corsHeaders(origin);
 
-  if (!limiter.take(rateLimitKey(request.headers))) return json({ error: "muitas requisições" }, 429, cors);
+	if (!limiter.take(rateLimitKey(request.headers))) return json({ error: "muitas requisições" }, 429, cors);
 
-  const body = await readJsonBody(request, MAX_BYTES);
-  if (!body.ok) return json({ error: body.status === 413 ? "corpo grande demais" : "JSON inválido" }, body.status, cors);
+	const body = await readJsonBody(request, MAX_BYTES);
+	if (!body.ok)
+		return json(
+			{ error: body.status === 413 ? "corpo grande demais" : "JSON inválido" },
+			body.status,
+			cors,
+		);
 
-  const parsed = eventSchema.safeParse(body.data);
-  if (!parsed.success) return json({ error: "dados inválidos", fields: parsed.error.issues.map((i) => i.path.join(".")) }, 400, cors);
-  const d = parsed.data;
+	const parsed = eventSchema.safeParse(body.data);
+	if (!parsed.success)
+		return json(
+			{ error: "dados inválidos", fields: parsed.error.issues.map(i => i.path.join(".")) },
+			400,
+			cors,
+		);
+	const d = parsed.data;
 
-  const config = await getRuntimeConfig();
-  const ip = clientIp(request.headers);
-  const userAgent = request.headers.get("user-agent")?.slice(0, 512) ?? null;
-  const geo = lookupGeo(ip);
+	const config = await getRuntimeConfig();
+	const ip = clientIp(request.headers);
+	const userAgent = request.headers.get("user-agent")?.slice(0, 512) ?? null;
+	const geo = lookupGeo(ip);
 
-  // Garante o visitante (caso o identify ainda não tenha chegado) e pega os dados para enriquecer.
-  const visitor = await upsertVisitor({
-    trckUserId: d.trck_user_id,
-    email: d.user_data?.email,
-    phone: d.user_data?.phone,
-    firstName: d.user_data?.first_name,
-    lastName: d.user_data?.last_name,
-    fbp: d.fbp,
-    fbc: d.fbc,
-    gaClientId: d.ga_client_id,
-    gaSessionId: d.ga_session_id,
-    ip,
-    userAgent,
-    geo,
-  });
+	// Garante o visitante (caso o identify ainda não tenha chegado) e pega os dados para enriquecer.
+	const visitor = await upsertVisitor({
+		email: d.user_data?.email,
+		fbc: d.fbc,
+		fbp: d.fbp,
+		firstName: d.user_data?.first_name,
+		gaClientId: d.ga_client_id,
+		gaSessionId: d.ga_session_id,
+		geo,
+		ip,
+		lastName: d.user_data?.last_name,
+		phone: d.user_data?.phone,
+		trckUserId: d.trck_user_id,
+		userAgent,
+	});
 
-  const customData = d.custom_data
-    ? {
-        ...d.custom_data,
-        ...(d.custom_data.value !== undefined
-          ? { currency: (d.custom_data.currency ?? config.currency).toUpperCase() }
-          : {}),
-      }
-    : undefined;
+	const customData = d.custom_data
+		? {
+				...d.custom_data,
+				...(d.custom_data.value !== undefined
+					? { currency: (d.custom_data.currency ?? config.currency).toUpperCase() }
+					: {}),
+			}
+		: undefined;
 
-  const input = {
-    eventName: d.event_name,
-    eventId: d.event_id,
-    eventSourceUrl: d.event_source_url,
-    customData,
-    visitor,
-    ip,
-    userAgent,
-    geo,
-  };
-  const rowId = await insertEvent(input);
-  if (rowId === null) return json({ ok: true, duplicate: true }, 200, cors);
+	const input = {
+		customData,
+		eventId: d.event_id,
+		eventName: d.event_name,
+		eventSourceUrl: d.event_source_url,
+		geo,
+		ip,
+		userAgent,
+		visitor,
+	};
+	const rowId = await insertEvent(input);
+	if (rowId === null) return json({ duplicate: true, ok: true }, 200, cors);
 
-  after(() => deliverEventToMeta(rowId, input, config));
-  return json({ ok: true }, 202, cors);
+	after(() => deliverEventToMeta(rowId, input, config));
+	return json({ ok: true }, 202, cors);
 }

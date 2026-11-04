@@ -6,9 +6,9 @@ import { defineConfig } from "drizzle-kit";
  * Migrations de segurança (papéis, RLS, grants) são "custom": npm run db:generate -- --custom --name=<nome>
  */
 export default defineConfig({
-  dialect: "postgresql",
-  schema: "./src/db/schema/index.ts",
-  out: "./drizzle",
-  strict: true,
-  verbose: true,
+	dialect: "postgresql",
+	out: "./drizzle",
+	schema: "./src/db/schema/index.ts",
+	strict: true,
+	verbose: true,
 });

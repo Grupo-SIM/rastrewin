@@ -12,20 +12,20 @@ import { getAuth } from "@/lib/auth";
  */
 
 export const getSession = cache(async () => {
-  // headers() PRIMEIRO: no pré-render ele adia o resto para o request.
-  // Se getAuth() viesse antes, o build tentaria ler o env (que não existe no build).
-  const requestHeaders = await headers();
-  return getAuth().api.getSession({ headers: requestHeaders });
+	// headers() PRIMEIRO: no pré-render ele adia o resto para o request.
+	// Se getAuth() viesse antes, o build tentaria ler o env (que não existe no build).
+	const requestHeaders = await headers();
+	return getAuth().api.getSession({ headers: requestHeaders });
 });
 
 export async function requireSession() {
-  const session = await getSession();
-  if (!session) redirect("/login");
-  return session;
+	const session = await getSession();
+	if (!session) redirect("/login");
+	return session;
 }
 
 /** Executa leituras com RLS em nome do usuário logado. */
 export async function readAsUser<T>(fn: Parameters<typeof withReader<T>>[1]): Promise<T> {
-  const session = await requireSession();
-  return withReader(session.user.id, fn);
+	const session = await requireSession();
+	return withReader(session.user.id, fn);
 }

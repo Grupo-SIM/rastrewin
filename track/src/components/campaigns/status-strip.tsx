@@ -11,55 +11,58 @@ import { formatDateTime } from "@/lib/time";
 
 /** Quando os dados foram buscados, uso da API e o botão "Atualizar agora" (cooldown de 15 min). */
 export function StatusStrip({ results, timeZone }: { results: CampaignsView["results"]; timeZone: string }) {
-  const params = useSearchParams();
-  const [pending, start] = useTransition();
-  const fetched = results.map((r) => r.fetchedAt).filter(Boolean) as string[];
-  const oldest = fetched.sort()[0];
-  const usage = Math.max(0, ...results.map((r) => r.usagePct ?? 0));
-  const notices = results.filter((r) => r.notice);
+	const params = useSearchParams();
+	const [pending, start] = useTransition();
+	const fetched = results.map(r => r.fetchedAt).filter(Boolean) as string[];
+	const oldest = fetched.sort()[0];
+	const usage = Math.max(0, ...results.map(r => r.usagePct ?? 0));
+	const notices = results.filter(r => r.notice);
 
-  return (
-    <div className="flex flex-col gap-2 rounded-xl border bg-card/50 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-col gap-1">
-        <span>
-          {oldest ? (
-            <>
-              Dados da Meta de <span className="num">{formatDateTime(oldest, timeZone)}</span>
-              {results.some((r) => r.stale) && <span className="text-muted-foreground"> · atualizando em segundo plano</span>}
-            </>
-          ) : (
-            "Ainda sem dados da Meta para este período."
-          )}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          Cache de 1 h (12 h para períodos passados) · uso da API da Meta: <span className="num">{usage.toFixed(0)}%</span> · máx. 20 consultas/h por conta
-        </span>
-        {notices.map((r) => (
-          <span key={r.adAccountId} className="flex items-start gap-1.5 text-xs text-amber">
-            <CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" /> {r.label}: {r.notice}
-          </span>
-        ))}
-      </div>
-      <Button
-        variant="outline"
-        className="h-10 shrink-0"
-        disabled={pending}
-        onClick={() =>
-          start(async () => {
-            const res = await refreshCampaigns({
-              periodo: params.get("periodo"),
-              de: params.get("de"),
-              ate: params.get("ate"),
-              conta: params.get("conta"),
-            });
-            if (res.ok) toast.success(res.message);
-            else toast.warning(res.message);
-          })
-        }
-      >
-        {pending ? <LoaderCircleIcon className="animate-spin" /> : <RefreshCwIcon />}
-        Atualizar agora
-      </Button>
-    </div>
-  );
+	return (
+		<div className="bg-card/50 flex flex-col gap-2 rounded-xl border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+			<div className="flex flex-col gap-1">
+				<span>
+					{oldest ? (
+						<>
+							Dados da Meta de <span className="num">{formatDateTime(oldest, timeZone)}</span>
+							{results.some(r => r.stale) && (
+								<span className="text-muted-foreground"> · atualizando em segundo plano</span>
+							)}
+						</>
+					) : (
+						"Ainda sem dados da Meta para este período."
+					)}
+				</span>
+				<span className="text-muted-foreground text-xs">
+					Cache de 1 h (12 h para períodos passados) · uso da API da Meta:{" "}
+					<span className="num">{usage.toFixed(0)}%</span> · máx. 20 consultas/h por conta
+				</span>
+				{notices.map(r => (
+					<span key={r.adAccountId} className="text-amber flex items-start gap-1.5 text-xs">
+						<CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" /> {r.label}: {r.notice}
+					</span>
+				))}
+			</div>
+			<Button
+				variant="outline"
+				className="h-10 shrink-0"
+				disabled={pending}
+				onClick={() =>
+					start(async () => {
+						const res = await refreshCampaigns({
+							ate: params.get("ate"),
+							conta: params.get("conta"),
+							de: params.get("de"),
+							periodo: params.get("periodo"),
+						});
+						if (res.ok) toast.success(res.message);
+						else toast.warning(res.message);
+					})
+				}
+			>
+				{pending ? <LoaderCircleIcon className="animate-spin" /> : <RefreshCwIcon />}
+				Atualizar agora
+			</Button>
+		</div>
+	);
 }

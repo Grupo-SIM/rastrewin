@@ -1,8 +1,8 @@
 # Deploy (Komodo + caddy-docker-proxy)
 
-A imagem contém apenas o servidor Next.js standalone, sem Caddy interno. O `Dockerfile`
-na raiz instala dependências, roda testes e compila o frontend. O workflow
-`.github/workflows/publish-image.yml` publica a imagem no GHCR para amd64 e arm64.
+A imagem contém apenas o servidor Next.js standalone, sem Caddy interno. O `vsl/Dockerfile`
+instala dependências, roda testes e compila o frontend. O workflow
+`.github/workflows/cd.yml` (raiz do monorepo) publica a imagem no GHCR para amd64 e arm64.
 
 ## Configuração
 
@@ -10,7 +10,7 @@ na raiz instala dependências, roda testes e compila o frontend. O workflow
 2. Use um caddy-docker-proxy central com acesso ao Docker e à rede externa `caddy`.
    Se a rede tiver outro nome, defina `CADDY_NETWORK` no Komodo.
 3. Configure no Komodo acesso ao GHCR com uma conta que tenha `read:packages`.
-4. Crie a Stack usando `compose.yml` da raiz e selecione essa conta de registry.
+4. Crie a Stack usando `vsl/compose.yml` e selecione essa conta de registry.
 
 Os labels configuram HTTPS automático, compressão, headers e proxy para a porta 3000.
 O container não publica portas. Não é necessário editar um Caddyfile nem subir outro proxy.

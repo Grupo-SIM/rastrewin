@@ -28,7 +28,9 @@ services:
       retries: 10
 
   app:
-    build: .
+    build:
+      context: ..
+      dockerfile: track/Dockerfile
     image: ghcr.io/${GHCR_OWNER:-local}/rastrewin:latest
     restart: unless-stopped
     depends_on:

@@ -3,114 +3,139 @@ import { eq, sql } from "drizzle-orm";
 import { connection } from "next/server";
 import { serviceDb } from "@/db";
 import { metaAdAccounts } from "@/db/schema";
-import { ACTIVE_SALE, num, param, rows, withDashboard, type SearchParams } from "@/lib/dashboard/context";
+import { ACTIVE_SALE, num, param, rows, type SearchParams, withDashboard } from "@/lib/dashboard/context";
 import { addDays, daysOf, localDate, type Period } from "@/lib/dashboard/period";
 import { decryptSecret } from "@/lib/secrets";
-import { buildTree, dailySeries, type InsightRow, type Metrics, type SalePurchase, type TreeNode } from "./build";
-import { getInsights, peekInsights, type AdAccount, type InsightsResult } from "./cache";
+import {
+	buildTree,
+	dailySeries,
+	type InsightRow,
+	type Metrics,
+	type SalePurchase,
+	type TreeNode,
+} from "./build";
+import { type AdAccount, getInsights, type InsightsResult, peekInsights } from "./cache";
 
 /** Contas de anúncio ATIVAS, com token decifrado (só no servidor). */
 export async function listAdAccounts(): Promise<AdAccount[]> {
-  return serviceDb()
-    .select({ adAccountId: metaAdAccounts.adAccountId, label: metaAdAccounts.label, token: decryptSecret(metaAdAccounts.adsTokenEnc) })
-    .from(metaAdAccounts)
-    .where(eq(metaAdAccounts.active, true))
-    .orderBy(metaAdAccounts.createdAt);
+	return serviceDb()
+		.select({
+			adAccountId: metaAdAccounts.adAccountId,
+			label: metaAdAccounts.label,
+			token: decryptSecret(metaAdAccounts.adsTokenEnc),
+		})
+		.from(metaAdAccounts)
+		.where(eq(metaAdAccounts.active, true))
+		.orderBy(metaAdAccounts.createdAt);
 }
 
-export type CampaignsView = {
-  period: Period;
-  timeZone: string;
-  currency: string;
-  accounts: { adAccountId: string; label: string }[];
-  selected: string | null;
-  results: Omit<InsightsResult, "rows">[];
-  tree: TreeNode[];
-  totals: Metrics;
-  prevTotals: Metrics | null;
-  unattributed: Metrics | null;
-  campaignAccount: Record<string, string>;
-  daily: { day: string; spend: number; revenue: number }[];
-  dailyAvailable: boolean;
-  salesWithCampaignUtm: number;
-  salesInPeriod: number;
-};
+export interface CampaignsView {
+	period: Period;
+	timeZone: string;
+	currency: string;
+	accounts: { adAccountId: string; label: string }[];
+	selected: string | null;
+	results: Omit<InsightsResult, "rows">[];
+	tree: TreeNode[];
+	totals: Metrics;
+	prevTotals: Metrics | null;
+	unattributed: Metrics | null;
+	campaignAccount: Record<string, string>;
+	daily: { day: string; spend: number; revenue: number }[];
+	dailyAvailable: boolean;
+	salesWithCampaignUtm: number;
+	salesInPeriod: number;
+}
 
 async function loadSales(sp: SearchParams) {
-  return withDashboard(sp, async ({ tx, tz, period, currency }) => {
-    const load = async (start: Date, end: Date) =>
-      (
-        await rows<Record<string, unknown>>(tx, sql`
+	return withDashboard(sp, async ({ tx, tz, period, currency }) => {
+		const load = async (start: Date, end: Date) =>
+			(
+				await rows<Record<string, unknown>>(
+					tx,
+					sql`
           select id, value, ((coalesce(occurred_at, created_at) at time zone ${tz})::date)::text as day,
                  utm_campaign, utm_term, utm_content
           from purchases
-          where status in ${ACTIVE_SALE} and coalesce(occurred_at, created_at) >= ${start} and coalesce(occurred_at, created_at) < ${end}`)
-      ).map(
-        (r): SalePurchase => ({
-          id: num(r.id),
-          value: num(r.value),
-          day: String(r.day),
-          utmCampaign: (r.utm_campaign as string) ?? null,
-          utmTerm: (r.utm_term as string) ?? null,
-          utmContent: (r.utm_content as string) ?? null,
-        }),
-      );
-    return { tz, period, currency, sales: await load(period.start, period.end), prevSales: await load(period.prevStart, period.prevEnd) };
-  });
+          where status in ${ACTIVE_SALE} and coalesce(occurred_at, created_at) >= ${start} and coalesce(occurred_at, created_at) < ${end}`,
+				)
+			).map((r): SalePurchase => ({
+				day: String(r.day),
+				id: num(r.id),
+				utmCampaign: (r.utm_campaign as string) ?? null,
+				utmContent: (r.utm_content as string) ?? null,
+				utmTerm: (r.utm_term as string) ?? null,
+				value: num(r.value),
+			}));
+		return {
+			currency,
+			period,
+			prevSales: await load(period.prevStart, period.prevEnd),
+			sales: await load(period.start, period.end),
+			tz,
+		};
+	});
 }
 
 export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
-  // 1) vendas do período (RLS) — fora desta transação vem a chamada à Meta
-  const { tz, period, currency, sales, prevSales } = await loadSales(sp);
-  const all = await listAdAccounts();
-  const wanted = param(sp, "conta");
-  const selected = all.length > 1 && wanted && all.some((a) => a.adAccountId === wanted) ? wanted : null;
-  const accounts = selected ? all.filter((a) => a.adAccountId === selected) : all;
+	// 1) vendas do período (RLS) — fora desta transação vem a chamada à Meta
+	const { tz, period, currency, sales, prevSales } = await loadSales(sp);
+	const all = await listAdAccounts();
+	const wanted = param(sp, "conta");
+	const selected = all.length > 1 && wanted && all.some(a => a.adAccountId === wanted) ? wanted : null;
+	const accounts = selected ? all.filter(a => a.adAccountId === selected) : all;
 
-  // 2) insights (cache → Meta, dentro do limite).
-  // connection(): só segue na requisição REAL. Sem isso, a pré-renderização em tempo de requisição
-  // (partialPrefetching) chegava a disparar a chamada à Meta e o Next a abortava.
-  await connection();
-  const includesToday = period.to >= localDate(new Date(), tz);
-  const results = await Promise.all(accounts.map((a) => getInsights(a, period.from, period.to, period.days, includesToday)));
-  const insightRows: InsightRow[] = results.flatMap((r) => r.rows);
-  const campaignAccount: Record<string, string> = {};
-  for (const r of results) for (const row of r.rows) campaignAccount[row.campaignId] = r.label;
+	// 2) insights (cache → Meta, dentro do limite).
+	// connection(): só segue na requisição REAL. Sem isso, a pré-renderização em tempo de requisição
+	// (partialPrefetching) chegava a disparar a chamada à Meta e o Next a abortava.
+	await connection();
+	const includesToday = period.to >= localDate(new Date(), tz);
+	const results = await Promise.all(
+		accounts.map(a => getInsights(a, period.from, period.to, period.days, includesToday)),
+	);
+	const insightRows: InsightRow[] = results.flatMap(r => r.rows);
+	const campaignAccount: Record<string, string> = {};
+	for (const r of results) for (const row of r.rows) campaignAccount[row.campaignId] = r.label;
 
-  // 3) árvore + atribuição
-  const built = buildTree(insightRows, sales);
-  const attributedSales = selected ? sales.filter((s) => built.attributions.get(s.id)?.level) : sales;
-  const { tree, totals, unattributed, attributions } = selected ? buildTree(insightRows, attributedSales) : built;
+	// 3) árvore + atribuição
+	const built = buildTree(insightRows, sales);
+	const attributedSales = selected ? sales.filter(s => built.attributions.get(s.id)?.level) : sales;
+	const { tree, totals, unattributed, attributions } = selected
+		? buildTree(insightRows, attributedSales)
+		: built;
 
-  // 4) período anterior só se já estiver em cache (sem chamada extra à Meta)
-  const prevFrom = addDays(period.from, -period.days);
-  const prevTo = addDays(period.from, -1);
-  const prevRows = await Promise.all(accounts.map((a) => peekInsights(a, prevFrom, prevTo, period.days)));
-  const prevTotals = prevRows.every((r) => r !== null) && accounts.length ? buildTree(prevRows.flat() as InsightRow[], prevSales).totals : null;
+	// 4) período anterior só se já estiver em cache (sem chamada extra à Meta)
+	const prevFrom = addDays(period.from, -period.days);
+	const prevTo = addDays(period.from, -1);
+	const prevRows = await Promise.all(accounts.map(a => peekInsights(a, prevFrom, prevTo, period.days)));
+	const prevTotals =
+		prevRows.every(r => r !== null) && accounts.length
+			? buildTree(prevRows.flat() as InsightRow[], prevSales).totals
+			: null;
 
-  return {
-    period,
-    timeZone: tz,
-    currency: results.find((r) => r.currency)?.currency ?? currency,
-    accounts: all.map((a) => ({ adAccountId: a.adAccountId, label: a.label })),
-    selected,
-    results: results.map((r) => ({
-      adAccountId: r.adAccountId,
-      label: r.label,
-      currency: r.currency,
-      fetchedAt: r.fetchedAt,
-      stale: r.stale,
-      usagePct: r.usagePct,
-      notice: r.notice,
-    })),
-    tree,
-    totals,
-    prevTotals,
-    unattributed: selected ? null : unattributed,
-    campaignAccount,
-    daily: dailySeries(daysOf(period), insightRows, sales, attributions),
-    dailyAvailable: insightRows.some((r) => r.date !== null),
-    salesWithCampaignUtm: sales.filter((s) => s.utmCampaign || s.utmContent || s.utmTerm).length,
-    salesInPeriod: sales.length,
-  };
+	return {
+		accounts: all.map(a => ({ adAccountId: a.adAccountId, label: a.label })),
+		campaignAccount,
+		currency: results.find(r => r.currency)?.currency ?? currency,
+		daily: dailySeries(daysOf(period), insightRows, sales, attributions),
+		dailyAvailable: insightRows.some(r => r.date !== null),
+		period,
+		prevTotals,
+		results: results.map(r => ({
+			adAccountId: r.adAccountId,
+			currency: r.currency,
+			fetchedAt: r.fetchedAt,
+			label: r.label,
+			notice: r.notice,
+			stale: r.stale,
+			usagePct: r.usagePct,
+		})),
+		salesInPeriod: sales.length,
+		salesWithCampaignUtm: sales.filter(s => s.utmCampaign || s.utmContent || s.utmTerm).length,
+		selected,
+		timeZone: tz,
+		totals,
+		tree,
+		unattributed: selected ? null : unattributed,
+	};
 }

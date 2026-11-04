@@ -7,15 +7,16 @@
   e o navegador fica ocioso, o player do YouTube (~1,2MB) carrega escondido atrás da capa, sem tocar.
   No toque, o vídeo começa quase na hora:
 
-  | Rede (cache vazio)               | Clique → vídeo tocando        |
-  | -------------------------------- | ----------------------------- |
-  | Wi-Fi                            | ~0,5s (era ~1,7s)             |
-  | 4G, clicando após ~10s de página | ~1,1s (era ~6,3s)             |
-  | 4G, clicando após ~4s            | ~4,7s (player ainda baixando) |
+    | Rede (cache vazio)               | Clique → vídeo tocando        |
+    | -------------------------------- | ----------------------------- |
+    | Wi-Fi                            | ~0,5s (era ~1,7s)             |
+    | 4G, clicando após ~10s de página | ~1,1s (era ~6,3s)             |
+    | 4G, clicando após ~4s            | ~4,7s (player ainda baixando) |
 
-  Sem pré-carregamento (carrega só no toque, ~1,7s no Wi-Fi): economia de dados ligada, rede 2G e
-  quem já liberou o botão em visita anterior. Se o navegador bloquear o play (ex.: iPhone), em 2s a
-  capa sai e aparece o play do próprio YouTube.
+    Sem pré-carregamento (carrega só no toque, ~1,7s no Wi-Fi): economia de dados ligada, rede 2G e
+    quem já liberou o botão em visita anterior. Se o navegador bloquear o play (ex.: iPhone), em 2s a
+    capa sai e aparece o play do próprio YouTube.
+
 - **Fontes:** `next/font` serve Plus Jakarta Sans e Manrope do próprio domínio, só com os pesos usados.
 - **Cache:** `/_next/static/*` imutável por 1 ano; HTML e `.txt` do Next sempre revalidam; imagens com 1h.
 - **Compressão:** zstd/gzip no Caddy (HTML de ~16KB vira ~5KB).

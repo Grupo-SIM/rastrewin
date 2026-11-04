@@ -1,0 +1,226 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { SiteIcon } from "@/components/SiteIcon";
+import { api, fmtRemaining, type Raffle } from "@/lib/api";
+
+const PAGE_NAMES = 100; // nomes por chamada (a lista rola devagar: cada página dura mais de 1 min)
+
+export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId: string }) {
+	const [names, setNames] = useState<string[]>([]);
+	const [me, setMe] = useState<{ index: number; name: string } | null>(null);
+	const [q, setQ] = useState("");
+	const [found, setFound] = useState<{ index: number; name: string; me: boolean }[] | null>(null);
+	const [searching, setSearching] = useState(false);
+	const offset = useRef(0);
+	const loading = useRef(false);
+	const box = useRef<HTMLDivElement>(null);
+	const hover = useRef(false);
+	const root = useRef<HTMLDivElement>(null);
+	const [inView, setInView] = useState(false);
+	// a lista de nomes só existe em sorteio aberto; só busca e rola enquanto o card está na tela (com folga)
+	const isOpenNow = new Date(r.endsAt).getTime() > now;
+	const active = inView && isOpenNow;
+
+	useEffect(() => {
+		const el = root.current;
+		if (!el || typeof IntersectionObserver === "undefined") return setInView(true);
+		const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { rootMargin: "300px" });
+		io.observe(el);
+		return () => io.disconnect();
+	}, []);
+
+	async function more() {
+		if (loading.current) return;
+		loading.current = true;
+		try {
+			const res = await api<{
+				items: string[];
+				nextOffset: number;
+				me: { index: number; name: string } | null;
+			}>(`/raffles/${r.id}/participants?offset=${offset.current}&limit=${PAGE_NAMES}&userId=${userId}`);
+			if (res.me) setMe(res.me);
+			offset.current = res.nextOffset;
+			setNames(n => [...n, ...res.items]);
+		} finally {
+			loading.current = false;
+		}
+	}
+	useEffect(() => {
+		if (active && offset.current === 0) more(); /* eslint-disable-next-line */
+	}, [r.id, active]);
+
+	// rolagem automática: a lista parece não ter fim
+	useEffect(() => {
+		if (!active) return;
+		const t = setInterval(() => {
+			const el = box.current;
+			if (!el || hover.current || document.visibilityState !== "visible") return;
+			el.scrollTop += 1;
+			if (el.scrollTop + el.clientHeight > el.scrollHeight - 60) more();
+		}, 40);
+		return () => clearInterval(t);
+		// eslint-disable-next-line
+	}, [r.id, active]);
+
+	// busca por nome (com pequeno atraso para não consultar a cada tecla)
+	useEffect(() => {
+		const term = q.trim();
+		if (term.length < 2) {
+			setFound(null);
+			setSearching(false);
+			return;
+		}
+		setSearching(true);
+		const t = setTimeout(async () => {
+			try {
+				const res = await api<{ results: { index: number; name: string; me: boolean }[] }>(
+					`/raffles/${r.id}/participants/search?q=${encodeURIComponent(term)}&userId=${userId}`,
+				);
+				setFound(res.results);
+			} catch {
+				setFound([]);
+			} finally {
+				setSearching(false);
+			}
+		}, 300);
+		return () => clearTimeout(t);
+	}, [q, r.id, userId]);
+
+	const remaining = new Date(r.endsAt).getTime() - now;
+	const ended = remaining <= 0;
+	const urgent = !ended && remaining < 300000;
+	const isMe = ended && r.winnerUserId === userId && !!r.winnerName;
+
+	const pill = !ended
+		? urgent
+			? { c: "orange", t: "Termina já" }
+			: { c: "blue", t: "Ao vivo" }
+		: isMe
+			? { c: "green", t: "Você ganhou" }
+			: r.winnerName
+				? { c: "grey", t: "Encerrado" }
+				: { c: "grey", t: "Apurando" };
+
+	return (
+		<div ref={root} className={`rcard ${urgent ? "urgent" : ""}`}>
+			<div className="top">
+				<span className="site">
+					<SiteIcon name={r.site} color={r.siteColor} size={24} />
+					{r.site}
+				</span>
+				<span className={`pill ${pill.c}`}>{pill.t}</span>
+			</div>
+			<div>
+				<h3>{r.title}</h3>
+				<div className="meta">
+					{r.participants.toLocaleString("pt-BR")} participantes ·{" "}
+					{isMe ? "você ganhou" : "você está dentro ✔"}
+				</div>
+			</div>
+			{!ended && (
+				<>
+					<div>
+						<div className={`timer ${urgent ? "urgent" : ""}`}>{fmtRemaining(remaining)}</div>
+						<div className="timer-lbl">termina em</div>
+					</div>
+					<div className="psearch">
+						<svg
+							width="15"
+							height="15"
+							viewBox="0 0 16 16"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="1.8"
+							strokeLinecap="round"
+						>
+							<circle cx="7" cy="7" r="4.8" />
+							<path d="M11 11l3 3" />
+						</svg>
+						<input
+							value={q}
+							onChange={e => setQ(e.target.value)}
+							placeholder="Buscar nome na lista..."
+							aria-label="Buscar nome na lista"
+						/>
+						{q ? (
+							<button type="button" onClick={() => setQ("")} aria-label="Limpar busca">
+								×
+							</button>
+						) : me ? (
+							<button
+								type="button"
+								className="mine"
+								onClick={() => setQ(me.name.split(" ")[0])}
+							>
+								Meu nome
+							</button>
+						) : null}
+					</div>
+					{found !== null || searching ? (
+						<div className="plist results">
+							{searching && <div className="hint">Buscando...</div>}
+							{!searching && found?.length === 0 && (
+								<div className="hint">Nenhum nome encontrado</div>
+							)}
+							{!searching &&
+								found?.map(f => (
+									<div key={f.index} className={f.me ? "me" : ""}>
+										<span>#{f.index + 1}</span>
+										{f.name}
+										{f.me && <em>você</em>}
+									</div>
+								))}
+						</div>
+					) : (
+						<div
+							className="plist"
+							ref={box}
+							onMouseEnter={() => (hover.current = true)}
+							onMouseLeave={() => (hover.current = false)}
+							onScroll={e => {
+								const el = e.currentTarget;
+								if (el.scrollTop + el.clientHeight > el.scrollHeight - 40) more();
+							}}
+						>
+							{names.map((n, i) => {
+								const mine = me?.name === n;
+								return (
+									<div key={i} className={mine ? "me" : ""}>
+										<span>#{i + 1}</span>
+										{n}
+										{mine && <em>você</em>}
+									</div>
+								);
+							})}
+						</div>
+					)}
+				</>
+			)}
+			{ended && isMe && (
+				<div className="res-me">
+					<div>
+						<span className="big">Você ganhou!</span>
+					</div>
+				</div>
+			)}
+			{ended && !isMe && r.winnerName && (
+				<div className="win-wrap">
+					<div className="win">
+						<span className="win-av">{r.winnerName[0]}</span>
+						<div className="win-txt">
+							<span className="k">GANHADOR</span>
+							<span className="v">{r.winnerName}</span>
+						</div>
+						<span className="win-tag">Sorteado</span>
+					</div>
+				</div>
+			)}
+			{ended && !r.winnerName && (
+				<div className="res pending">
+					<i className="dot blue" />
+					Apurando resultado...
+				</div>
+			)}
+		</div>
+	);
+}

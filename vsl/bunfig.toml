@@ -1,5 +1,0 @@
-[install]
-# Salva versões exatas (sem ^) ao adicionar dependências.
-exact = true
-# Segurança (supply chain): recusa versões publicadas há menos de 1 dia.
-minimumReleaseAge = 86400

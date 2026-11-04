@@ -1,0 +1,48 @@
+assert_lefthook_installed: true
+
+commit-msg:
+  parallel: true
+  jobs:
+    - name: "Validate commit message"
+      run: bunx commitlint --edit {1}
+
+post-merge:
+  parallel: true
+  jobs:
+    - name: "Git configs"
+      run: |
+        git config core.ignorecase false
+        git config core.longpaths true
+        git config push.autoSetupRemote true
+
+    - name: "Install dependencies"
+      run: bun i
+
+pre-commit:
+  parallel: false
+  jobs:
+    - name: "Type-check affected packages"
+      run: bun scripts/validate-staged.ts
+    - name: "Format and lint"
+      group:
+        piped: true
+        jobs:
+          - name: Biome
+            glob: "*.{astro,css,graphql,cjs,grit,html,js,jsx,md,mjs,json,jsonc,scss,svelte,ts,tsx,vue,yaml,yml}"
+            run: bunx @biomejs/biome check --formatter-enabled=false --diagnostic-level=error --files-ignore-unknown=true --no-errors-on-unmatched --write --unsafe {staged_files}
+            stage_fixed: true
+
+          - name: ESLint
+            glob: "*.{cjs,js,jsx,mjs,ts,tsx}"
+            run: bunx eslint --quiet --fix --no-error-on-unmatched-pattern {staged_files}
+            stage_fixed: true
+
+          - name: Bun fmt
+            glob: "*.{astro,css,graphql,cjs,cts,gql,hbs,handlebars,html,js,json,json5,jsonc,jsx,less,md,mdx,mjs,mts,scss,svelte,toml,ts,tsx,vue,yaml,yml}"
+            run: bun fmt --ignore-unknown --no-error-on-unmatched-pattern {staged_files}
+            stage_fixed: true
+
+pre-push:
+  jobs:
+    - name: "Build affected packages"
+      run: bunx turbo run build --affected

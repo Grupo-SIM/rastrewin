@@ -1,0 +1,46 @@
+telemetry = false
+
+[install]
+# Supply chain: refuse versions published less than 1 day ago.
+minimumReleaseAge = 86400
+
+[run]
+bun = true
+
+# Formatting belongs to Bun; Biome and ESLint retain lint rules and unsupported assists.
+[fmt]
+printWidth = 110
+useTabs = true
+tabWidth = 4
+semi = true
+singleQuote = false
+jsxSingleQuote = false
+arrowParens = "avoid"
+trailingComma = "all"
+endOfLine = "lf"
+editorconfig = true
+sortPackageJson = false
+ignorePatterns = [
+	".agents/",
+	".claude/",
+	"**/public/",
+	"**/*.gen.ts",
+	"**/*.min.js",
+	"skills-lock.json",
+	"turbo.jsonc",
+	"**/package-lock.json",
+	"**/pnpm-lock.yaml",
+	"frontend/src/lib/api/generated/",
+	"frontend/src-tauri/gen/",
+]
+
+[fmt.sortImports]
+newlinesBetween = false
+
+[fmt.sortTailwindcss]
+attributes = ["classList"]
+functions = ["cn", "clsx", "cva", "tw"]
+
+[[fmt.overrides]]
+files = ["*.yaml", "*.yml"]
+options = { useTabs = false, tabWidth = 2 }

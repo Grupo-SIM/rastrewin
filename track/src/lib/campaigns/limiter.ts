@@ -10,47 +10,62 @@ export const PAUSE_MS = 15 * 60_000;
 export const MANUAL_COOLDOWN_MS = 15 * 60_000;
 export const USAGE_PAUSE_PCT = 50;
 
-export type LimiterState = { calls: number[]; pausedUntil: number; lastManualAt: number };
-export const emptyState = (): LimiterState => ({ calls: [], pausedUntil: 0, lastManualAt: 0 });
+export interface LimiterState {
+	calls: number[];
+	pausedUntil: number;
+	lastManualAt: number;
+}
+export const emptyState = (): LimiterState => ({ calls: [], lastManualAt: 0, pausedUntil: 0 });
 
-export type Decision = { ok: true } | { ok: false; reason: "pausa" | "intervalo" | "hora" | "cooldown"; retryAt: number };
+export type Decision =
+	{ ok: true } | { ok: false; reason: "pausa" | "intervalo" | "hora" | "cooldown"; retryAt: number };
 
 export function canCall(state: LimiterState, now: number, manual = false): Decision {
-  if (state.pausedUntil > now) return { ok: false, reason: "pausa", retryAt: state.pausedUntil };
-  if (manual && now - state.lastManualAt < MANUAL_COOLDOWN_MS) return { ok: false, reason: "cooldown", retryAt: state.lastManualAt + MANUAL_COOLDOWN_MS };
-  const last = state.calls.at(-1) ?? 0;
-  if (now - last < MIN_INTERVAL_MS) return { ok: false, reason: "intervalo", retryAt: last + MIN_INTERVAL_MS };
-  const recent = state.calls.filter((t) => now - t < 3_600_000);
-  if (recent.length >= MAX_PER_HOUR) return { ok: false, reason: "hora", retryAt: recent[0] + 3_600_000 };
-  return { ok: true };
+	if (state.pausedUntil > now) return { ok: false, reason: "pausa", retryAt: state.pausedUntil };
+	if (manual && now - state.lastManualAt < MANUAL_COOLDOWN_MS)
+		return { ok: false, reason: "cooldown", retryAt: state.lastManualAt + MANUAL_COOLDOWN_MS };
+	const last = state.calls.at(-1) ?? 0;
+	if (now - last < MIN_INTERVAL_MS)
+		return { ok: false, reason: "intervalo", retryAt: last + MIN_INTERVAL_MS };
+	const recent = state.calls.filter(t => now - t < 3_600_000);
+	if (recent.length >= MAX_PER_HOUR) return { ok: false, reason: "hora", retryAt: recent[0] + 3_600_000 };
+	return { ok: true };
 }
 
 export function recordCall(state: LimiterState, now: number, manual = false): LimiterState {
-  return {
-    calls: [...state.calls.filter((t) => now - t < 3_600_000), now],
-    pausedUntil: state.pausedUntil,
-    lastManualAt: manual ? now : state.lastManualAt,
-  };
+	return {
+		calls: [...state.calls.filter(t => now - t < 3_600_000), now],
+		lastManualAt: manual ? now : state.lastManualAt,
+		pausedUntil: state.pausedUntil,
+	};
 }
 
 export function pause(state: LimiterState, now: number): LimiterState {
-  return { ...state, pausedUntil: now + PAUSE_MS };
+	return { ...state, pausedUntil: now + PAUSE_MS };
 }
 
 /** Maior % de uso informado pela Meta nos headers (BUC, conta e Insights). */
-export function usagePct(usage: { app?: unknown; businessUseCase?: unknown; adAccount?: unknown; insights?: unknown }): number {
-  const pcts: number[] = [];
-  const push = (v: unknown) => typeof v === "number" && Number.isFinite(v) && pcts.push(v);
-  const buc = usage.businessUseCase as Record<string, { call_count?: number; total_cputime?: number; total_time?: number }[]> | undefined;
-  if (buc && typeof buc === "object") for (const list of Object.values(buc)) for (const u of list ?? []) [u.call_count, u.total_cputime, u.total_time].forEach(push);
-  const acc = usage.adAccount as { acc_id_util_pct?: number } | undefined;
-  push(acc?.acc_id_util_pct);
-  const ins = usage.insights as { app_id_util_pct?: number; acc_id_util_pct?: number } | undefined;
-  push(ins?.app_id_util_pct);
-  push(ins?.acc_id_util_pct);
-  const app = usage.app as { call_count?: number; total_cputime?: number; total_time?: number } | undefined;
-  if (app) [app.call_count, app.total_cputime, app.total_time].forEach(push);
-  return pcts.length ? Math.max(...pcts) : 0;
+export function usagePct(usage: {
+	app?: unknown;
+	businessUseCase?: unknown;
+	adAccount?: unknown;
+	insights?: unknown;
+}): number {
+	const pcts: number[] = [];
+	const push = (v: unknown) => typeof v === "number" && Number.isFinite(v) && pcts.push(v);
+	const buc = usage.businessUseCase as
+		Record<string, { call_count?: number; total_cputime?: number; total_time?: number }[]> | undefined;
+	if (buc && typeof buc === "object")
+		for (const list of Object.values(buc))
+			for (const u of list ?? []) [u.call_count, u.total_cputime, u.total_time].forEach(push);
+	const acc = usage.adAccount as { acc_id_util_pct?: number } | undefined;
+	push(acc?.acc_id_util_pct);
+	const ins = usage.insights as { app_id_util_pct?: number; acc_id_util_pct?: number } | undefined;
+	push(ins?.app_id_util_pct);
+	push(ins?.acc_id_util_pct);
+	const app = usage.app as { call_count?: number; total_cputime?: number; total_time?: number } | undefined;
+	if (app) [app.call_count, app.total_cputime, app.total_time].forEach(push);
+	return pcts.length ? Math.max(...pcts) : 0;
 }
 
 /** Códigos de erro de limite da Meta (pausar). */

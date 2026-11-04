@@ -1,7 +1,54 @@
-node_modules
-.next
-dist
-.env
+!.gitkeep
+tmp/
+.cache
 *.log
+.DS_Store
+*.pem
+!opengraph.*
+certificates
+
+# Artifacts
+build/
+coverage/
+generated/
+dist/
+dist-scripts/
+out/
+
+# Dependencies
+node_modules/
+.pnp/
+.pnpm-store
+.pnp.js
+
+# Env files
+.env
+.env*.local
+
+# IDEs
+.idea
+.vscode
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# Lefthook
+.githooks/
+lefthook-local.yml
+
+# Vendor
+.codex
+!.codex/
 .serena
-.env.local
+.next
+.turbo
+.vercel
+next-env.d.ts
+
+# TypeScript
+*.tsbuildinfo
+
+# Track: geolocation database (downloaded) and tracker script generated from src/tracker/trck.ts
+/track/data/
+/track/public/t.js

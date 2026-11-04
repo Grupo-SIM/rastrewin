@@ -8,6 +8,6 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { drizzle } from "drizzle-orm/node-postgres";
 
 export const auth = betterAuth({
-  database: drizzleAdapter(drizzle.mock(), { provider: "pg" }),
-  emailAndPassword: { enabled: true, disableSignUp: true },
+	database: drizzleAdapter(drizzle.mock(), { provider: "pg" }),
+	emailAndPassword: { disableSignUp: true, enabled: true },
 });
