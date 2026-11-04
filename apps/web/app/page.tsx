@@ -278,6 +278,7 @@ export default function Landing() {
         </span>
         <span style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
           <a href="/termos">Termos de Uso</a>
+          <a href="/privacidade">Política de Privacidade</a>
           <a href="/login">Já sou cliente</a>
         </span>
       </footer>
