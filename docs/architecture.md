@@ -2,12 +2,12 @@
 
 Bun workspaces monorepo orchestrated by Turborepo (`turbo.jsonc`). Each project keeps its own framework.
 
-| Workspace  | Stack                                        | Deploy                                                       |
-| ---------- | -------------------------------------------- | ------------------------------------------------------------ |
-| `backend`  | NestJS 10, Prisma 5, PostgreSQL              | `compose.production.yaml` (built from `backend/Dockerfile`)  |
-| `frontend` | Next.js 14, React 18                         | `compose.production.yaml` (built from `frontend/Dockerfile`) |
-| `track`    | Next.js 16, Drizzle, better-auth, PostgreSQL | GHCR image `rastrewin`, stack in `track/deploy/`             |
-| `vsl`      | Next.js 16, Tailwind 4, shadcn/ui, Vitest    | GHCR image `vslrastrewin`, stack in `vsl/compose.yml`        |
+| Workspace  | Stack                                        | Deploy                                                     |
+| ---------- | -------------------------------------------- | ---------------------------------------------------------- |
+| `backend`  | NestJS 10, Prisma 5, PostgreSQL              | GHCR image `rastrewin_backend`, `compose.production.yaml`  |
+| `frontend` | Next.js 14, React 18                         | GHCR image `rastrewin_frontend`, `compose.production.yaml` |
+| `track`    | Next.js 16, Drizzle, better-auth, PostgreSQL | GHCR image `rastrewin_track`, stack in `track/deploy/`     |
+| `vsl`      | Next.js 16, Tailwind 4, shadcn/ui, Vitest    | GHCR image `rastrewin_vsl`, stack in `vsl/compose.yml`     |
 
 `frontend` talks to `backend` over HTTP (`NEXT_PUBLIC_API_URL`); the other projects are independent of each other and share only tooling.
 

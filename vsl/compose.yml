@@ -1,6 +1,6 @@
 services:
   vsl-rastrewin:
-    image: ghcr.io/grupo-sim/vslrastrewin:${VSL_IMAGE_TAG:-latest}
+    image: ghcr.io/grupo-sim/rastrewin_vsl:${VSL_IMAGE_TAG:-latest}
     pull_policy: always
     restart: unless-stopped
     labels:

@@ -33,7 +33,7 @@
     - Middleware no Next 16 chama-se `proxy.ts`.
 - Tailwind v4 + shadcn/ui (estilo `radix-nova`, primitivos **Radix**). `cn` vem do pacote `cn` (oficial do shadcn).
 - Postgres 18 **oficial** (`postgres:18`, sem imagem própria nem pg_cron). `pgcrypto` vem incluído e é criado pela migration `0001`.
-- Deploy: GitHub Actions (`.github/workflows/build.yml`) publica `ghcr.io/<owner>/rastrewin` (push na `main`, tags `v*` e `workflow_dispatch`). O deploy em si é feito pelo usuário.
+- Deploy: GitHub Actions (`.github/workflows/cd.yml` na raiz do monorepo) publica `ghcr.io/<owner>/rastrewin_track` (push na `main`, mensal e `workflow_dispatch`). O deploy em si é feito pelo usuário.
 
 ## Design system (`src/app/globals.css`)
 

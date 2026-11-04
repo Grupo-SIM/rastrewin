@@ -1,8 +1,7 @@
 services:
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    image: ghcr.io/grupo-sim/rastrewin_backend:${IMAGE_TAG:-latest}
+    pull_policy: always
     env_file: .env
     environment:
       - WEB_ORIGIN=https://rastrewin.com
@@ -16,9 +15,8 @@ services:
       caddy.reverse_proxy: "{{upstreams 3011}}"
 
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
+    image: ghcr.io/grupo-sim/rastrewin_frontend:${IMAGE_TAG:-latest}
+    pull_policy: always
     environment:
       - PORT=3000
       - API_INTERNAL_URL=http://backend:3011

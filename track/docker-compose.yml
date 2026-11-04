@@ -31,7 +31,7 @@ services:
     build:
       context: ..
       dockerfile: track/Dockerfile
-    image: ghcr.io/${GHCR_OWNER:-local}/rastrewin:latest
+    image: ghcr.io/${GHCR_OWNER:-local}/rastrewin_track:latest
     restart: unless-stopped
     depends_on:
       db:
@@ -47,7 +47,7 @@ services:
 
   # Tarefa avulsa: docker compose run --rm migrate
   migrate:
-    image: ghcr.io/${GHCR_OWNER:-local}/rastrewin:latest
+    image: ghcr.io/${GHCR_OWNER:-local}/rastrewin_track:latest
     profiles: ["tools"]
     depends_on:
       db:

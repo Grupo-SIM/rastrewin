@@ -12,7 +12,7 @@ sem coleta de dados, sem pixel/UTM (rastreamento será tratado em outro momento)
 - Lint (Biome + ESLint) e formatação (`bun fmt`) pela raiz do monorepo; Vitest (testes).
 - Bun 1.4 como gerenciador de pacotes e executor de scripts (Next e Vitest rodam no Node 24).
   Workspace `vsl` do monorepo Rastrewin (raiz do repositório: `bun install`, hooks, Turbo e CI).
-- Deploy: GitHub Actions publica a imagem no GHCR (`ghcr.io/grupo-sim/vslrastrewin`, amd64 + arm64) a cada
+- Deploy: GitHub Actions publica a imagem no GHCR (`ghcr.io/grupo-sim/rastrewin_vsl`, amd64 + arm64) a cada
   push na `main`; a VM (Komodo) só baixa e roda. Servidor Next.js standalone, atrás do caddy-docker-proxy central (HTTPS).
 - A VSL não usa o `backend/` do monorepo: é estática e independente dele.
 

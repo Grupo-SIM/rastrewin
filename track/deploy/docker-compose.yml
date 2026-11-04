@@ -34,7 +34,7 @@ services:
       options: { max-size: "10m", max-file: "5" }
 
   app:
-    image: ghcr.io/grupo-sim/rastrewin:${IMAGE_TAG:-latest}
+    image: ghcr.io/grupo-sim/rastrewin_track:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       db:
@@ -50,7 +50,7 @@ services:
 
   # Tarefa avulsa (não fica rodando): docker compose --profile tools run --rm migrate
   migrate:
-    image: ghcr.io/grupo-sim/rastrewin:${IMAGE_TAG:-latest}
+    image: ghcr.io/grupo-sim/rastrewin_track:${IMAGE_TAG:-latest}
     profiles: ["tools"]
     depends_on:
       db:
