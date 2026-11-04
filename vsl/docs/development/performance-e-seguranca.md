@@ -9,9 +9,11 @@
   A biblioteca `@vimeo/player` (~8KB comprimida) vem do próprio site, só nesse momento.
 
     Sem pré-carregamento (carrega só no toque): economia de dados ligada, rede 2G e quem já liberou o
-    botão em visita anterior. Se o navegador recusar o play com som ou o Vimeo começar mudo (ex.: iPhone),
-    o plano B troca o player pelo que tem o play do próprio Vimeo (na hora, ou em 2s se o Vimeo nem aceitar
-    o pedido). No plano B a página não dá play sozinha: o toque dentro do player é o que libera o som.
+    botão em visita anterior. Se o navegador recusar o play com som ou o Vimeo começar mudo (no Safari e no
+    iPhone é comum no 1º play), a capa volta com "Assistir com som": o 2º toque, com o player já pronto,
+    toca com som em ~0,15s. Se sair mudo de novo (ou o Vimeo nem aceitar o pedido em 2s), o plano B troca o
+    player pelo que tem o play do próprio Vimeo; nele a página não dá play sozinha, e o toque dentro do
+    player é o que libera o som.
 
 - **Fontes:** `next/font` serve Plus Jakarta Sans e Manrope do próprio domínio, só com os pesos usados.
 - **Cache:** `/_next/static/*` imutável por 1 ano; HTML e `.txt` do Next sempre revalidam; imagens com 1h.

@@ -1,7 +1,7 @@
 "use client";
 
 import type Player from "@vimeo/player";
-import { LoaderCircle, Play } from "lucide-react";
+import { LoaderCircle, Play, Volume2 } from "lucide-react";
 import Image from "next/image";
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -62,6 +62,8 @@ export function VslPlayer({
 	const creatingRef = useRef(false);
 	/** Plano B: player com os controles do próprio Vimeo (o navegador bloqueou o play com som). */
 	const nativeControlsRef = useRef(false);
+	/** O play já saiu sem som uma vez e a capa voltou pedindo outro toque ("Assistir com som"). */
+	const soundRetryRef = useRef(false);
 	/** O Vimeo aceitou o play (evento "play") ou está baixando: não está bloqueado, só lento. */
 	const playAcceptedRef = useRef(false);
 	const startedRef = useRef(false);
@@ -74,6 +76,7 @@ export function VslPlayer({
 	const [status, setStatus] = useState<Status>("idle");
 	const [started, setStarted] = useState(false);
 	const [playback, setPlayback] = useState<Playback>("paused");
+	const [askSound, setAskSound] = useState(false);
 
 	useEffect(() => {
 		unlockedRef.current = unlocked;
@@ -165,12 +168,36 @@ export function VslPlayer({
 		void createPlayerRef.current(true);
 	}, [clearPlayFallback, discardPlayer, fail]);
 
+	/**
+	 * O play saiu sem som ou foi recusado (iPhone: o toque veio antes de o player ficar pronto e a
+	 * permissão de som expirou). Volta à capa com o player já pronto: o próximo toque toca com som na
+	 * hora. Se acontecer de novo, vai para o plano B.
+	 */
+	const askForSound = useCallback(() => {
+		const player = playerRef.current;
+		if (!player || soundRetryRef.current) {
+			showNativeControls();
+			return;
+		}
+		soundRetryRef.current = true;
+		clearPlayFallback();
+		stopTicking();
+		wantsPlayRef.current = false;
+		playAcceptedRef.current = false;
+		player.pause().catch(() => {});
+		player.setMuted(false).catch(() => {});
+		player.setVolume(1).catch(() => {});
+		player.setCurrentTime(0).catch(() => {});
+		setAskSound(true);
+		setStatus("idle");
+	}, [clearPlayFallback, showNativeControls, stopTicking]);
+
 	const play = useCallback(() => {
 		const player = playerRef.current;
 		if (!player) return;
 		clearLoadTimeout();
 		player.play().catch((error: Error) => {
-			if (playerRef.current === player && error.name === "NotAllowedError") showNativeControls();
+			if (playerRef.current === player && error.name === "NotAllowedError") askForSound();
 		});
 		const requestedAt = performance.now();
 		const revealIfBlocked = () => {
@@ -184,7 +211,7 @@ export function VslPlayer({
 			showNativeControls();
 		};
 		playFallbackRef.current = window.setTimeout(revealIfBlocked, PLAY_FALLBACK_MS);
-	}, [clearLoadTimeout, showNativeControls]);
+	}, [askForSound, clearLoadTimeout, showNativeControls]);
 
 	useEffect(() => {
 		if (!keepFocusRef.current) return;
@@ -251,11 +278,11 @@ export function VslPlayer({
 						return;
 					}
 					// iPhone: o play pedido pela página pode ser aceito sem som (o Vimeo toca mudo em vez de
-					// recusar). Mudo no primeiro play: plano B, cujo play (tocado dentro do player) libera o som.
+					// recusar). Mudo no primeiro play: volta à capa pedindo outro toque, que toca com som.
 					Promise.all([player.getMuted(), player.getVolume()])
 						.then(([muted, volume]) => {
 							if (playerRef.current !== player) return;
-							if (muted || volume === 0) showNativeControls();
+							if (muted || volume === 0) askForSound();
 							else markPlaying();
 						})
 						.catch(() => {
@@ -328,12 +355,12 @@ export function VslPlayer({
 			}
 		},
 		[
+			askForSound,
 			clearLoadTimeout,
 			clearPlayFallback,
 			discardPlayer,
 			fail,
 			play,
-			showNativeControls,
 			startTicking,
 			stopTicking,
 			title,
@@ -421,7 +448,7 @@ export function VslPlayer({
 						onFocus={preconnectVimeo}
 						// aria-disabled (e não disabled): desabilitar um botão com foco joga o foco para o topo.
 						aria-disabled={status === "loading"}
-						aria-label={`Assistir ao vídeo: ${title}`}
+						aria-label={`Assistir ao vídeo${askSound ? " com som" : ""}: ${title}`}
 						className="group focus-visible:ring-ring absolute inset-0 cursor-pointer outline-none focus-visible:ring-4 focus-visible:ring-inset"
 					>
 						<Image
@@ -433,7 +460,7 @@ export function VslPlayer({
 							sizes="(min-width: 640px) 400px, 100vw"
 							className="object-cover"
 						/>
-						<span className="bg-ink/15 group-hover:bg-ink/5 absolute inset-0 grid place-items-center transition-colors">
+						<span className="bg-ink/15 group-hover:bg-ink/5 absolute inset-0 flex flex-col items-center justify-center gap-3 transition-colors">
 							<span className="text-ink shadow-brand-lg grid size-20 place-items-center rounded-full border-[3px] border-transparent transition-transform [background:linear-gradient(#fff,#fff)_padding-box,var(--rainbow)_border-box] group-hover:scale-105 motion-reduce:transition-none">
 								{status === "loading" ? (
 									<LoaderCircle aria-hidden="true" className="size-8 animate-spin" />
@@ -441,6 +468,12 @@ export function VslPlayer({
 									<Play aria-hidden="true" className="ml-1 size-8 fill-current" />
 								)}
 							</span>
+							{askSound && status === "idle" ? (
+								<span className="text-ink shadow-brand-lg inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold">
+									<Volume2 aria-hidden="true" className="size-4" />
+									Assistir com som
+								</span>
+							) : null}
 						</span>
 					</button>
 				) : null}
