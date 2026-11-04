@@ -1,19 +1,24 @@
 # Rastrewin
 
-Monorepo: **Next.js** (apps/web) + **NestJS** (apps/api) + **Prisma/PostgreSQL**. Dados 100% mockados.
+Monorepo (Bun workspaces + Turborepo):
 
-## Rodar
+| Workspace  | What                                                       |
+| ---------- | ---------------------------------------------------------- |
+| `backend`  | NestJS + Prisma API of the raffles product (`:3011`)       |
+| `frontend` | Next.js web app of the raffles product (`:3000`)           |
+| `track`    | Server-side tracking (Meta CAPI, GA4, SimIntPay) and panel |
+| `vsl`      | Static VSL page at vsl.rastrewin.com                       |
+
+## Run
+
 ```bash
-npm install
-npm run db:up      # Postgres via Docker (porta 5432)
-npm run db:push    # cria as tabelas
-npm run db:seed    # 48 sorteios mockados (8 terminam em poucos minutos)
-npm run dev        # API :3011 + Web :3000
+bun install
+bun run db:up      # Postgres via Docker (port 5436)
+bun run db:push    # create tables
+bun run db:seed    # 48 mocked raffles (8 end in a few minutes)
+bun run dev        # everything; or dev:backend, dev:frontend, dev:track, dev:vsl
 ```
 
-- `/` landing + cadastro + checkout (placeholder, botão "Simular pagamento aprovado")
-- `/dashboard` sorteios do usuário, contador, participantes infinitos, console da IA e logos
-- `/admin` define o ganhador de cada sorteio (chave: `ADMIN_KEY` em apps/api/.env, padrão `admin123`)
-
-O ganhador só aparece para o usuário quando o tempo acaba **e** o admin definiu um (senão "Apurando resultado...").
-Use "Encerrar em 10s" no admin para testar rápido.
+- `/` landing + sign-up + checkout; `/dashboard` the user's raffles; `/admin` defines each raffle's winner.
+- Copy each project's `.env.example` to `.env` first.
+- Docs: [architecture](docs/architecture.md), [engineering rules](docs/engineering-rules.md), [business rules](docs/business-rules.md).

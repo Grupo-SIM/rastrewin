@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  detect:
+    name: Detect affected
+    runs-on: ubuntu-latest
+    outputs:
+      tasks: ${{ steps.affected.outputs.tasks }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          # Need the base commit present to diff the PR against it.
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Compute affected packages
+        id: affected
+        uses: hyoretsu/gh-actions/detect-affected@main
+        with:
+          tasks: check-types build test
+          base-sha: ${{ github.event.pull_request.base.sha }}
+
+  build:
+    name: "${{ matrix.package }} / Build"
+    needs: detect
+    if: ${{ fromJSON(needs.detect.outputs.tasks)['build'][0] }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect.outputs.tasks)['build'] }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Build
+        uses: hyoretsu/gh-actions/build@main
+        with:
+          package: ${{ matrix.package }}
+
+  check-types:
+    name: "${{ matrix.package }} / Type-check"
+    needs: detect
+    if: ${{ fromJSON(needs.detect.outputs.tasks)['check-types'][0] }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect.outputs.tasks)['check-types'] }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Check types
+        uses: hyoretsu/gh-actions/check-types@main
+        with:
+          package: ${{ matrix.package }}
+
+  test:
+    name: "${{ matrix.package }} / Test"
+    needs: detect
+    if: ${{ fromJSON(needs.detect.outputs.tasks)['test'][0] }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect.outputs.tasks)['test'] }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bunx turbo run test --filter '${{ matrix.package }}'

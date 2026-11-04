@@ -1,0 +1,33 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Format current file with Bun",
+			"type": "process",
+			"command": "bun",
+			"args": [
+				"fmt",
+				"--no-script",
+				"--ignore-unknown",
+				"${file}"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Format workspace with Bun",
+			"type": "process",
+			"command": "bun",
+			"args": [
+				"run",
+				"format"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": []
+		}
+	]
+}

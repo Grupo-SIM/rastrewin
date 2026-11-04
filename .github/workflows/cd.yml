@@ -1,0 +1,119 @@
+name: CD - images
+
+# Publishes the track and vsl images to GHCR. Backend and frontend are built by the
+# deployment stack from compose.production.yaml.
+on:
+  push:
+    branches: [main]
+  # Monthly rebuild so track picks up the new geolocation database (DB-IP publishes one per month).
+  schedule:
+    - cron: "0 6 4 * *"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Images to publish
+        type: choice
+        options: [all, track, vsl]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Compute affected packages
+        id: affected
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          # Scheduled runs have no base to diff against.
+          [ "$EVENT" = schedule ] && BASE_SHA=
+          echo "tasks=$(bun scripts/affected-packages.ts "$BASE_SHA" build)" >> "$GITHUB_OUTPUT"
+      - name: Plan image matrix
+        id: plan
+        env:
+          TASKS: ${{ steps.affected.outputs.tasks }}
+          TARGET: ${{ inputs.target || (github.event_name == 'schedule' && 'track') || 'affected' }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          affected = json.loads(os.environ["TASKS"]).get("build", [])
+          target = os.environ["TARGET"]
+          services = [
+              {"service": "track", "image": "rastrewin", "dockerfile": "track/Dockerfile", "platforms": "linux/amd64"},
+              {"service": "vsl", "image": "vslrastrewin", "dockerfile": "vsl/Dockerfile", "platforms": "linux/amd64,linux/arm64"},
+          ]
+          matrix = [s for s in services if target in ("all", s["service"]) or target == "affected" and s["service"] in affected]
+          print("matrix=" + json.dumps(matrix, separators=(",", ":")))
+          PY
+
+  images:
+    name: Image / ${{ matrix.service }}
+    needs: detect
+    if: needs.detect.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.detect.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: geo
+        run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v4
+        if: contains(matrix.platforms, 'arm64')
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+      - name: Build and publish
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
+          build-args: ${{ matrix.service == 'track' && format('GEO_MONTH={0}', steps.geo.outputs.month) || '' }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+      - name: Publication summary
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: printf 'Published `%s@%s` from `%s`\n' "$IMAGE" "$DIGEST" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
