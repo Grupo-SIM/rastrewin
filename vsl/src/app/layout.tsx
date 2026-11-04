@@ -1,6 +1,7 @@
-import type { Viewport } from "next";
+import type { Metadata, Viewport } from "next";
 import { Manrope, Plus_Jakarta_Sans } from "next/font/google";
 import type { ReactNode } from "react";
+import { pageConfig } from "@/config/page-config";
 import "./globals.css";
 
 // next/font baixa as fontes no build e as serve do próprio domínio (nenhuma requisição ao Google).
@@ -17,6 +18,11 @@ const manrope = Manrope({
 	variable: "--font-manrope",
 	weight: ["400", "500", "600"],
 });
+
+// Base dos links absolutos (prévia ao compartilhar) em todas as páginas, inclusive a 404.
+export const metadata: Metadata = {
+	metadataBase: new URL(pageConfig.siteUrl),
+};
 
 export const viewport: Viewport = {
 	initialScale: 1,

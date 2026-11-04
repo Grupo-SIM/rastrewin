@@ -3,11 +3,10 @@ import Image from "next/image";
 import { VslSection } from "@/components/vsl/vsl-section";
 import { pageConfig } from "@/config/page-config";
 
-const { copy, siteUrl } = pageConfig;
+const { copy } = pageConfig;
 
 export const metadata: Metadata = {
 	description: copy.subtitle,
-	metadataBase: new URL(siteUrl),
 	openGraph: {
 		description: copy.subtitle,
 		locale: "pt_BR",
