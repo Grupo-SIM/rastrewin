@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+/* Celular deitado (ou janela baixa): texto ao lado do vídeo, para o play caber sem rolar. */
+@custom-variant landscape-short (@media (orientation: landscape) and (max-height: 32rem));
+
+/* Identidade visual da Rastrewin (extraída do CSS público de rastrewin.com). */
+:root {
+  --ink: #08304c;
+  --ink-2: #084e72;
+  --ink-soft: #4b6478;
+  --mut: #5f6b75;
+  --line: #eee;
+  --paper: #fff;
+  --paper-2: #fafbfc;
+  --dark: #2c2c2c;
+  --rainbow: linear-gradient(
+    90deg,
+    #26c0ff,
+    #e600c2 20%,
+    #ff4940 40%,
+    #ffa130 60%,
+    #ffc837 80%,
+    #00cc3d
+  );
+
+  /* Tokens usados pelos componentes shadcn/ui, apontando para a marca. */
+  --radius: 1.75rem;
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --primary: var(--dark);
+  --primary-foreground: #fff;
+  --secondary: var(--paper-2);
+  --secondary-foreground: var(--ink);
+  --accent: #e8f1ff;
+  --accent-foreground: var(--ink-2);
+  --destructive: #c2410c;
+  --border: var(--line);
+  --input: #dedede;
+  --ring: var(--ink-2);
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-soft: var(--ink-soft);
+  --color-mut: var(--mut);
+  --color-line: var(--line);
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-dark: var(--dark);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-md: calc(var(--radius) * 0.5);
+  --radius-lg: var(--radius);
+
+  --font-display: var(--font-jakarta), system-ui, sans-serif;
+  --font-sans: var(--font-manrope), system-ui, sans-serif;
+
+  --shadow-brand:
+    0 0 0 1px rgb(0 0 0 / 0.06), 0 16px 16px -8px rgb(0 0 0 / 0.03),
+    0 10px 10px -5px rgb(0 0 0 / 0.03), 0 5px 5px -2.5px rgb(0 0 0 / 0.03),
+    0 1px 1px -0.5px rgb(0 0 0 / 0.03);
+  --shadow-brand-lg:
+    0 0 0 1px rgb(0 0 0 / 0.06), 0 20px 20px -10px rgb(0 0 0 / 0.07),
+    0 10px 10px -5px rgb(0 0 0 / 0.04), 0 3px 3px -1.5px rgb(0 0 0 / 0.03);
+
+  --animate-reveal: reveal 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-nudge: nudge 1.4s ease-in-out infinite;
+
+  @keyframes nudge {
+    0%,
+    100% {
+      transform: none;
+    }
+    50% {
+      transform: translateX(4px);
+    }
+  }
+
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* Borda com o gradiente da marca girando (botão principal). Ângulo animável via @property. */
+@property --rainbow-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes rainbow-spin {
+  to {
+    --rainbow-angle: 360deg;
+  }
+}
+
+@utility rainbow-border-spin {
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    conic-gradient(
+      from var(--rainbow-angle),
+      #26c0ff,
+      #e600c2,
+      #ff4940,
+      #ffa130,
+      #ffc837,
+      #00cc3d,
+      #26c0ff
+    )
+    border-box;
+  animation: rainbow-spin 3s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+}

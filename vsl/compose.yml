@@ -1,0 +1,26 @@
+services:
+  vsl-rastrewin:
+    image: ghcr.io/grupo-sim/vslrastrewin:${VSL_IMAGE_TAG:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    labels:
+      caddy: vsl.rastrewin.com
+      caddy.reverse_proxy: "{{upstreams 3000}}"
+      caddy.encode: zstd gzip
+      caddy.header.Strict-Transport-Security: "max-age=31536000; includeSubDomains"
+      caddy.header.X-Content-Type-Options: nosniff
+      caddy.header.Referrer-Policy: strict-origin-when-cross-origin
+      caddy.header.X-Frame-Options: DENY
+      caddy.header.Cross-Origin-Opener-Policy: same-origin
+      caddy.header.Permissions-Policy: 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), autoplay=(self "https://www.youtube-nocookie.com"), encrypted-media=(self "https://www.youtube-nocookie.com"), picture-in-picture=(self "https://www.youtube-nocookie.com"), fullscreen=(self "https://www.youtube-nocookie.com")'
+      caddy.header.X-Robots-Tag: noindex, nofollow
+      caddy.header.Content-Security-Policy: "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+      caddy.header.-Server: ""
+      caddy_ingress_network: ${CADDY_NETWORK:-caddy}
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: ${CADDY_NETWORK:-caddy}
