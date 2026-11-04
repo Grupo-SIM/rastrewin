@@ -6,6 +6,7 @@ import Image from "next/image";
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
 	canPreloadPlayer,
+	isAppleTouchDevice,
 	loadVimeoPlayer,
 	preconnectVimeo,
 	vimeoEmbedUrl,
@@ -18,6 +19,8 @@ const TICK_MS = 250;
 const LOAD_TIMEOUT_MS = 15_000;
 /** Play pedido e o vídeo não começou nesse tempo (ex.: iPhone bloqueia): mostra o play do próprio Vimeo. */
 const PLAY_FALLBACK_MS = 2000;
+/** Preparação no iPhone (play sem som escondido) que não começou nesse tempo: desiste e fica pausado. */
+const PRIME_TIMEOUT_MS = 8000;
 
 export type UnlockReason = "watched" | "error";
 
@@ -55,6 +58,12 @@ export function VslPlayer({
 	const lastTickAtRef = useRef(0);
 	const loadTimeoutRef = useRef<number | null>(null);
 	const playFallbackRef = useRef<number | null>(null);
+	const primeTimeoutRef = useRef<number | null>(null);
+	/**
+	 * iPhone: o player pré-carregado dá um play sem som, escondido atrás da capa, e pausa no 1º quadro.
+	 * Com o vídeo já preparado, o toque na capa toca com som na hora (sem isso o 1º play sai mudo).
+	 */
+	const primingRef = useRef(false);
 	const failedRef = useRef(false);
 	/** A pessoa tocou na capa: o player toca assim que estiver pronto. */
 	const wantsPlayRef = useRef(false);
@@ -95,6 +104,12 @@ export function VslPlayer({
 		playFallbackRef.current = null;
 	}, []);
 
+	const clearPrimeTimeout = useCallback(() => {
+		if (primeTimeoutRef.current === null) return;
+		window.clearTimeout(primeTimeoutRef.current);
+		primeTimeoutRef.current = null;
+	}, []);
+
 	const stopTicking = useCallback(() => {
 		if (tickRef.current === null) return;
 		window.clearInterval(tickRef.current);
@@ -127,11 +142,13 @@ export function VslPlayer({
 
 	/** Descarta o player atual (o iframe sai da página). */
 	const discardPlayer = useCallback(() => {
+		clearPrimeTimeout();
+		primingRef.current = false;
 		void playerRef.current?.destroy();
 		playerRef.current = null;
 		iframeRef.current = null;
 		playerReadyRef.current = false;
-	}, []);
+	}, [clearPrimeTimeout]);
 
 	// Se o vídeo falhar, libera o botão para não travar o funil.
 	const fail = useCallback(() => {
@@ -148,11 +165,12 @@ export function VslPlayer({
 		() => () => {
 			clearLoadTimeout();
 			clearPlayFallback();
+			clearPrimeTimeout();
 			stopTicking();
 			void playerRef.current?.destroy();
 			playerRef.current = null;
 		},
-		[clearLoadTimeout, clearPlayFallback, stopTicking],
+		[clearLoadTimeout, clearPlayFallback, clearPrimeTimeout, stopTicking],
 	);
 
 	// As funções abaixo se chamam em ciclo (criar → tocar → plano B → criar); a ref quebra o ciclo.
@@ -192,10 +210,39 @@ export function VslPlayer({
 		setStatus("idle");
 	}, [clearPlayFallback, showNativeControls, stopTicking]);
 
+	/** Fim da preparação: volta ao início, pausado e com som, à espera do toque na capa. */
+	const endPriming = useCallback(
+		(player: Player) => {
+			if (!primingRef.current) return;
+			primingRef.current = false;
+			clearPrimeTimeout();
+			playAcceptedRef.current = false;
+			// Pausa antes de ligar o som: o iPhone não deixa ligar o som de um vídeo tocando sem um toque.
+			player.pause().catch(() => {});
+			player.setMuted(false).catch(() => {});
+			player.setVolume(1).catch(() => {});
+			player.setCurrentTime(0).catch(() => {});
+		},
+		[clearPrimeTimeout],
+	);
+
+	const prime = useCallback(
+		(player: Player) => {
+			primingRef.current = true;
+			primeTimeoutRef.current = window.setTimeout(() => endPriming(player), PRIME_TIMEOUT_MS);
+			player.setMuted(true).catch(() => {});
+			// Recusado (ex.: Modo de Pouca Energia): segue sem preparar; o toque na capa tenta mesmo assim.
+			player.play().catch(() => endPriming(player));
+		},
+		[endPriming],
+	);
+
 	const play = useCallback(() => {
 		const player = playerRef.current;
 		if (!player) return;
 		clearLoadTimeout();
+		// Toque no meio da preparação: interrompe e toca do início, com som.
+		endPriming(player);
 		player.play().catch((error: Error) => {
 			if (playerRef.current === player && error.name === "NotAllowedError") askForSound();
 		});
@@ -211,7 +258,7 @@ export function VslPlayer({
 			showNativeControls();
 		};
 		playFallbackRef.current = window.setTimeout(revealIfBlocked, PLAY_FALLBACK_MS);
-	}, [askForSound, clearLoadTimeout, showNativeControls]);
+	}, [askForSound, clearLoadTimeout, endPriming, showNativeControls]);
 
 	useEffect(() => {
 		if (!keepFocusRef.current) return;
@@ -258,7 +305,7 @@ export function VslPlayer({
 					positionRef.current = seconds;
 				});
 				player.on("play", () => {
-					playAcceptedRef.current = true;
+					if (!primingRef.current) playAcceptedRef.current = true;
 				});
 				const markPlaying = () => {
 					clearPlayFallback();
@@ -273,6 +320,10 @@ export function VslPlayer({
 					startTicking();
 				};
 				player.on("playing", () => {
+					if (primingRef.current) {
+						endPriming(player);
+						return;
+					}
 					if (startedRef.current || nativeControlsRef.current) {
 						markPlaying();
 						return;
@@ -290,6 +341,7 @@ export function VslPlayer({
 						});
 				});
 				player.on("bufferstart", () => {
+					if (primingRef.current) return;
 					playAcceptedRef.current = true;
 					setPlayback("buffering");
 					stopTicking();
@@ -332,7 +384,10 @@ export function VslPlayer({
 						if (playerRef.current !== player) return;
 						player.disableTextTrack().catch(() => {});
 						playerReadyRef.current = true;
-						if (!wantsPlayRef.current) return;
+						if (!wantsPlayRef.current) {
+							if (!withControls && isAppleTouchDevice()) prime(player);
+							return;
+						}
 						if (!nativeControlsRef.current) {
 							play();
 							return;
@@ -359,8 +414,10 @@ export function VslPlayer({
 			clearLoadTimeout,
 			clearPlayFallback,
 			discardPlayer,
+			endPriming,
 			fail,
 			play,
+			prime,
 			startTicking,
 			stopTicking,
 			title,

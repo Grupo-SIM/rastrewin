@@ -33,6 +33,17 @@ export function canPreloadPlayer(): boolean {
 }
 
 /**
+ * iPhone ou iPad (no iOS todo navegador usa o motor do Safari). O iPadOS se apresenta como Mac, mas tem
+ * toque. Neles o 1º play pedido pela página costuma sair sem som, por isso o player é preparado antes.
+ */
+export function isAppleTouchDevice({
+	userAgent,
+	maxTouchPoints,
+}: Pick<Navigator, "userAgent" | "maxTouchPoints"> = navigator): boolean {
+	return /iPhone|iPad|iPod/.test(userAgent) || (userAgent.includes("Macintosh") && maxTouchPoints > 1);
+}
+
+/**
  * Roda `callback` depois de a página terminar de abrir e o navegador ficar ocioso,
  * para o pré-carregamento não disputar banda nem CPU com título, capa e fontes. Devolve o cancelamento.
  */

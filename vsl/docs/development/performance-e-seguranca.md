@@ -15,6 +15,12 @@
     player pelo que tem o play do próprio Vimeo; nele a página não dá play sozinha, e o toque dentro do
     player é o que libera o som.
 
+    No iPhone/iPad, para o 1º toque já sair com som, o player pré-carregado dá um play **sem som**
+    escondido atrás da capa e pausa no 1º quadro, de volta ao início e com o som ligado. Custa o começo do
+    vídeo em dados e pode contar como play nas estatísticas do Vimeo; por isso só roda nesses aparelhos.
+    Se o iPhone recusar até o play sem som (Modo de Pouca Energia) ou o toque vier antes de o player
+    carregar, vale a capa "Assistir com som" acima.
+
 - **Fontes:** `next/font` serve Plus Jakarta Sans e Manrope do próprio domínio, só com os pesos usados.
 - **Cache:** `/_next/static/*` imutável por 1 ano; HTML e `.txt` do Next sempre revalidam; imagens com 1h.
 - **Compressão:** zstd/gzip no Caddy (HTML de ~16KB vira ~5KB).
