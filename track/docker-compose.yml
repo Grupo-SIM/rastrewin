@@ -1,0 +1,59 @@
+# Ambiente local / referência de produção.
+#
+#   cp .env.example .env            # preencha (no compose, o host do banco é "db")
+#   docker compose up -d db         # sobe o Postgres
+#   docker compose run --rm migrate # aplica migrations (papéis, RLS) — rode a cada versão nova
+#   docker compose run --rm -it app node scripts/create-admin.mjs --email voce@empresa.com --name "Seu Nome"
+#   docker compose up -d app
+#
+# O container do app NÃO recebe MIGRATION_DATABASE_URL (credencial do dono do banco).
+services:
+  db:
+    # Postgres oficial: pgcrypto já vem incluído; a limpeza diária é agendada pelo app (sem pg_cron).
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rastrewin
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    volumes:
+      # Postgres 18: o volume é /var/lib/postgresql (PGDATA = /var/lib/postgresql/18/docker)
+      - pgdata:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d rastrewin"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    image: ghcr.io/${GHCR_OWNER:-local}/rastrewin:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?defina DATABASE_URL}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?defina ENCRYPTION_KEY}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?defina BETTER_AUTH_SECRET}
+      APP_URL: ${APP_URL:?defina APP_URL}
+    ports:
+      # Só a própria máquina: o acesso de fora passa SEMPRE pelo proxy reverso (HTTPS + IP confiável).
+      - "127.0.0.1:3000:3000"
+
+  # Tarefa avulsa: docker compose run --rm migrate
+  migrate:
+    image: ghcr.io/${GHCR_OWNER:-local}/rastrewin:latest
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?defina DATABASE_URL}
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?defina MIGRATION_DATABASE_URL}
+    command: ["node", "scripts/migrate.mjs"]
+
+volumes:
+  pgdata:

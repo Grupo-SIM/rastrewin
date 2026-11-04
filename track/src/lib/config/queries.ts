@@ -1,0 +1,136 @@
+import "server-only";
+import { asc, desc, eq } from "drizzle-orm";
+import { headers } from "next/headers";
+import { ga4Accounts, metaAdAccounts, metaPixels, settings, webhookEvents } from "@/db/schema";
+import { readAsUser } from "@/lib/dal";
+import { env } from "@/lib/env";
+import { DEFAULT_TIMEZONE } from "@/lib/time";
+import { getMaintenanceView } from "./maintenance";
+import type { AccountView, ConfigView } from "./types";
+
+type TestCols = { lastTestAt: Date | null; lastTestStatus: string | null; lastTestMessage: string | null };
+
+function testView(row: TestCols) {
+  return {
+    lastTestAt: row.lastTestAt?.toISOString() ?? null,
+    lastTestStatus: (row.lastTestStatus as AccountView["lastTestStatus"]) ?? null,
+    lastTestMessage: row.lastTestMessage,
+  };
+}
+
+/** Lê a configuração como app_reader (RLS). Colunas *_enc nem são selecionáveis por esse papel. */
+export async function getConfigView(): Promise<ConfigView> {
+  const requestHeaders = await headers();
+  const production = env().APP_URL.startsWith("https://");
+  const data = await readAsUser(async (tx) => {
+    const [general] = await tx
+      .select({
+        currency: settings.currency,
+        testEventCode: settings.testEventCode,
+        allowedOrigins: settings.allowedOrigins,
+        checkoutDomains: settings.checkoutDomains,
+        webhookTokenHint: settings.webhookTokenHint,
+        ga4Debug: settings.ga4Debug,
+        timezone: settings.timezone,
+      })
+      .from(settings)
+      .where(eq(settings.id, 1));
+
+    const [lastWebhook] = await tx
+      .select({
+        eventType: webhookEvents.eventType,
+        orderId: webhookEvents.orderId,
+        receivedAt: webhookEvents.receivedAt,
+        processedAt: webhookEvents.processedAt,
+        error: webhookEvents.error,
+      })
+      .from(webhookEvents)
+      .orderBy(desc(webhookEvents.receivedAt))
+      .limit(1);
+
+
+    const ga4 = await tx
+      .select({
+        id: ga4Accounts.id,
+        label: ga4Accounts.label,
+        externalId: ga4Accounts.measurementId,
+        secretHint: ga4Accounts.apiSecretHint,
+        active: ga4Accounts.active,
+        lastTestAt: ga4Accounts.lastTestAt,
+        lastTestStatus: ga4Accounts.lastTestStatus,
+        lastTestMessage: ga4Accounts.lastTestMessage,
+      })
+      .from(ga4Accounts)
+      .orderBy(asc(ga4Accounts.createdAt));
+
+    const pixel = await tx
+      .select({
+        id: metaPixels.id,
+        label: metaPixels.label,
+        externalId: metaPixels.pixelId,
+        secretHint: metaPixels.capiTokenHint,
+        active: metaPixels.active,
+        lastTestAt: metaPixels.lastTestAt,
+        lastTestStatus: metaPixels.lastTestStatus,
+        lastTestMessage: metaPixels.lastTestMessage,
+      })
+      .from(metaPixels)
+      .orderBy(asc(metaPixels.createdAt));
+
+    const ads = await tx
+      .select({
+        id: metaAdAccounts.id,
+        label: metaAdAccounts.label,
+        externalId: metaAdAccounts.adAccountId,
+        secretHint: metaAdAccounts.adsTokenHint,
+        active: metaAdAccounts.active,
+        lastTestAt: metaAdAccounts.lastTestAt,
+        lastTestStatus: metaAdAccounts.lastTestStatus,
+        lastTestMessage: metaAdAccounts.lastTestMessage,
+      })
+      .from(metaAdAccounts)
+      .orderBy(asc(metaAdAccounts.createdAt));
+
+    const maintenance = await getMaintenanceView(tx, requestHeaders, production);
+    return { general, lastWebhook, ga4, pixel, ads, maintenance };
+  });
+
+  const toView = (kind: AccountView["kind"]) => (row: (typeof data.ga4)[number]): AccountView => ({
+    id: row.id,
+    kind,
+    label: row.label,
+    externalId: row.externalId,
+    secretHint: row.secretHint,
+    active: row.active,
+    ...testView(row),
+  });
+
+  return {
+    general: {
+      currency: data.general?.currency ?? "BRL",
+      testEventCode: data.general?.testEventCode ?? "",
+      allowedOrigins: data.general?.allowedOrigins ?? [],
+      checkoutDomains: data.general?.checkoutDomains ?? [],
+      webhookTokenHint: data.general?.webhookTokenHint ?? null,
+      webhookUrl: new URL("/api/webhook/compra", env().APP_URL).toString(),
+      scriptUrl: new URL("/t.js", env().APP_URL).toString(),
+      ga4Debug: data.general?.ga4Debug ?? false,
+      timezone: data.general?.timezone ?? DEFAULT_TIMEZONE,
+      lastWebhook: data.lastWebhook
+        ? {
+            eventType: data.lastWebhook.eventType,
+            orderId: data.lastWebhook.orderId,
+            receivedAt: data.lastWebhook.receivedAt.toISOString(),
+            processed: Boolean(data.lastWebhook.processedAt),
+            error: data.lastWebhook.error,
+          }
+        : null,
+    },
+    maintenance: data.maintenance,
+    accounts: {
+      ga4: data.ga4.map(toView("ga4")),
+      pixel: data.pixel.map(toView("pixel")),
+      ads: data.ads.map(toView("ads")),
+    },
+  };
+}

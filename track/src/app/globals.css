@@ -1,0 +1,285 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system — Rastrewin
+ * Todas as cores são HSL em variáveis CSS. Tema escuro é o padrão (classe .dark no <html>).
+ * Para trocar a paleta, edite SÓ os blocos :root (claro) e .dark (escuro) abaixo.
+ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --font-heading: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* Accents da marca */
+  --color-cyan: var(--cyan);
+  --color-cyan-foreground: var(--cyan-foreground);
+  --color-amber: var(--amber);
+  --color-amber-foreground: var(--amber-foreground);
+  --color-success: var(--success);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ---------- Tema CLARO ---------- */
+:root {
+  --radius: 0.625rem;
+
+  --background: hsl(150 20% 97%);
+  --foreground: hsl(160 28% 9%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(160 28% 9%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(160 28% 9%);
+
+  --primary: hsl(142 70% 26%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(150 16% 92%);
+  --secondary-foreground: hsl(160 28% 12%);
+  --muted: hsl(150 16% 93%);
+  --muted-foreground: hsl(155 8% 38%);
+  --accent: hsl(150 18% 91%);
+  --accent-foreground: hsl(160 28% 10%);
+  --destructive: hsl(0 72% 46%);
+
+  --cyan: hsl(192 85% 32%);
+  --cyan-foreground: hsl(0 0% 100%);
+  --amber: hsl(32 92% 40%);
+  --amber-foreground: hsl(0 0% 100%);
+  --success: hsl(142 70% 26%);
+
+  --border: hsl(150 12% 86%);
+  --input: hsl(150 12% 84%);
+  --ring: hsl(142 70% 26%);
+
+  --chart-1: hsl(142 70% 30%);
+  --chart-2: hsl(192 85% 34%);
+  --chart-3: hsl(32 92% 42%);
+  --chart-4: hsl(262 60% 50%);
+  --chart-5: hsl(340 70% 48%);
+
+  --sidebar: hsl(150 20% 95%);
+  --sidebar-foreground: hsl(160 28% 9%);
+  --sidebar-primary: hsl(142 70% 26%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(150 18% 90%);
+  --sidebar-accent-foreground: hsl(160 28% 10%);
+  --sidebar-border: hsl(150 12% 86%);
+  --sidebar-ring: hsl(142 70% 26%);
+
+  /* Fundo: gradiente radial + textura */
+  --glow-1: hsl(142 70% 40% / 0.10);
+  --glow-2: hsl(192 85% 45% / 0.07);
+  --noise-opacity: 0.025;
+  --glass-alpha: 78%;
+
+  /*
+   * Cores de GRÁFICO (dataviz) — validadas com validate_palette.js contra a superfície real dos
+   * cartões (#fdfefd claro / #0b120f escuro). Ordem fixa por entidade, nunca reciclada.
+   * Categóricas: pior ΔE daltonismo 14,5 / visão normal 15,7; contraste >= 3:1.
+   */
+  --viz-1: #159946; /* verde */
+  --viz-2: #098faa; /* ciano */
+  --viz-3: #c37e05; /* âmbar */
+  --viz-4: #5b17cf; /* violeta */
+  --viz-5: #d0255e; /* rosa */
+  /* Sequencial (mapa): um tom, perto do fundo = claro */
+  --viz-seq-1: #cff7dd;
+  --viz-seq-2: #88eaac;
+  --viz-seq-3: #26d767;
+  --viz-seq-4: #1fb255;
+  --viz-seq-5: #198f44;
+  --viz-seq-6: #136d34;
+  /* Funil (ordinal, 3 etapas) — validado com --ordinal */
+  --viz-fun-1: #21bd5a;
+  --viz-fun-2: #1a9246;
+  --viz-fun-3: #136932;
+  /* Status (fixos; sempre com ícone + rótulo) */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  /* Grade e eixos: linha fina, sólida, recessiva */
+  --viz-grid: hsl(150 12% 90%);
+  --viz-axis: hsl(150 10% 78%);
+}
+
+/* ---------- Tema ESCURO (padrão) ---------- */
+.dark {
+  --background: hsl(160 30% 3.5%);
+  --foreground: hsl(150 12% 94%);
+  --card: hsl(158 22% 7%);
+  --card-foreground: hsl(150 12% 94%);
+  --popover: hsl(158 22% 8%);
+  --popover-foreground: hsl(150 12% 94%);
+
+  --primary: hsl(142 76% 58%);
+  --primary-foreground: hsl(150 45% 6%);
+  --secondary: hsl(156 14% 13%);
+  --secondary-foreground: hsl(150 12% 94%);
+  --muted: hsl(156 14% 12%);
+  --muted-foreground: hsl(150 7% 62%);
+  --accent: hsl(156 16% 14%);
+  --accent-foreground: hsl(150 12% 96%);
+  --destructive: hsl(0 72% 62%);
+
+  --cyan: hsl(188 86% 55%);
+  --cyan-foreground: hsl(190 60% 7%);
+  --amber: hsl(38 95% 58%);
+  --amber-foreground: hsl(30 60% 8%);
+  --success: hsl(142 76% 58%);
+
+  --border: hsl(155 14% 15%);
+  --input: hsl(155 14% 18%);
+  --ring: hsl(142 76% 58%);
+
+  --chart-1: hsl(142 76% 58%);
+  --chart-2: hsl(188 86% 55%);
+  --chart-3: hsl(38 95% 58%);
+  --chart-4: hsl(262 80% 72%);
+  --chart-5: hsl(340 78% 64%);
+
+  --sidebar: hsl(160 28% 5%);
+  --sidebar-foreground: hsl(150 12% 94%);
+  --sidebar-primary: hsl(142 76% 58%);
+  --sidebar-primary-foreground: hsl(150 45% 6%);
+  --sidebar-accent: hsl(156 16% 12%);
+  --sidebar-accent-foreground: hsl(150 12% 96%);
+  --sidebar-border: hsl(155 14% 13%);
+  --sidebar-ring: hsl(142 76% 58%);
+
+  --glow-1: hsl(142 76% 45% / 0.13);
+  --glow-2: hsl(188 86% 50% / 0.08);
+  --noise-opacity: 0.045;
+  --glass-alpha: 62%;
+
+  --viz-1: #18af4f;
+  --viz-2: #0aa3c1;
+  --viz-3: #c88005;
+  --viz-4: #a274f0;
+  --viz-5: #ea5587;
+  /* Sequencial no escuro: âncora invertida (perto do fundo = escuro) */
+  --viz-seq-1: #0a371b;
+  --viz-seq-2: #0f5629;
+  --viz-seq-3: #157739;
+  --viz-seq-4: #1b9949;
+  --viz-seq-5: #21bd5a;
+  --viz-seq-6: #46de7e;
+  --viz-fun-1: #157739;
+  --viz-fun-2: #1ca04d;
+  --viz-fun-3: #24cb61;
+  --viz-grid: hsl(155 14% 13%);
+  --viz-axis: hsl(155 12% 22%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Números tabulares em todo o app (KPIs, tabelas, valores) */
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+  /* Fundo: gradiente radial suave */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background:
+      radial-gradient(60rem 40rem at 10% -10%, var(--glow-1), transparent 60%),
+      radial-gradient(50rem 35rem at 100% 0%, var(--glow-2), transparent 60%),
+      var(--background);
+  }
+  /* Textura sutil (ruído SVG) */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: var(--noise-opacity);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  code,
+  kbd,
+  pre,
+  samp {
+    @apply font-mono;
+  }
+}
+
+@layer components {
+  /* Cartão "glass": fundo translúcido + leve blur */
+  .glass {
+    background-color: color-mix(in hsl, var(--card) var(--glass-alpha), transparent);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid color-mix(in hsl, var(--border) 85%, transparent);
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.04),
+      0 1px 2px 0 hsl(0 0% 0% / 0.08);
+  }
+}
+
+@layer utilities {
+  /* Números/valores: fonte mono + tabular */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

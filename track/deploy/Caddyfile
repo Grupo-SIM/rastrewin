@@ -1,0 +1,20 @@
+# Caddy (recomendado): o HTTPS é automático (Let's Encrypt) assim que o DNS aponta para a VPS.
+# Instale o Caddy, copie este arquivo para /etc/caddy/Caddyfile e rode: sudo systemctl reload caddy
+# Detalhes em docs/go-live.md.
+
+track.rastrewin.com {
+	# Corpo máximo (o maior endpoint aceita 64 KB; o app ainda valida o seu limite).
+	request_body {
+		max_size 1MB
+	}
+
+	reverse_proxy 127.0.0.1:3000 {
+		# IP REAL do visitante: o Caddy SOBRESCREVE o X-Real-IP com o endereço da conexão.
+		# (O X-Forwarded-For o Caddy já monta sozinho, ignorando o valor enviado pelo navegador.)
+		# O app só confia nestes cabeçalhos (src/lib/http/client-ip.ts).
+		header_up X-Real-IP {remote_host}
+	}
+
+	# Não anunciar o servidor.
+	header -Server
+}
