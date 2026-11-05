@@ -76,15 +76,16 @@ export function WebhookCard({ general }: { general: GeneralView }) {
 	return (
 		<GlassCard>
 			<CardHeader>
-				<CardTitle className="font-semibold">Webhook de vendas (SimIntPay)</CardTitle>
+				<CardTitle className="font-semibold">Webhook de vendas</CardTitle>
 				<CardDescription>
-					Cada venda chega assinada (HMAC-SHA256 no header{" "}
+					O SimIntPay avisa a venda ao backend do rastrewin, que libera o plano e repassa o evento
+					para cá, assinado (HMAC-SHA256 no header{" "}
 					<code className="text-xs">x-simintpay-signature</code>). Só aceitamos envios assinados com
 					este segredo.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-5">
-				<Field id="webhook-url" label="URL do webhook (WEBHOOK_URL no SimIntPay)">
+				<Field id="webhook-url" label="URL do webhook (TRACK_WEBHOOK_URL no backend do rastrewin)">
 					<div className="flex gap-2">
 						<code
 							id="webhook-url"
@@ -97,7 +98,9 @@ export function WebhookCard({ general }: { general: GeneralView }) {
 				</Field>
 
 				<div className="flex flex-col gap-2">
-					<span className="text-sm font-medium">Segredo (WEBHOOK_SECRET no SimIntPay)</span>
+					<span className="text-sm font-medium">
+						Segredo (TRACK_WEBHOOK_SECRET no backend do rastrewin)
+					</span>
 					{configured ? (
 						<p className="text-sm">
 							Configurado: <span className="num">{general.webhookTokenHint}</span>
@@ -144,7 +147,7 @@ export function WebhookCard({ general }: { general: GeneralView }) {
 									<AlertDialogTitle>Gerar um novo segredo?</AlertDialogTitle>
 									<AlertDialogDescription>
 										O segredo atual para de funcionar na hora. As vendas só voltam a ser
-										aceitas depois que você colar o novo segredo no SimIntPay.
+										aceitas depois que você colar o novo segredo no backend do rastrewin.
 									</AlertDialogDescription>
 								</AlertDialogHeader>
 								<AlertDialogFooter>
@@ -169,8 +172,8 @@ export function WebhookCard({ general }: { general: GeneralView }) {
 							<DialogHeader>
 								<DialogTitle>Colar segredo existente</DialogTitle>
 								<DialogDescription>
-									Use se o segredo já foi definido no SimIntPay. Ele fica cifrado e não
-									poderá ser visto de novo.
+									Use se o segredo já foi definido no backend do rastrewin. Ele fica cifrado
+									e não poderá ser visto de novo.
 								</DialogDescription>
 							</DialogHeader>
 							<form onSubmit={saveManual} className="flex flex-col gap-4" noValidate>
@@ -200,8 +203,9 @@ export function WebhookCard({ general }: { general: GeneralView }) {
 					<DialogHeader>
 						<DialogTitle>Copie o segredo agora</DialogTitle>
 						<DialogDescription>
-							Ele não será mostrado de novo. Cole no SimIntPay como{" "}
-							<strong>WEBHOOK_SECRET</strong>, junto com a URL do webhook.
+							Ele não será mostrado de novo. Cole no backend do rastrewin como{" "}
+							<strong>TRACK_WEBHOOK_SECRET</strong>, junto com a URL do webhook em{" "}
+							<strong>TRACK_WEBHOOK_URL</strong>.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="flex flex-col gap-2 sm:flex-row">

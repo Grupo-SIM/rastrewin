@@ -129,6 +129,7 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 				transactionId: f.transactionId,
 				...base,
 				approvedAt: isApproval ? f.occurredAt : null,
+				isRenewal: f.isRenewal,
 				occurredAt: f.occurredAt,
 				refundedAt: isRefund ? f.occurredAt : null,
 			})
@@ -171,6 +172,8 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 				approvedAt: isApproval
 					? sql`coalesce(${purchases.approvedAt}, ${f.occurredAt})`
 					: purchases.approvedAt,
+				// Só liga: os eventos seguintes (reembolso...) não trazem o flag e não podem desligá-lo.
+				isRenewal: f.isRenewal || purchases.isRenewal,
 				// Aprovação define o momento da venda; reembolso registra quando aconteceu.
 				occurredAt: isApproval
 					? f.occurredAt

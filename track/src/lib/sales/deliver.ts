@@ -54,6 +54,8 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 	const db = serviceDb();
 	const [p] = await db.select().from(purchases).where(eq(purchases.id, purchaseId));
 	if (!p) return {};
+	// Renovação/recompra: o anúncio gerou a 1ª compra; esta fica só no Faturamento.
+	if (p.isRenewal) return {};
 	const config = await getRuntimeConfig();
 	const [visitor] = p.trckUserId
 		? await db.select().from(visitors).where(eq(visitors.trckUserId, p.trckUserId)).limit(1)
@@ -189,7 +191,7 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 export async function pendingPurchaseIds(limit = 50): Promise<number[]> {
 	const rows = await serviceDb().execute<{ id: number }>(sql`
     select id from purchases
-    where (
+    where not is_renewal and (
       status in ('approved', 'refund_requested')
       and (meta_sent_at is null and meta_attempts < ${MAX_ATTEMPTS} or ga4_sent_at is null and ga4_attempts < ${MAX_ATTEMPTS})
       and coalesce(occurred_at, created_at) > now() - interval '7 days'

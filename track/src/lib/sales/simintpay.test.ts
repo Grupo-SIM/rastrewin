@@ -53,6 +53,13 @@ test("centavos → reais, produto principal, tracking e src", () => {
 	);
 });
 
+test("renovação: só com renewal === true (o contrato do SimIntPay não traz o campo)", () => {
+	assert.equal(toPurchaseFields(salesEventSchema.parse(payload)).isRenewal, false);
+	assert.equal(toPurchaseFields(salesEventSchema.parse({ ...payload, renewal: true })).isRenewal, true);
+	assert.equal(toPurchaseFields(salesEventSchema.parse({ ...payload, renewal: null })).isRenewal, false);
+	assert.equal(salesEventSchema.safeParse({ ...payload, renewal: "sim" }).success, false);
+});
+
 test("src que não é trck_user_id não é usado para ligar a venda", () => {
 	const f = toPurchaseFields(salesEventSchema.parse({ ...payload, tracking: { src: "afiliado x!" } }));
 	assert.equal(f.src, "afiliado x!");

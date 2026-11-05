@@ -51,6 +51,8 @@ export const salesEventSchema = z
 		orderId: z.string().min(1).max(128),
 		paymentMethod: optStr(40),
 		phone: optStr(40),
+		/** Enviado pelo backend do rastrewin: recompra de quem já tinha pago (não vai à Meta/GA4). */
+		renewal: z.boolean().nullish(),
 		tracking: z.record(z.string(), z.string().max(500)).nullish(),
 	})
 	.passthrough();
@@ -132,6 +134,7 @@ export function toPurchaseFields(p: SalesEvent) {
 		fbclid: pick("fbclid"),
 		fbp: pick("fbp") && FB_COOKIE.test(pick("fbp")!) ? pick("fbp") : null,
 		hasUtm: Object.values(utm).some(Boolean),
+		isRenewal: p.renewal === true,
 		items,
 		netValue:
 			p.netAmountCents === null || p.netAmountCents === undefined

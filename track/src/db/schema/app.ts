@@ -201,6 +201,8 @@ export const purchases = pgTable(
 		ga4SentAt: timestamp("ga4_sent_at", { withTimezone: true }),
 		gaClientId: text("ga_client_id"),
 		gaSessionId: text("ga_session_id"),
+		/** Renovação/recompra de quem já tinha pago: fica no Faturamento, mas não vai à Meta nem ao GA4. */
+		isRenewal: boolean("is_renewal").notNull().default(false),
 		lastDeliveryError: text("last_delivery_error"),
 		/** Vinculação ao visitante: { found, by: 'trck_user_id' | 'email' | 'phone' | null, reason } */
 		match: jsonb("match"),

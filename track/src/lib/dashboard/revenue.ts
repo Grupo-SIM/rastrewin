@@ -31,9 +31,9 @@ export interface PurchaseRow {
 	utmSource: string | null;
 	utmCampaign: string | null;
 	matchedBy: string | null;
-	/** ok = enviado; erro = tentou e falhou; pendente = ainda não tentou (ou sem conta ativa) */
-	metaStatus: "ok" | "erro" | "pendente";
-	ga4Status: "ok" | "erro" | "pendente";
+	/** ok = enviado; erro = tentou e falhou; pendente = ainda não tentou (ou sem conta ativa); renovacao = não vai à Meta/GA4 */
+	metaStatus: "ok" | "erro" | "pendente" | "renovacao";
+	ga4Status: "ok" | "erro" | "pendente" | "renovacao";
 }
 
 export interface Revenue {
@@ -123,8 +123,8 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 			sql`
       select p.id, p.transaction_id, coalesce(p.occurred_at, p.created_at) as date, p.product, p.value, p.currency, p.status,
              p.payment_method, p.utm_source, p.utm_campaign, p.match->>'by' as matched_by,
-             case when p.meta_sent_at is not null then 'ok' when p.meta_attempts > 0 then 'erro' else 'pendente' end as meta_status,
-             case when p.ga4_sent_at is not null then 'ok' when p.ga4_attempts > 0 then 'erro' else 'pendente' end as ga4_status
+             case when p.is_renewal then 'renovacao' when p.meta_sent_at is not null then 'ok' when p.meta_attempts > 0 then 'erro' else 'pendente' end as meta_status,
+             case when p.is_renewal then 'renovacao' when p.ga4_sent_at is not null then 'ok' when p.ga4_attempts > 0 then 'erro' else 'pendente' end as ga4_status
       from purchases p where ${where}
       order by coalesce(p.occurred_at, p.created_at) desc, p.id desc
       limit ${PAGE_SIZE} offset ${(page - 1) * PAGE_SIZE}`,

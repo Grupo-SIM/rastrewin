@@ -57,7 +57,7 @@ async function loadSales(sp: SearchParams) {
           select id, value, ((coalesce(occurred_at, created_at) at time zone ${tz})::date)::text as day,
                  utm_campaign, utm_term, utm_content
           from purchases
-          where status in ${ACTIVE_SALE} and coalesce(occurred_at, created_at) >= ${start} and coalesce(occurred_at, created_at) < ${end}`,
+          where status in ${ACTIVE_SALE} and not is_renewal and coalesce(occurred_at, created_at) >= ${start} and coalesce(occurred_at, created_at) < ${end}`,
 				)
 			).map((r): SalePurchase => ({
 				day: String(r.day),

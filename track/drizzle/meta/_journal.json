@@ -49,6 +49,13 @@
 			"tag": "0006_retention_app_scheduler",
 			"version": "7",
 			"when": 1793737409928
+		},
+		{
+			"breakpoints": true,
+			"idx": 7,
+			"tag": "0007_purchases_renewal",
+			"version": "7",
+			"when": 1793892218697
 		}
 	],
 	"version": "7"

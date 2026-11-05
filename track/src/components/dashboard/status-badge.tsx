@@ -4,6 +4,7 @@ import {
 	CircleDashedIcon,
 	CircleXIcon,
 	ClockIcon,
+	RefreshCwIcon,
 	Undo2Icon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ const DELIVERY: Record<string, { label: string; icon: typeof CircleCheckIcon; co
 	expirado: { color: "var(--muted-foreground)", icon: ClockIcon, label: "Expirado" },
 	ok: { color: "var(--status-good)", icon: CircleCheckIcon, label: "Enviado" },
 	pendente: { color: "var(--muted-foreground)", icon: CircleDashedIcon, label: "Sem envio" },
+	renovacao: { color: "var(--muted-foreground)", icon: RefreshCwIcon, label: "Renovação (não enviada)" },
 };
 
 function Badge({
