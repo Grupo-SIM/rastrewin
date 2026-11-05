@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope, Plus_Jakarta_Sans } from "next/font/google";
-import Script from "next/script";
 import type { ReactNode } from "react";
 import { pageConfig } from "@/config/page-config";
 import { TRACK_URL, TRCK_STUB } from "@/config/track";
@@ -35,18 +34,15 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
 		<html lang="pt-BR" className={`${jakarta.variable} ${manrope.variable}`}>
-			<body>
-				{children}
-				{/* Rastreamento (track.rastrewin.com): visitante, origem do anúncio e PageView. */}
-				{TRACK_URL && (
-					<>
-						<Script id="trck-stub" strategy="beforeInteractive">
-							{TRCK_STUB}
-						</Script>
-						<Script src={`${TRACK_URL}/t.js`} strategy="afterInteractive" />
-					</>
-				)}
-			</body>
+			{/* Rastreamento (track.rastrewin.com): visitante, origem do anúncio e PageView.
+			    Direto no <head>, igual ao snippet do painel, para o t.js baixar junto com a página. */}
+			{TRACK_URL && (
+				<head>
+					<script id="trck-stub">{TRCK_STUB}</script>
+					<script async src={`${TRACK_URL}/t.js`} />
+				</head>
+			)}
+			<body>{children}</body>
 		</html>
 	);
 }
