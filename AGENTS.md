@@ -71,7 +71,7 @@ Name plans `NNNN-kebab-slug.md`, using the next sequential number across all thr
 
 ## Pre-PR / pre-merge
 
-Run type-check and build for affected packages before a PR or merge. Pre-commit runs `scripts/validate-staged.ts` for staged packages and dependents plus staged formatting/linting; pre-push builds affected packages; CI runs affected builds, types and tests. No local check authorizes push, deploy or remote database operations.
+Run type-check and build for affected packages before a PR or merge. Pre-commit runs `scripts/validate-staged.ts` (type-check and build) for staged packages and dependents plus staged formatting/linting; there is no pre-push hook; CI runs affected builds, types and tests. No local check authorizes push, deploy or remote database operations.
 
 ## Structure and naming
 

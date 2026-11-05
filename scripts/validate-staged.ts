@@ -38,6 +38,7 @@ if (affected.size) {
 			"turbo",
 			"run",
 			"check-types",
+			"build",
 			...[...affected].flatMap(name => ["--filter", name]),
 		],
 		{ stderr: "inherit", stdout: "inherit" },

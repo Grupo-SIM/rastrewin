@@ -21,7 +21,7 @@ post-merge:
 pre-commit:
   parallel: false
   jobs:
-    - name: "Type-check affected packages"
+    - name: "Type-check and build affected packages"
       run: bun scripts/validate-staged.ts
     - name: "Format and lint"
       group:
@@ -41,8 +41,3 @@ pre-commit:
             glob: "*.{astro,css,graphql,cjs,cts,gql,hbs,handlebars,html,js,json,json5,jsonc,jsx,less,md,mdx,mjs,mts,scss,svelte,toml,ts,tsx,vue,yaml,yml}"
             run: bun fmt --ignore-unknown --no-error-on-unmatched-pattern {staged_files}
             stage_fixed: true
-
-pre-push:
-  jobs:
-    - name: "Build affected packages"
-      run: bunx turbo run build --affected
