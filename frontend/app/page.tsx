@@ -5,11 +5,12 @@ import { SiteIcon } from "@/components/SiteIcon";
 import { api, fmtRemaining, type User } from "@/lib/api";
 import { isValidCpf, maskCpf, maskPhone } from "@/lib/mask";
 import { SITES as ALL_SITES } from "@/lib/sites";
+import { readTracking, trck } from "@/lib/track";
 
 const PLANS = [
-	{ desc: "até 500 sorteios/dia", id: "basico", name: "Básico", price: "R$ 150/ano" },
-	{ desc: "até 2.000 sorteios/dia", id: "pro", name: "Pro", price: "R$ 500/ano" },
-	{ desc: "até 5.000 sorteios/dia", id: "vip", name: "VIP", price: "R$ 1000/ano" },
+	{ desc: "até 500 sorteios/dia", id: "basico", name: "Básico", price: "R$ 150/ano", value: 150 },
+	{ desc: "até 2.000 sorteios/dia", id: "pro", name: "Pro", price: "R$ 500/ano", value: 500 },
+	{ desc: "até 5.000 sorteios/dia", id: "vip", name: "VIP", price: "R$ 1000/ano", value: 1000 },
 ];
 
 const STEPS = [
@@ -118,9 +119,19 @@ export default function Landing() {
 		// abre a aba já no clique (gesto do usuário), senão o navegador bloqueia o popup
 		// depois que a resposta da API chegar.
 		const checkoutTab = window.open("", "_blank");
+		// Rastreamento: identifica o lead e marca o início do checkout (o t.js envia ao track).
+		const plan = PLANS.find(p => p.id === f.plan);
+		const [firstName, ...rest] = f.name.trim().split(/\s+/);
+		trck("identify", {
+			email: f.email,
+			first_name: firstName,
+			last_name: rest.join(" "),
+			phone: f.phone,
+		});
+		trck("track", "InitiateCheckout", { content_name: plan?.name, currency: "BRL", value: plan?.value });
 		try {
 			const user = await api<User & { checkoutUrl: string }>("/users", {
-				body: JSON.stringify(f),
+				body: JSON.stringify({ ...f, tracking: readTracking() }),
 				method: "POST",
 			});
 			localStorage.setItem("userId", user.id);

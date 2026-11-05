@@ -1,6 +1,8 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, Manrope, Plus_Jakarta_Sans } from "next/font/google";
+import Script from "next/script";
+import { TRACK_URL, TRCK_STUB } from "@/lib/track";
 
 const jakarta = Plus_Jakarta_Sans({
 	display: "swap",
@@ -31,7 +33,18 @@ export const viewport: Viewport = { initialScale: 1, width: "device-width" };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
 	return (
 		<html lang="pt-BR" className={`${jakarta.variable} ${manrope.variable} ${serif.variable}`}>
-			<body>{children}</body>
+			<body>
+				{children}
+				{/* Rastreamento (track.rastrewin.com): PageView, visitante e Pixel/GA4. Ver lib/track.ts. */}
+				{TRACK_URL && (
+					<>
+						<Script id="trck-stub" strategy="beforeInteractive">
+							{TRCK_STUB}
+						</Script>
+						<Script src={`${TRACK_URL}/t.js`} strategy="afterInteractive" />
+					</>
+				)}
+			</body>
 		</html>
 	);
 }

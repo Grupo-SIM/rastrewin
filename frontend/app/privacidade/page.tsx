@@ -19,7 +19,8 @@ const SECTIONS: { title: string; body: string[]; list?: string[] }[] = [
 		list: [
 			"Fornecidos por você no cadastro: nome, e-mail, CPF, telefone (WhatsApp), cidade, chave PIX (quando informada) e o plano escolhido.",
 			"Gerados pelo uso do serviço: senha (armazenada somente em formato criptografado, nunca em texto puro), status e data de vigência da assinatura, participações em sorteios, resultados e registros de verificação do telefone e de recuperação de senha.",
-			"Recebidos de terceiros: confirmações de pagamento enviadas pelo gateway de pagamento (identificação do pedido, e-mail do comprador e situação da cobrança). Não recebemos nem armazenamos dados de cartão de crédito.",
+			"Recebidos de terceiros: confirmações de pagamento enviadas pelo gateway de pagamento (identificação do pedido, nome, e-mail e telefone do comprador, valor e situação da cobrança). Não recebemos nem armazenamos dados de cartão de crédito.",
+			"Coletados na navegação: um identificador aleatório do visitante, as páginas visitadas, a origem da visita (parâmetros de campanha, como utm_source, e o identificador de clique de anúncios), o endereço IP com a cidade aproximada e o navegador utilizado.",
 		],
 		title: "2. Dados que Coletamos",
 	},
@@ -32,6 +33,7 @@ const SECTIONS: { title: string; body: string[]; list?: string[] }[] = [
 			"Confirmar que o telefone cadastrado é seu, por meio de código enviado ao nosso WhatsApp, e recuperar sua senha por código enviado por e-mail — prevenção a fraudes e garantia da segurança da conta (legítimo interesse).",
 			"Cumprir obrigações legais, fiscais e regulatórias, e exercer direitos em processos judiciais, administrativos ou arbitrais — cumprimento de obrigação legal e exercício regular de direitos.",
 			"Responder a dúvidas e solicitações enviadas por você — execução de contrato e legítimo interesse.",
+			"Medir o resultado dos nossos anúncios (saber qual campanha trouxe cada visita e cada compra) e informar às plataformas de anúncios as compras concluídas — legítimo interesse.",
 		],
 		title: "3. Para que Usamos seus Dados e Bases Legais",
 	},
@@ -44,6 +46,7 @@ const SECTIONS: { title: string; body: string[]; list?: string[] }[] = [
 			"Provedor de e-mail (SMTP): envia credenciais de acesso e códigos de recuperação de senha.",
 			"Provedor de mensagens do WhatsApp: recebe a mensagem que você envia ao nosso número para verificar o telefone e nos entrega o número remetente e o texto.",
 			"Provedores de hospedagem e infraestrutura que mantêm o site e o banco de dados em funcionamento.",
+			"Plataformas de anúncios e medição (Meta, dona do Facebook e do Instagram, e Google Analytics): recebem eventos de navegação e de compra para medir campanhas. E-mail, telefone e nome são enviados à Meta somente em formato criptografado (hash), nunca em texto puro.",
 			"Autoridades públicas, quando houver determinação legal ou ordem judicial.",
 		],
 		title: "4. Com Quem Compartilhamos",
@@ -57,7 +60,8 @@ const SECTIONS: { title: string; body: string[]; list?: string[] }[] = [
 	{
 		body: [
 			'O site armazena no seu navegador, por meio do armazenamento local (localStorage), o identificador da sua conta e o token de sessão, estritamente para mantê-lo autenticado. Esses itens são removidos quando você clica em "Sair" e você também pode apagá-los a qualquer momento nas configurações do navegador, o que exigirá novo login.',
-			"No momento, não utilizamos cookies de publicidade nem ferramentas de rastreamento de terceiros para criar perfis de comportamento. Caso isso mude, atualizaremos esta política antes de começar. Os Termos de Uso também tratam de cookies e informações de navegação.",
+			"Para medir nossos anúncios, o site usa cookies e armazenamento local próprios (um identificador aleatório do visitante e a origem da campanha, guardados por até 400 e 90 dias) e carrega o Pixel da Meta e o Google Analytics, que também usam cookies. Não usamos esses dados para vender perfis nem os repassamos a outros anunciantes.",
+			"Você pode bloquear ou apagar esses cookies nas configurações do navegador, sem perder o acesso ao serviço, e pode se opor a essa medição pelo canal de contato desta política. Os Termos de Uso também tratam de cookies e informações de navegação.",
 		],
 		title: "6. Cookies e Armazenamento Local",
 	},
@@ -149,7 +153,7 @@ export default function Privacy() {
 						da Rastrewin
 					</h1>
 					<p style={{ color: "var(--txt-2)", font: "500 14px/1.6 var(--f-body)" }}>
-						Última atualização: 4 de novembro de 2026.
+						Última atualização: 5 de novembro de 2026.
 					</p>
 					<p style={{ color: "var(--txt-2)", font: "500 17px/1.65 var(--f-body)" }}>
 						Esta política explica, de forma clara, quais dados pessoais a Rastrewin coleta quando
