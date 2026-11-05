@@ -1,8 +1,8 @@
 # VSL Rastrewin
 
 Página de VSL (título, subtítulo, vídeo vertical do Vimeo, botão com delay e rodapé) que antecede
-https://rastrewin.com. Fica em **vsl.rastrewin.com**. Conteúdo **estático**: sem backend, sem banco,
-sem coleta de dados, sem pixel/UTM (rastreamento será tratado em outro momento).
+https://rastrewin.com. Fica em **vsl.rastrewin.com**. Conteúdo **estático**: sem backend e sem banco. A única coleta é
+o script do track (`t.js`, ver `src/config/track.ts`), que registra o visitante, a origem do anúncio e o PageView.
 
 ## Stack
 
@@ -49,8 +49,9 @@ fica em `src/config/page-config.ts`, validado com Zod no build. Valor inválido 
   com texto e botão à esquerda e vídeo à direita, para o play caber sem rolar.
 - Identidade visual da Rastrewin: tokens em `src/app/globals.css`.
 - Nada de `dangerouslySetInnerHTML`. Nenhum segredo no código; nenhuma variável sensível `NEXT_PUBLIC_`.
-- Único terceiro: o player do Vimeo (iframe `player.vimeo.com`), pré-carregado só depois de a página abrir (nunca com
-  economia de dados ou 2G). Nada de terceiros no carregamento inicial.
+- Terceiros: o player do Vimeo (iframe `player.vimeo.com`), pré-carregado só depois de a página abrir (nunca com
+  economia de dados ou 2G), e o Pixel da Meta e o GA4, que o `t.js` (nosso, `async` no `<head>`) carrega a partir
+  das contas ativas no painel do track. Não adicione outros scripts de terceiros.
 - Antes de adicionar dependência: justificar e preferir o que já existe. Lockfile sempre commitado.
 - `bunfig.toml` (raiz do monorepo) aplica `minimumReleaseAge` (1 dia) e as dependências do `vsl` usam versões exatas: não abra exceções para versões
   recém-publicadas sem motivo.
