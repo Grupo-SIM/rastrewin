@@ -90,6 +90,8 @@ export class PaymentsController {
 				paidAt: now,
 				simpayOrderId: event.orderId,
 				status: "ACTIVE",
+				// Troca de plano de quem já era ativo: vale a partir deste pagamento.
+				...(user.pendingPlan ? { pendingPlan: null, plan: user.pendingPlan } : {}),
 				...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
 			},
 			where: { id: user.id },

@@ -1,9 +1,16 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { signBody } from "../payments/simintpay";
+import { PrismaService } from "../prisma/prisma.service";
 import { sanitizeTracking } from "./tracking";
 
 const TIMEOUT_MS = 10_000;
-const DELAYS_MS = [0, 2_000, 10_000]; // 3 tentativas
+const WORKER_INTERVAL_MS = 60_000;
+const BATCH = 20;
+/** ~3 dias de tentativas (backoff de 1 min até 6 h); a CAPI da Meta aceita vendas de até 7 dias. */
+const MAX_ATTEMPTS = 20;
+const backoffMs = (attempts: number) => Math.min(60_000 * 2 ** (attempts - 1), 6 * 3600_000);
+
+type SendResult = { ok: true } | { ok: false; error: string; retry: boolean };
 
 /**
  * Repassa ao track.rastrewin.com cada evento de venda recebido do SimIntPay, no MESMO formato
@@ -11,50 +18,140 @@ const DELAYS_MS = [0, 2_000, 10_000]; // 3 tentativas
  * - tracking: o do checkout tem prioridade; o guardado no cadastro preenche o que faltar
  *   (o checkout do SimIntPay ainda não repassa src/UTM).
  * - renewal: recompra de quem já tinha pago. O track grava, mas não envia à Meta/GA4.
+ *
+ * Entrega garantida: o repasse é gravado na tabela TrackRelay antes do envio e só sai de lá quando o
+ * track confirma (2xx). Se o track estiver fora do ar, um worker reenvia a cada minuto com backoff
+ * (até ~3 dias). O track deduplica por eventId, então reenviar nunca duplica a venda.
  * Sem TRACK_WEBHOOK_URL/SECRET, não faz nada. Nunca lança erro nem loga dados pessoais.
  */
 @Injectable()
-export class TrackRelayService {
+export class TrackRelayService implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(TrackRelayService.name);
+	private timer?: NodeJS.Timeout;
+	private draining = false;
 
-	relay(event: Record<string, unknown>, opts: { savedTracking?: unknown; renewal?: boolean }): void {
+	constructor(private readonly prisma: PrismaService) {}
+
+	onModuleInit() {
+		this.timer = setInterval(() => void this.drain(), WORKER_INTERVAL_MS);
+		this.timer.unref();
+	}
+
+	onModuleDestroy() {
+		clearInterval(this.timer);
+	}
+
+	private config() {
 		const url = process.env.TRACK_WEBHOOK_URL?.trim();
 		const secret = process.env.TRACK_WEBHOOK_SECRET?.trim();
-		if (!url || !secret) return;
+		return url && secret ? { secret, url } : null;
+	}
 
+	relay(event: Record<string, unknown>, opts: { savedTracking?: unknown; renewal?: boolean }): void {
+		if (!this.config()) return;
 		const tracking = {
 			...(sanitizeTracking(opts.savedTracking) ?? {}),
 			...(sanitizeTracking(event.tracking) ?? {}),
 		};
 		const payload: Record<string, unknown> = { ...event, tracking };
 		if (opts.renewal !== undefined) payload.renewal = opts.renewal;
-		const body = JSON.stringify(payload);
-		void this.send(url, secret, body, String(event.event), String(event.orderId));
+		void this.enqueueAndSend(String(event.eventId), JSON.stringify(payload));
 	}
 
-	private async send(url: string, secret: string, body: string, kind: string, orderId: string) {
-		let lastError = "";
-		for (const delay of DELAYS_MS) {
-			if (delay) await new Promise(resolve => setTimeout(resolve, delay));
-			try {
-				const res = await fetch(url, {
-					body,
-					headers: {
-						"content-type": "application/json",
-						"x-simintpay-signature": signBody(body, secret),
-					},
-					method: "POST",
-					redirect: "error",
-					signal: AbortSignal.timeout(TIMEOUT_MS),
-				});
-				if (res.ok) return;
-				lastError = `HTTP ${res.status}`;
-				// 4xx (exceto 429) não melhora tentando de novo: assinatura/segredo ou payload.
-				if (res.status < 500 && res.status !== 429) break;
-			} catch (error) {
-				lastError = error instanceof Error ? error.name : "erro";
-			}
+	private async enqueueAndSend(eventId: string, body: string) {
+		try {
+			// O mesmo evento reenviado pelo SimIntPay não substitui o que já está na fila.
+			await this.prisma.trackRelay.upsert({
+				create: { body, eventId },
+				update: {},
+				where: { eventId },
+			});
+		} catch {
+			this.logger.warn(
+				`Repasse ao track: não foi possível gravar na fila (evento ${eventId}); enviando direto`,
+			);
+			await this.send(body);
+			return;
 		}
-		this.logger.warn(`Repasse ao track falhou (${kind}, pedido ${orderId}): ${lastError}`);
+		await this.attempt(eventId);
+	}
+
+	/** Reenvia os repasses vencidos. Um por vez por processo. */
+	async drain() {
+		if (this.draining || !this.config()) return;
+		this.draining = true;
+		try {
+			const due = await this.prisma.trackRelay.findMany({
+				orderBy: { nextAttemptAt: "asc" },
+				select: { eventId: true },
+				take: BATCH,
+				where: { nextAttemptAt: { lte: new Date() } },
+			});
+			for (const { eventId } of due) await this.attempt(eventId);
+		} catch (error) {
+			this.logger.warn(
+				`Repasse ao track: falha ao ler a fila (${error instanceof Error ? error.name : "erro"})`,
+			);
+		} finally {
+			this.draining = false;
+		}
+	}
+
+	/** Uma tentativa de entrega. Nunca lança: o envio imediato e o worker podem correr juntos. */
+	private async attempt(eventId: string) {
+		try {
+			const row = await this.prisma.trackRelay.findUnique({ where: { eventId } });
+			if (!row?.nextAttemptAt) return;
+			const result = await this.send(row.body);
+			if (result.ok) {
+				await this.prisma.trackRelay.deleteMany({ where: { eventId } });
+				return;
+			}
+			const attempts = row.attempts + 1;
+			const giveUp = !result.retry || attempts >= MAX_ATTEMPTS;
+			await this.prisma.trackRelay.updateMany({
+				data: {
+					attempts,
+					lastError: result.error,
+					nextAttemptAt: giveUp ? null : new Date(Date.now() + backoffMs(attempts)),
+				},
+				where: { eventId },
+			});
+			this.logger.warn(
+				`Repasse ao track falhou (evento ${eventId}, tentativa ${attempts}): ${result.error}` +
+					(giveUp ? " — sem novas tentativas" : ""),
+			);
+		} catch (error) {
+			this.logger.warn(
+				`Repasse ao track: erro na fila (evento ${eventId}): ${error instanceof Error ? error.name : "erro"}`,
+			);
+		}
+	}
+
+	private async send(body: string): Promise<SendResult> {
+		const config = this.config();
+		if (!config) return { error: "repasse desligado", ok: false, retry: false };
+		try {
+			const res = await fetch(config.url, {
+				body,
+				headers: {
+					"content-type": "application/json",
+					"x-simintpay-signature": signBody(body, config.secret),
+				},
+				method: "POST",
+				redirect: "error",
+				signal: AbortSignal.timeout(TIMEOUT_MS),
+			});
+			if (res.ok) return { ok: true };
+			// 4xx (exceto 429) não melhora tentando de novo: payload inválido.
+			// 401 (segredo trocado no painel) e 503 (segredo ainda não gerado) se resolvem com configuração: tenta de novo.
+			const retry = res.status >= 500 || res.status === 429 || res.status === 401;
+			return { error: `HTTP ${res.status}`, ok: false, retry };
+		} catch (error) {
+			// fetch falha com TypeError genérico; o motivo (ECONNREFUSED, ENOTFOUND...) vem em cause.code.
+			const code = (error as { cause?: { code?: unknown } })?.cause?.code;
+			const reason = typeof code === "string" ? code : error instanceof Error ? error.name : "erro";
+			return { error: reason, ok: false, retry: true };
+		}
 	}
 }

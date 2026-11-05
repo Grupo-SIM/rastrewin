@@ -23,7 +23,9 @@ export class UsersController {
 	constructor(private readonly prisma: PrismaService) {}
 
 	/** Cadastro: salva os dados como PENDING e devolve o link de checkout. A liberação do plano
-	 * (e a senha de acesso) só acontece quando o webhook de pagamento confirmar (ver PaymentsController). */
+	 * (e a senha de acesso) só acontece quando o webhook de pagamento confirmar (ver PaymentsController).
+	 * Quem já tem plano ATIVO não perde o acesso ao enviar o formulário de novo: os dados são
+	 * atualizados e o plano escolhido fica em pendingPlan até o pagamento ser aprovado. */
 	@Post()
 	async register(@Body() dto: RegisterDto) {
 		const checkoutUrl = checkoutUrlFor(dto.plan);
@@ -33,6 +35,23 @@ export class UsersController {
 		const city = data.city.trim();
 		// Sem rastreamento novo (script bloqueado, por exemplo), mantém o que já estava gravado.
 		const tracking = sanitizeTracking(rawTracking);
+
+		const existing = await this.prisma.user.findUnique({ where: { email } });
+		if (existing && (await expireIfPastDue(this.prisma, existing)) === "ACTIVE") {
+			const { plan, ...profile } = data;
+			const user = await this.prisma.user.update({
+				data: {
+					...profile,
+					city,
+					email,
+					pendingPlan: plan === existing.plan ? null : plan,
+					...(tracking ? { tracking } : {}),
+				},
+				where: { id: existing.id },
+			});
+			return { ...toPublicUser(user), checkoutUrl };
+		}
+
 		const user = await this.prisma.user.upsert({
 			create: { ...data, city, email, status: "PENDING", ...(tracking ? { tracking } : {}) },
 			update: {
@@ -40,6 +59,7 @@ export class UsersController {
 				city,
 				email,
 				paidAt: null,
+				pendingPlan: null,
 				status: "PENDING",
 				...(tracking ? { tracking } : {}),
 			},

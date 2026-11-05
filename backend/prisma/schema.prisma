@@ -16,6 +16,7 @@ model User {
   city          String
   pix           String?
   plan          String
+  pendingPlan   String?   // plano escolhido por quem já tem plano ATIVO; vira o plano quando o pagamento for aprovado
   role          String    @default("USER") // USER | ADMIN
   password      String?   // hash bcrypt; definido quando o pagamento é confirmado (envia por e-mail)
   status        String    @default("PENDING") // PENDING | ACTIVE | EXPIRED
@@ -78,4 +79,17 @@ model Entry {
   raffle    Raffle   @relation(fields: [raffleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, raffleId])
+}
+
+/// Repasses de venda ao track que ainda não foram entregues (TrackRelayService).
+/// A linha é apagada quando o track confirma; nextAttemptAt nulo = desistiu (erro definitivo ou tentativas esgotadas).
+model TrackRelay {
+  eventId       String    @id // eventId do SimIntPay (o track também deduplica por ele)
+  body          String // JSON exato repassado; assinado com TRACK_WEBHOOK_SECRET a cada envio
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime? @default(now())
+  lastError     String?
+  createdAt     DateTime  @default(now())
+
+  @@index([nextAttemptAt])
 }

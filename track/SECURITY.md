@@ -45,7 +45,7 @@ As regras para quem mexe no código estão no [CLAUDE.md](CLAUDE.md), seção "S
 
 - **CSP com `script-src 'unsafe-inline'`:** um nonce exigiria renderização dinâmica e é incompatível com Cache Components/PPR (guia do Next). Mitigação: sem HTML vindo do usuário, o React escapa tudo e as outras diretivas fecham o resto.
 - **Webhook sem carimbo de tempo na assinatura:** o contrato do SimIntPay não envia um. Mitigação: idempotência e precedência de status. Um reenvio não muda nada.
-- **Venda depende do repasse do backend:** se o track ficar fora do ar por mais que as 3 tentativas do backend (cerca de 12 s), o evento não chega. O SimIntPay reenvia ao backend só quando o próprio backend falha. Conciliar pelo histórico de eventos do SimIntPay (`SIMPAY_INBOUND_TOKEN`) fica como melhoria futura.
+- **Venda depende do repasse do backend:** o backend guarda cada repasse na tabela `TrackRelay` e reenvia por até ~3 dias se o track estiver fora do ar. Depois disso, ou com erro definitivo (4xx que não seja 401/429), a linha fica com `lastError` e o evento não chega sozinho. Os dados pessoais dessas linhas ficam no banco do backend até a entrega.
 - **Rate limits em memória:** eles valem para **uma instância**. Com várias réplicas, cada uma conta separado, e um restart zera a contagem.
 - **Eventos do site forjáveis por quem não é navegador:** o `Origin` é um controle de navegador. Isso vale para qualquer rastreamento no cliente. Mitigação: limites e validação. Vendas, que são o que importa para o ROAS, só entram pelo webhook assinado.
 - **Dados pessoais guardados:** compras (e-mail) e o corpo bruto do webhook ficam sem prazo. A retenção diária só limpa os payloads do `events_log`. Revisar junto com o banner de cookies/LGPD.
