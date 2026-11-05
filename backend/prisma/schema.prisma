@@ -22,6 +22,7 @@ model User {
   paidAt        DateTime?
   expiresAt     DateTime? // paidAt + 1 ano; vencido sem renovar = volta pra tela de assinatura expirada
   simpayOrderId String?   @unique // orderId da última cobrança aprovada (idempotência por renovação)
+  tracking      Json?     // origem do visitante no cadastro (src = trck_user_id, utm_*, fbc, fbp), repassada ao track com a venda
   phoneVerified Boolean   @default(false) // validado por OTP reverso via WhatsApp
   otpCode       String?   // código que o usuário precisa mandar pro WhatsApp do rastrewin
   resetCodeHash      String?   // HMAC do código de 6 dígitos enviado por e-mail na recuperação de senha

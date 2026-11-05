@@ -1,8 +1,9 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post } from "@nestjs/common";
-import { IsEmail, IsIn, IsString, MinLength } from "class-validator";
+import { IsEmail, IsIn, IsObject, IsOptional, IsString, MinLength } from "class-validator";
 import { generateOtpCode } from "../auth/phone.util";
 import { checkoutUrlFor, expireIfPastDue, PLAN_IDS } from "../plans";
 import { PrismaService } from "../prisma/prisma.service";
+import { sanitizeTracking } from "../track/tracking";
 import { toPublicUser } from "./user.view";
 
 class RegisterDto {
@@ -13,6 +14,8 @@ class RegisterDto {
 	@IsString() @MinLength(2) city: string;
 	@IsString() @MinLength(3) pix: string;
 	@IsIn(PLAN_IDS) plan: string;
+	/** Origem do visitante (t.js): src = trck_user_id, utm_*, fbc, fbp. Filtrado por sanitizeTracking. */
+	@IsOptional() @IsObject() tracking?: Record<string, unknown>;
 }
 
 @Controller("users")
@@ -25,11 +28,21 @@ export class UsersController {
 	async register(@Body() dto: RegisterDto) {
 		const checkoutUrl = checkoutUrlFor(dto.plan);
 		if (!checkoutUrl) throw new BadRequestException("Checkout não configurado para este plano");
-		const email = dto.email.trim().toLowerCase();
-		const city = dto.city.trim();
+		const { tracking: rawTracking, ...data } = dto;
+		const email = data.email.trim().toLowerCase();
+		const city = data.city.trim();
+		// Sem rastreamento novo (script bloqueado, por exemplo), mantém o que já estava gravado.
+		const tracking = sanitizeTracking(rawTracking);
 		const user = await this.prisma.user.upsert({
-			create: { ...dto, city, email, status: "PENDING" },
-			update: { ...dto, city, email, paidAt: null, status: "PENDING" },
+			create: { ...data, city, email, status: "PENDING", ...(tracking ? { tracking } : {}) },
+			update: {
+				...data,
+				city,
+				email,
+				paidAt: null,
+				status: "PENDING",
+				...(tracking ? { tracking } : {}),
+			},
 			where: { email },
 		});
 		return { ...toPublicUser(user), checkoutUrl };
