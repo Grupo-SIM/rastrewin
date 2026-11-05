@@ -71,6 +71,9 @@ const FAQ = [
 	["Como sei se ganhei?", "O painel mostra o ganhador de cada sorteio quando o contador termina."],
 ];
 
+/** Duração da contagem regressiva da demonstração. */
+const DEMO_MS = (2 * 3600 + 14 * 60) * 1000;
+
 const empty = { city: "", cpf: "", email: "", name: "", phone: "", pix: "", plan: "pro" };
 const pad = (n: number) => String(n).padStart(2, "0");
 const clock = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
@@ -82,9 +85,11 @@ export default function Landing() {
 	const [heroEmail, setHeroEmail] = useState("");
 	const [tick, setTick] = useState(0);
 	const [lines, setLines] = useState<{ s: string; t: string }[]>([]);
-	const [demoEnd] = useState(() => Date.now() + (2 * 3600 + 14 * 60) * 1000);
+	// Fim da contagem só no navegador: calculado no servidor, a hora diferia da do cliente e quebrava a hidratação.
+	const [demoEnd, setDemoEnd] = useState<number | null>(null);
 
 	useEffect(() => {
+		setDemoEnd(Date.now() + DEMO_MS);
 		setLines([{ s: LOG[0], t: clock(new Date()) }]);
 		let i = 1;
 		const a = setInterval(() => setTick(t => t + 1), 1000);
@@ -145,7 +150,7 @@ export default function Landing() {
 		}
 	}
 
-	const demoMs = demoEnd - Date.now();
+	const demoMs = demoEnd === null ? DEMO_MS : demoEnd - Date.now();
 	void tick;
 
 	return (
