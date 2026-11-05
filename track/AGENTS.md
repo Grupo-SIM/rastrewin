@@ -48,7 +48,7 @@
 
 ## Segurança (regras fixas)
 
-- Env do **app**: `DATABASE_URL` (usuário `app_login`), `ENCRYPTION_KEY`, `BETTER_AUTH_SECRET`, `APP_URL`.
+- Env do **app**: `DATABASE_URL` (idealmente `app_login`; qualquer usuário que assuma `app_service`/`app_reader` funciona), `ENCRYPTION_KEY`, `BETTER_AUTH_SECRET`, `APP_URL`.
   `MIGRATION_DATABASE_URL` (dono do banco) e `POSTGRES_*` são só da migração/compose — **nunca** vão para o container do app.
   **Nunca** `NEXT_PUBLIC_` com algo sensível. `.env` nunca é commitado. Env é lido de forma preguiçosa (`env()` em `src/lib/env.ts`) — o build roda sem env.
 - Credenciais Meta/GA4/webhook ficam no banco, **cifradas com pgcrypto** (`src/lib/secrets.ts`: `encryptSecret`/`decryptSecret`/`secretHint`), em colunas `*_enc`.

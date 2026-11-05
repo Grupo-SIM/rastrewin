@@ -10,7 +10,7 @@ const schema = z.object({
 	APP_URL: z.url(),
 	/** Segredo das sessões do login do painel. */
 	BETTER_AUTH_SECRET: z.string().min(32, "BETTER_AUTH_SECRET precisa de pelo menos 32 caracteres"),
-	/** Conexão do app como app_login (sem privilégios próprios; troca para app_service/app_reader). */
+	/** Conexão do app (app_login ou qualquer usuário que possa assumir app_service/app_reader). */
 	DATABASE_URL: z.url(),
 	/** Chave mestra da cifra pgcrypto dos segredos (tokens/api_secret). */
 	ENCRYPTION_KEY: z.string().min(32, "ENCRYPTION_KEY precisa de pelo menos 32 caracteres"),

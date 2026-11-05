@@ -6,9 +6,9 @@ import { env } from "@/lib/env";
 import * as schema from "./schema";
 
 /*
- * O app conecta como `app_login` (sem privilégios próprios, NOINHERIT) e cada pool
+ * O app conecta com o usuário da DATABASE_URL (idealmente `app_login`, sem privilégios próprios) e cada pool
  * já abre a conexão no papel certo (parâmetro de inicialização `-c role=...`; o
- * Postgres recusa a conexão se app_login não puder assumir esse papel):
+ * Postgres recusa a conexão se o usuário não puder assumir esse papel):
  *   - serviceDb(): app_service — escrita. SÓ código de servidor (API, server actions, auth).
  *   - reader:      app_reader  — só leitura, e a RLS só libera linhas se `app.user_id`
  *                  for um usuário válido. Use via `readAsUser()` em src/lib/dal.ts.
