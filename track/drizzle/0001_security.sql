@@ -33,10 +33,12 @@ ALTER ROLE app_service NOLOGIN NOSUPERUSER NOBYPASSRLS;
 --> statement-breakpoint
 ALTER ROLE app_reader NOLOGIN NOSUPERUSER NOBYPASSRLS;
 --> statement-breakpoint
--- app_login só pode TROCAR para os papéis (SET ROLE); não herda os privilégios deles.
-GRANT app_service TO app_login WITH INHERIT FALSE, SET TRUE;
+-- app_login só pode TROCAR para os papéis (SET ROLE); não herda os privilégios deles, porque é NOINHERIT.
+-- Sem `WITH INHERIT FALSE, SET TRUE` (só existe no Postgres 16+): a produção roda no Postgres 15. No 16+,
+-- o padrão do GRANT dá o mesmo resultado: INHERIT segue o NOINHERIT do app_login, e SET vem ligado.
+GRANT app_service TO app_login;
 --> statement-breakpoint
-GRANT app_reader TO app_login WITH INHERIT FALSE, SET TRUE;
+GRANT app_reader TO app_login;
 --> statement-breakpoint
 
 -- Banco: além do dono, só app_login conecta.
