@@ -1,13 +1,15 @@
 import "server-only";
 import fs from "node:fs";
 import path from "node:path";
-import { type CityResponse, Reader } from "maxmind";
+import { type AsnResponse, type CityResponse, Reader } from "maxmind";
+import { botNetworkName } from "./bot-networks";
 import { brStateToUf } from "./br-states";
 
 /*
- * Geolocalização OFFLINE a partir do IP (base DB-IP City Lite, CC BY 4.0).
- * Arquivo: data/geo/dbip-city-lite.mmdb — baixado por `npm run geo:download` e no build do Docker.
- * Sem o arquivo, o tracking continua funcionando, só sem geo.
+ * Geolocalização OFFLINE a partir do IP (bases DB-IP City Lite e ASN Lite, CC BY 4.0).
+ * Arquivos: data/geo/dbip-city-lite.mmdb e data/geo/dbip-asn-lite.mmdb — baixados por
+ * `npm run geo:download` e no build do Docker.
+ * Sem os arquivos, o tracking continua funcionando, só sem geo e sem o filtro de robôs.
  */
 
 export interface Geo {
@@ -19,7 +21,11 @@ export interface Geo {
 }
 
 const DB_PATH = path.join(process.cwd(), "data", "geo", "dbip-city-lite.mmdb");
-const g = globalThis as unknown as { __geoReader?: Reader<CityResponse> | null };
+const ASN_DB_PATH = path.join(process.cwd(), "data", "geo", "dbip-asn-lite.mmdb");
+const g = globalThis as unknown as {
+	__geoReader?: Reader<CityResponse> | null;
+	__asnReader?: Reader<AsnResponse> | null;
+};
 
 function reader(): Reader<CityResponse> | null {
 	if (g.__geoReader !== undefined) return g.__geoReader;
@@ -47,5 +53,28 @@ export function lookupGeo(ip: string | null): Geo {
 		return { city: hit.city?.names?.en ?? null, country, region };
 	} catch {
 		return EMPTY;
+	}
+}
+
+function asnReader(): Reader<AsnResponse> | null {
+	if (g.__asnReader !== undefined) return g.__asnReader;
+	try {
+		g.__asnReader = new Reader<AsnResponse>(fs.readFileSync(ASN_DB_PATH));
+	} catch {
+		console.warn(
+			`[geo] base de ASN não encontrada em ${ASN_DB_PATH} — rode "npm run geo:download". Seguindo sem filtro de robôs.`,
+		);
+		g.__asnReader = null;
+	}
+	return g.__asnReader;
+}
+
+/** Nome da rede de robôs (Meta, Google) dona do IP, ou null para visitantes comuns. */
+export function botNetwork(ip: string | null): string | null {
+	if (!ip) return null;
+	try {
+		return botNetworkName(asnReader()?.get(ip)?.autonomous_system_number);
+	} catch {
+		return null;
 	}
 }

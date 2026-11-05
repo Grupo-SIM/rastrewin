@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { lookupGeo } from "@/lib/geo";
+import { botNetwork, lookupGeo } from "@/lib/geo";
 import { readJsonBody } from "@/lib/http/body";
 import { clientIp, rateLimitKey } from "@/lib/http/client-ip";
 import { allowedOrigin, corsHeaders, json, preflight } from "@/lib/http/cors";
@@ -29,6 +29,10 @@ export async function POST(request: Request) {
 	const cors = corsHeaders(origin);
 
 	if (!limiter.take(rateLimitKey(request.headers))) return json({ error: "muitas requisições" }, 429, cors);
+
+	// Robô da Meta/Google executando a página (revisão de anúncio, prévia de link): não é cliente.
+	// Responde OK para o t.js e não grava nem envia nada.
+	if (botNetwork(clientIp(request.headers))) return json({ ignored: true, ok: true }, 200, cors);
 
 	const body = await readJsonBody(request, MAX_BYTES);
 	if (!body.ok)

@@ -11,7 +11,7 @@ Source of truth for product and domain rules. Keep engineering workflow and agen
 ## Sales and attribution
 
 - Funnel: ad → VSL → rastrewin.com sign-up form → SimIntPay checkout (a payment link per plan).
-- Both sites load `https://track.rastrewin.com/t.js`. The visitor id cookie (`_trck`) is set on `.rastrewin.com`, so the VSL and rastrewin.com share the visitor.
+- Both sites load `https://track.rastrewin.com/t.js`. Visits from the Meta and Google networks (ad review and link-preview robots that run the page) are ignored by the track: they are not visitors and nothing is sent to Meta/GA4 for them. The visitor id cookie (`_trck`) is set on `.rastrewin.com`, so the VSL and rastrewin.com share the visitor.
 - On submit, the form identifies the lead and sends `InitiateCheckout` to the track. It also sends the visitor's tracking (`src` = `trck_user_id`, UTMs, `fbc`, `fbp`) with the sign-up; the backend stores it.
 - SimIntPay sends each sale event to the backend, which confirms the purchase and relays the event to the track. The track ties the sale to the visit through `src`, falling back to e-mail or phone. Details: [SimIntPay integration](development/simintpay.md).
 - Only the first purchase goes to Meta and GA4 as `Purchase`. Repurchases and renewals (the buyer already had a paid order) show only in the track's Faturamento and stay out of campaign ROAS.
