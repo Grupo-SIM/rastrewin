@@ -1,6 +1,6 @@
 # Rastrewin — tracking server-side
 
-Captura visitantes e eventos, envia para Meta Conversions API e GA4, recebe as vendas do SimIntPay (repassadas pelo backend do rastrewin, ver [docs/development/simintpay.md](../docs/development/simintpay.md)) e mostra tudo num painel.
+Captura visitantes e eventos, envia para Meta Conversions API e GA4, recebe as vendas do SimIntPay (repassadas pelo backend do rastrewin, ver [docs/development/simintpay.md](../docs/development/simintpay.md)) e mostra tudo num painel (visão geral, eventos, faturamento, campanhas, páginas, vídeos e geo).
 
 - Regras, stack e status das fases: veja [CLAUDE.md](CLAUDE.md).
 - Rodar local: `cp .env.example .env` → preencha → `docker compose up -d --build` → http://localhost:3000

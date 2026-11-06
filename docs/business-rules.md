@@ -17,6 +17,12 @@ Source of truth for product and domain rules. Keep engineering workflow and agen
 - Only the first purchase goes to Meta and GA4 as `Purchase`. Repurchases and renewals (the buyer already had a paid order) show only in the track's Faturamento and stay out of campaign ROAS.
 - Refund and chargeback revoke the plan of the order that was refunded. The track marks the sale refunded and sends a GA4 `refund`; Meta receives nothing for refunds.
 
+## Panel analytics (track)
+
+- **Páginas:** conversion per page, where a page is the domain + path without query string (UTMs, `fbclid`) or trailing slash. A person counts on **every** page they viewed in the period, so a buyer who saw the VSL and the sign-up page counts on both and the rows do not add up to the total. Checkout = viewers who fired `InitiateCheckout` in the period; purchases = viewers' approved sales in the period, renewals excluded (same rules as Faturamento).
+- **Vídeos:** retention of the VSL video. The VSL reports each play's progress (`trck('video')`): furthest point reached, seconds really watched (skips and replays don't count), the end and the second the button unlocks. One row per play in `video_views`. This data stays in the panel: it never goes to Meta or GA4 and is not an event (`events_log`, the overview's "Eventos" KPI and the funnel are unchanged).
+- **Daily cleanup does not change the numbers:** it only empties the four technical JSON payloads of `events_log` rows older than 14 days (what was sent to and received from Meta/GA4). Event rows, URLs, visitors, purchases and video plays are kept, so KPIs, funnel, Páginas, Vídeos, campaigns/ROAS and the sale → visitor link are unaffected. After 14 days the event detail shows empty JSON tabs and Meta status "expirado".
+
 ## Open points
 
 Surface open points instead of guessing; add normative rules here as they are confirmed.
