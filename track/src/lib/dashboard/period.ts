@@ -20,7 +20,8 @@ export const PRESETS = [
 	{ key: "max", label: "Máximo" },
 ] as const;
 export type PresetKey = (typeof PRESETS)[number]["key"];
-export const DEFAULT_PRESET: PresetKey = "30d";
+/** Período ao abrir o painel (sem ?periodo na URL) e quando o link traz um período inválido. */
+export const DEFAULT_PRESET: PresetKey = "hoje";
 const MAX_CUSTOM_DAYS = 366;
 
 export interface Period {

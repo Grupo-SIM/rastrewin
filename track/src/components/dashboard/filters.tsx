@@ -6,7 +6,7 @@ import { createContext, type FormEvent, type ReactNode, use, useState, useTransi
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PRESETS } from "@/lib/dashboard/period";
+import { DEFAULT_PRESET, PRESETS } from "@/lib/dashboard/period";
 import { cn } from "@/lib/utils";
 
 /*
@@ -73,7 +73,7 @@ const trigger = "h-10 min-w-0 bg-card/60";
 export function PeriodFilter() {
 	const { setParams } = useFilters();
 	const params = useSearchParams();
-	const current = params.get("periodo") ?? "30d";
+	const current = params.get("periodo") ?? DEFAULT_PRESET;
 	const [custom, setCustom] = useState(current === "custom");
 	const [de, setDe] = useState(params.get("de") ?? "");
 	const [ate, setAte] = useState(params.get("ate") ?? "");

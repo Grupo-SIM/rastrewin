@@ -32,7 +32,7 @@ test("'hoje' vira o dia certo na virada (00:30 em Brasília ainda é dia anterio
 	assert.equal(resolvePeriod({ periodo: "hoje" }, SP, new Date("2026-11-02T02:30:00Z")).from, "2026-11-01");
 });
 
-test("ontem, 7d, 30d (padrão), mês e período anterior do mesmo tamanho", () => {
+test("ontem, 7d, 30d, hoje (padrão), mês e período anterior do mesmo tamanho", () => {
 	const now = new Date("2026-11-02T15:00:00Z");
 	const ontem = resolvePeriod({ periodo: "ontem" }, SP, now);
 	assert.deepEqual([ontem.from, ontem.to, ontem.days], ["2026-11-01", "2026-11-01", 1]);
@@ -40,8 +40,13 @@ test("ontem, 7d, 30d (padrão), mês e período anterior do mesmo tamanho", () =
 	assert.deepEqual([d7.from, d7.to, d7.days], ["2026-10-27", "2026-11-02", 7]);
 	assert.equal(d7.prevStart.toISOString(), startOfLocalDay("2026-10-20", SP).toISOString());
 	assert.equal(d7.prevEnd.toISOString(), d7.start.toISOString());
+	const d30 = resolvePeriod({ periodo: "30d" }, SP, now);
+	assert.deepEqual([d30.key, d30.from, d30.days], ["30d", "2026-10-04", 30]);
 	const def = resolvePeriod({}, SP, now);
-	assert.deepEqual([def.key, def.from, def.days], ["30d", "2026-10-04", 30]);
+	assert.deepEqual(
+		[def.key, def.from, def.to, def.days, def.label],
+		["hoje", "2026-11-02", "2026-11-02", 1, "Hoje"],
+	);
 	const mes = resolvePeriod({ periodo: "mes" }, SP, now);
 	assert.deepEqual([mes.from, mes.days], ["2026-11-01", 2]);
 	assert.equal(daysOf(d7).length, 7);
@@ -53,10 +58,10 @@ test("personalizado válido; inválido cai no padrão", () => {
 	assert.deepEqual([c.key, c.days, c.label], ["custom", 10, "01/10/2026 – 10/10/2026"]);
 	assert.equal(
 		resolvePeriod({ ate: "2026-10-01", de: "2026-10-10", periodo: "custom" }, SP, now).key,
-		"30d",
+		"hoje",
 	);
-	assert.equal(resolvePeriod({ ate: "y", de: "x", periodo: "custom" }, SP, now).key, "30d");
-	assert.equal(resolvePeriod({ periodo: "lixo" }, SP, now).key, "30d");
+	assert.equal(resolvePeriod({ ate: "y", de: "x", periodo: "custom" }, SP, now).key, "hoje");
+	assert.equal(resolvePeriod({ periodo: "lixo" }, SP, now).key, "hoje");
 });
 
 test("periodRange: um dia mostra a data; vários dias mostram início – fim", () => {
