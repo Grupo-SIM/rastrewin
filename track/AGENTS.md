@@ -113,7 +113,7 @@
 
 ## Dashboard (Fase 6)
 
-- **Consultas** em `src/lib/dashboard/` — todas dentro de `withDashboard()` (`context.ts`): UMA transação `readAsUser` (RLS), lê fuso/moeda e resolve o período da URL (`period.ts`, padrão 30d; presets hoje/ontem/7d/30d/90d/mês/personalizado). Agregações em SQL; dias agrupados com `at time zone <fuso do painel>`.
+- **Consultas** em `src/lib/dashboard/` — todas dentro de `withDashboard()` (`context.ts`): UMA transação `readAsUser` (RLS), lê fuso/moeda e resolve o período da URL (`period.ts`, padrão hoje; presets no modelo do Gerenciador de Anúncios: hoje, ontem, hoje e ontem, 7/14/28/30/90 dias, esta semana, semana passada, este mês, mês passado, máximo e personalizado). Agregações em SQL; dias agrupados com `at time zone <fuso do painel>`.
 - **Definições** (mostradas no ⓘ de cada KPI): usuários únicos = trck_user_id distintos com evento no período; compras = status approved/refund_requested por `occurred_at`; conversão = compras ÷ usuários; receita = soma do valor BRUTO; reembolsos por `refunded_at`.
     - **Funil por PESSOAS**: Visitou (PageView) ⊇ Checkout (InitiateCheckout entre quem visitou) ⊇ Comprou (compradores entre os do checkout). Compras sem ligação/checkout aparecem numa nota (nunca passa de 100%).
     - Deltas: período anterior de mesmo tamanho ("Máximo" não compara).
