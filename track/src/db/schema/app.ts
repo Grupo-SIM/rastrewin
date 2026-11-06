@@ -170,6 +170,49 @@ export const eventsLog = pgTable(
 	],
 );
 
+// ---------------------------------------------------------------- vídeos
+
+/**
+ * Um play de vídeo (resumo, uma linha por play): até onde a pessoa chegou e quanto assistiu de fato.
+ * Vem do comando trck('video') do site, por /api/video. NUNCA vai à Meta nem ao GA4.
+ * Fora da limpeza diária (é pequeno: uma linha por play, sem payloads).
+ */
+export const videoViews = pgTable(
+	"video_views",
+	{
+		completed: boolean("completed").notNull().default(false),
+		/** Segundo em que o site libera o botão (CTA), se ele informar. */
+		ctaS: integer("cta_s"),
+		/** Segundos (arredondados). */
+		durationS: integer("duration_s").notNull().default(0),
+		id: bigserial("id", { mode: "number" }).primaryKey(),
+		/** Ponto mais adiante a que a pessoa chegou. */
+		maxPositionS: integer("max_position_s").notNull().default(0),
+		pageUrl: text("page_url"),
+		trckUserId: text("trck_user_id").notNull(),
+		/** "<provedor>:<id>", ex.: "vimeo:1243006876". */
+		videoId: text("video_id").notNull(),
+		videoTitle: text("video_title"),
+		/** Gerado pelo t.js: um por vídeo a cada carregamento da página. */
+		viewId: text("view_id").notNull().unique(),
+		/** Segundos realmente assistidos em reprodução normal (pulos e repetições não contam). */
+		watchedS: integer("watched_s").notNull().default(0),
+		...utmColumns(),
+		...geoColumns(),
+		startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	t => [
+		index("video_views_video_started_idx").on(t.videoId, t.startedAt),
+		index("video_views_started_at_idx").on(t.startedAt),
+		index("video_views_trck_user_id_idx").on(t.trckUserId),
+		check(
+			"video_views_seconds_check",
+			sql`${t.durationS} >= 0 and ${t.maxPositionS} >= 0 and ${t.watchedS} >= 0 and (${t.ctaS} is null or ${t.ctaS} >= 0)`,
+		),
+	],
+);
+
 // ---------------------------------------------------------------- vendas
 
 export const purchases = pgTable(

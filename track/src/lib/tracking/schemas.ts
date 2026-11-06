@@ -79,3 +79,22 @@ export const eventSchema = z.object({
 	user_data: z.object(userData).optional(),
 });
 export type EventInput = z.infer<typeof eventSchema>;
+
+/** Segundos de vídeo: até 6 h (o t.js já arredonda e limita). */
+const videoSeconds = z.number().finite().nonnegative().max(21_600);
+
+/** POST /api/video — progresso de um play (comando trck('video') do site). */
+export const videoSchema = z.object({
+	/** Segundo em que o site libera o botão (CTA). Opcional. */
+	cta: videoSeconds.optional(),
+	duration: videoSeconds,
+	ended: z.boolean().optional().default(false),
+	page_url: url,
+	position: videoSeconds,
+	title: optStr(300),
+	trck_user_id: z.string().regex(TRCK_ID),
+	video_id: z.string().regex(/^[a-z]{2,20}:[A-Za-z0-9_-]{1,64}$/, "id de vídeo inválido"),
+	view_id: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
+	watched: videoSeconds,
+});
+export type VideoInput = z.infer<typeof videoSchema>;

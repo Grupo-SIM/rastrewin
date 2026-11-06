@@ -14,6 +14,8 @@
  *   trck('track', 'Lead', { value: 10, currency: 'BRL' })
  *   trck('track', 'ViewContent', { content_ids: ['ebook-1'], content_name: 'Ebook', value: 47 })
  *   trck('identify', { email: 'a@b.com', phone: '11999999999', first_name: 'Ana', last_name: 'Silva' })
+ *   trck('video', { id: 'vimeo:123', title: 'VSL', duration: 600, position: 95, watched: 90, cta: 150 })
+ *     → só para a aba Vídeos do painel (nunca vai à Meta nem ao GA4).
  *
  * "Purchase" NÃO é aceito aqui: a compra vem do webhook da plataforma de venda (servidor).
  */
@@ -385,6 +387,34 @@ type TrckWindow = Window & {
 		});
 	}
 
+	// ---------------------------------------------------------------- vídeo
+	// Progresso de vídeo SÓ para o painel (aba Vídeos): vai direto para /api/video.
+	// Nunca chama Pixel/gtag nem /api/event — não chega à Meta nem ao GA4.
+	//   trck('video', { id: 'vimeo:123', title, duration, position, watched, ended, cta })
+	const videoViews: Record<string, string> = {};
+	const seconds = (v: unknown) => {
+		const n = Number(v);
+		return Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 21_600) : 0;
+	};
+	function video(data: Dict = {}) {
+		const id = String(data.id ?? "");
+		if (!/^[a-z]{2,20}:[A-Za-z0-9_-]{1,64}$/.test(id))
+			return console.warn("[trck] vídeo sem id válido (ex.: vimeo:123):", id);
+		send("/api/video", {
+			...(seconds(data.cta) ? { cta: seconds(data.cta) } : {}),
+			duration: seconds(data.duration),
+			ended: data.ended === true,
+			page_url: location.href,
+			position: seconds(data.position),
+			title: typeof data.title === "string" ? data.title.slice(0, 300) : null,
+			trck_user_id: trckId,
+			video_id: id,
+			// um play por vídeo a cada carregamento da página
+			view_id: (videoViews[id] ??= uuid()),
+			watched: seconds(data.watched),
+		});
+	}
+
 	// ---------------------------------------------------------------- links de checkout e WhatsApp
 	const isWhatsApp = (host: string) => /(^|\.)wa\.me$|(^|\.)whatsapp\.com$/.test(host);
 	const isCheckout = (host: string) =>
@@ -466,6 +496,7 @@ type TrckWindow = Window & {
 		if (command === "track")
 			track(String(args[0]), (args[1] as Dict) ?? {}, args[2] as UserData | undefined);
 		else if (command === "identify") identify((args[0] as UserData) ?? {});
+		else if (command === "video") video((args[0] as Dict) ?? {});
 		else console.warn("[trck] comando desconhecido:", command);
 	}
 	const pending = w.trck?.q ?? [];

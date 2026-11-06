@@ -56,6 +56,13 @@
 			"tag": "0007_purchases_renewal",
 			"version": "7",
 			"when": 1793892218697
+		},
+		{
+			"breakpoints": true,
+			"idx": 8,
+			"tag": "0008_video_views",
+			"version": "7",
+			"when": 1793987630440
 		}
 	],
 	"version": "7"
