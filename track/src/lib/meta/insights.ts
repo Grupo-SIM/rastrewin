@@ -95,3 +95,53 @@ export async function fetchAdInsights(
 		calls++;
 	}
 }
+
+interface SpendPage {
+	data?: { spend?: string; impressions?: string; date_start?: string }[];
+}
+
+export type FirstSpendFetch =
+	| { ok: true; day: string | null; usage: GraphUsage; calls: number }
+	| { ok: false; status: number; error: GraphError; usage: GraphUsage; calls: number };
+
+/** Primeira data (YYYY-MM-DD) com entrega no intervalo, entre as linhas devolvidas pela Meta. */
+function firstDay(rows: SpendPage["data"]): string | null {
+	let first: string | null = null;
+	for (const r of rows ?? []) {
+		if (!r.date_start || (Number(r.spend ?? 0) <= 0 && Number(r.impressions ?? 0) <= 0)) continue;
+		if (!first || r.date_start < first) first = r.date_start;
+	}
+	return first;
+}
+
+/**
+ * Dia do gasto mais antigo da conta no intervalo (período "Máximo"). Duas chamadas pequenas, em
+ * nível de conta: uma mensal para achar o 1º mês com entrega e outra diária só dentro desse mês.
+ */
+export async function fetchFirstSpendDay(
+	adAccountId: string,
+	token: string,
+	since: string,
+	until: string,
+): Promise<FirstSpendFetch> {
+	const query = (from: string, to: string, increment: string) =>
+		graphGet<SpendPage>(`act_${adAccountId}/insights`, token, {
+			fields: "spend,impressions,date_start",
+			level: "account",
+			limit: "100",
+			time_increment: increment,
+			time_range: JSON.stringify({ since: from, until: to }),
+		});
+	const monthly = await query(since, until, "monthly");
+	if (!monthly.ok)
+		return { calls: 1, error: monthly.error, ok: false, status: monthly.status, usage: monthly.usage };
+	const month = firstDay(monthly.data.data);
+	if (!month) return { calls: 1, day: null, ok: true, usage: monthly.usage };
+
+	// fim do mês encontrado (ou o fim do intervalo, se vier antes)
+	const [y, m] = month.split("-").map(Number);
+	const monthEnd = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+	const daily = await query(month, monthEnd < until ? monthEnd : until, "1");
+	if (!daily.ok) return { calls: 2, day: month, ok: true, usage: monthly.usage };
+	return { calls: 2, day: firstDay(daily.data.data) ?? month, ok: true, usage: daily.usage };
+}

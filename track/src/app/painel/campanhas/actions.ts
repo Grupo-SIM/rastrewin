@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 import { settings } from "@/db/schema";
 import { refreshNow } from "@/lib/campaigns/cache";
-import { listAdAccounts } from "@/lib/campaigns/query";
+import { listAdAccounts, metaRange } from "@/lib/campaigns/query";
 import { readAsUser, requireSession } from "@/lib/dal";
 import { resolvePeriod } from "@/lib/dashboard/period";
 import { DEFAULT_TIMEZONE } from "@/lib/time";
@@ -35,7 +35,10 @@ export async function refreshCampaigns(raw: unknown): Promise<{ ok: boolean; mes
 	const accounts = (await listAdAccounts()).filter(a => !params.conta || a.adAccountId === params.conta);
 	if (!accounts.length) return { message: "Nenhuma conta de anúncio ativa.", ok: false };
 
-	const notices = await Promise.all(accounts.map(a => refreshNow(a, period.from, period.to, period.days)));
+	const meta = metaRange(period);
+	const notices = await Promise.all(
+		accounts.map(a => refreshNow(a, meta.since, period.to, meta.days, meta.max)),
+	);
 	refresh();
 	const errors = notices.map((n, i) => (n ? `${accounts[i].label}: ${n}` : null)).filter(Boolean);
 	return errors.length

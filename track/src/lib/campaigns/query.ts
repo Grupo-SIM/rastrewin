@@ -4,7 +4,15 @@ import { connection } from "next/server";
 import { serviceDb } from "@/db";
 import { metaAdAccounts } from "@/db/schema";
 import { ACTIVE_SALE, num, param, rows, type SearchParams, withDashboard } from "@/lib/dashboard/context";
-import { addDays, daysOf, localDate, type Period } from "@/lib/dashboard/period";
+import {
+	addDays,
+	daysBetween,
+	daysOf,
+	localDate,
+	maxLookback,
+	type Period,
+	withFrom,
+} from "@/lib/dashboard/period";
 import { decryptSecret } from "@/lib/secrets";
 import {
 	buildTree,
@@ -35,7 +43,7 @@ export interface CampaignsView {
 	currency: string;
 	accounts: { adAccountId: string; label: string }[];
 	selected: string | null;
-	results: Omit<InsightsResult, "rows">[];
+	results: Omit<InsightsResult, "rows" | "firstDay">[];
 	tree: TreeNode[];
 	totals: Metrics;
 	prevTotals: Metrics | null;
@@ -77,9 +85,21 @@ async function loadSales(sp: SearchParams) {
 	});
 }
 
+/**
+ * Intervalo pedido à Meta. Em "Máximo", sempre desde o limite de 37 meses: o total não muda (não há
+ * gasto antes do 1º), a chave do cache fica estável e a mesma consulta descobre o 1º dia com gasto.
+ */
+export function metaRange(period: Period): { since: string; days: number; max: boolean } {
+	if (period.key !== "max") return { days: period.days, max: false, since: period.from };
+	const since = maxLookback(period.to);
+	return { days: daysBetween(since, period.to) + 1, max: true, since };
+}
+
 export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 	// 1) vendas do período (RLS) — fora desta transação vem a chamada à Meta
-	const { tz, period, currency, sales, prevSales } = await loadSales(sp);
+	const loaded = await loadSales(sp);
+	const { tz, currency, sales, prevSales } = loaded;
+	let period = loaded.period;
 	const all = await listAdAccounts();
 	const wanted = param(sp, "conta");
 	const selected = all.length > 1 && wanted && all.some(a => a.adAccountId === wanted) ? wanted : null;
@@ -90,9 +110,19 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 	// (partialPrefetching) chegava a disparar a chamada à Meta e o Next a abortava.
 	await connection();
 	const includesToday = period.to >= localDate(new Date(), tz);
+	const meta = metaRange(period);
 	const results = await Promise.all(
-		accounts.map(a => getInsights(a, period.from, period.to, period.days, includesToday)),
+		accounts.map(a => getInsights(a, meta.since, period.to, meta.days, includesToday, meta.max)),
 	);
+	// "Máximo": se a Meta tem gasto antes do 1º dado do track, o período começa nele.
+	// As vendas não mudam: não existem antes do 1º registro do track.
+	if (meta.max) {
+		const first = results
+			.map(r => r.firstDay)
+			.filter((d): d is string => !!d && d >= meta.since)
+			.sort()[0];
+		if (first && first < period.from) period = withFrom(period, first, tz);
+	}
 	const insightRows: InsightRow[] = results.flatMap(r => r.rows);
 	const campaignAccount: Record<string, string> = {};
 	for (const r of results) for (const row of r.rows) campaignAccount[row.campaignId] = r.label;

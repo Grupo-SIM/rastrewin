@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { serviceDb } from "@/db";
 import { metaInsightsCache } from "@/db/schema";
 import { describeGraphError } from "@/lib/meta/graph";
-import { fetchAdInsights } from "@/lib/meta/insights";
+import { fetchAdInsights, fetchFirstSpendDay } from "@/lib/meta/insights";
 import type { InsightRow } from "./build";
 import {
 	canCall,
@@ -23,6 +23,8 @@ import {
  * - Válido por 1 h se o período inclui hoje; 12 h se é só passado.
  * - Vencido: devolve o cache NA HORA e atualiza depois da resposta (after). Sem cache: busca agora.
  * - Nunca mais de uma busca simultânea para a mesma chave.
+ * - "Máximo" (withFirstDay): a mesma tarefa também acha o dia do gasto mais antigo da conta
+ *   (2 chamadas pequenas a mais, contadas no limite) e guarda junto, em firstDay.
  */
 
 export interface AdAccount {
@@ -39,6 +41,8 @@ export interface InsightsResult {
 	stale: boolean;
 	usagePct: number | null;
 	notice: string | null;
+	/** Só no "Máximo": dia do gasto mais antigo da conta (null = sem gasto ou não consultado). */
+	firstDay: string | null;
 }
 
 const FRESH_TODAY_MS = 60 * 60_000;
@@ -46,6 +50,7 @@ const FRESH_PAST_MS = 12 * 60 * 60_000;
 interface Cached {
 	rows: InsightRow[];
 	currency: string | null;
+	firstDay?: string | null;
 }
 
 const g = globalThis as unknown as {
@@ -96,6 +101,7 @@ async function refresh(
 	until: string,
 	daily: boolean,
 	manual: boolean,
+	withFirstDay = false,
 ): Promise<string | null> {
 	const key = keyOf(acct.adAccountId, since, until, daily);
 	const running = inflight.get(key);
@@ -126,7 +132,16 @@ async function refresh(
 		if (pct >= USAGE_PAUSE_PCT)
 			limiter.set(acct.adAccountId, pause(limiter.get(acct.adAccountId)!, Date.now()));
 
-		const data: Cached = { currency: res.currency, rows: res.rows };
+		let firstDay: string | null = null;
+		if (withFirstDay) {
+			// Falha aqui não derruba a consulta principal: o período cai no 1º dado do track.
+			const first = await fetchFirstSpendDay(acct.adAccountId, acct.token, since, until);
+			for (let i = 0; i < first.calls; i++)
+				limiter.set(acct.adAccountId, recordCall(limiter.get(acct.adAccountId)!, Date.now()));
+			if (first.ok) firstDay = first.day;
+		}
+
+		const data: Cached = { currency: res.currency, firstDay, rows: res.rows };
 		await serviceDb()
 			.insert(metaInsightsCache)
 			.values({
@@ -162,6 +177,7 @@ function toResult(
 		adAccountId: acct.adAccountId,
 		currency: data.currency,
 		fetchedAt: cached?.fetchedAt.toISOString() ?? null,
+		firstDay: data.firstDay ?? null,
 		label: acct.label,
 		notice,
 		rows: data.rows,
@@ -177,6 +193,7 @@ export async function getInsights(
 	until: string,
 	days: number,
 	includesToday: boolean,
+	withFirstDay = false,
 ): Promise<InsightsResult> {
 	const daily = isDaily(days);
 	const key = keyOf(acct.adAccountId, since, until, daily);
@@ -184,10 +201,10 @@ export async function getInsights(
 	const ttl = includesToday ? FRESH_TODAY_MS : FRESH_PAST_MS;
 	if (cached && Date.now() - cached.fetchedAt.getTime() < ttl) return toResult(acct, cached, false, null);
 	if (cached) {
-		after(() => refresh(acct, since, until, daily, false).catch(() => {}));
+		after(() => refresh(acct, since, until, daily, false, withFirstDay).catch(() => {}));
 		return toResult(acct, cached, true, null);
 	}
-	const notice = await refresh(acct, since, until, daily, false);
+	const notice = await refresh(acct, since, until, daily, false, withFirstDay);
 	return toResult(acct, await readCache(key), false, notice);
 }
 
@@ -203,6 +220,12 @@ export async function peekInsights(
 }
 
 /** Botão "Atualizar agora": respeita o cooldown de 15 min por conta. */
-export function refreshNow(acct: AdAccount, since: string, until: string, days: number) {
-	return refresh(acct, since, until, isDaily(days), true);
+export function refreshNow(
+	acct: AdAccount,
+	since: string,
+	until: string,
+	days: number,
+	withFirstDay = false,
+) {
+	return refresh(acct, since, until, isDaily(days), true, withFirstDay);
 }
