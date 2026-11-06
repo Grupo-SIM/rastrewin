@@ -88,6 +88,13 @@ export function daysOf(period: Pick<Period, "from" | "to">): string[] {
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const fmtShort = (ymd: string) => `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}/${ymd.slice(0, 4)}`;
 
+/** Datas do período para exibição: "05/11/2026" (um dia) ou "07/10/2026 – 05/11/2026". */
+export function periodRange(period: Pick<Period, "from" | "to">): string {
+	return period.from === period.to
+		? fmtShort(period.from)
+		: `${fmtShort(period.from)} – ${fmtShort(period.to)}`;
+}
+
 export function resolvePeriod(
 	params: { periodo?: string | null; de?: string | null; ate?: string | null },
 	timeZone: string,

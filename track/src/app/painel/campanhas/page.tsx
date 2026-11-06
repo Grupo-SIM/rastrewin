@@ -26,6 +26,7 @@ import { cpa, roas } from "@/lib/campaigns/build";
 import { getCampaigns } from "@/lib/campaigns/query";
 import type { SearchParams } from "@/lib/dashboard/context";
 import { delta, formatDayShort, formatInt, formatMoney } from "@/lib/dashboard/format";
+import { periodRange } from "@/lib/dashboard/period";
 
 export const metadata: Metadata = { title: "Campanhas" };
 
@@ -163,7 +164,10 @@ async function CampaignsContent({ searchParams }: { searchParams: Promise<Search
 
 					<GlassCard>
 						<CardHeader>
-							<CardTitle className="font-semibold">Campanhas · {d.period.label}</CardTitle>
+							<CardTitle className="font-semibold">
+								Campanhas · {d.period.label}
+								{d.period.key !== "custom" && ` (${periodRange(d.period)})`}
+							</CardTitle>
 							<CardDescription>
 								Toque numa campanha para ver os conjuntos e anúncios. Ordenado por gasto.
 							</CardDescription>

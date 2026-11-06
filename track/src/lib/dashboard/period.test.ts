@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { daysOf, localDate, resolvePeriod, startOfLocalDay } from "./period";
+import { daysOf, localDate, periodRange, resolvePeriod, startOfLocalDay } from "./period";
 
 const SP = "America/Sao_Paulo";
 
@@ -49,4 +49,15 @@ test("personalizado válido; inválido cai no padrão", () => {
 	);
 	assert.equal(resolvePeriod({ ate: "y", de: "x", periodo: "custom" }, SP, now).key, "30d");
 	assert.equal(resolvePeriod({ periodo: "lixo" }, SP, now).key, "30d");
+});
+
+test("periodRange: um dia mostra a data; vários dias mostram início – fim", () => {
+	const now = new Date("2026-11-05T15:00:00Z");
+	assert.equal(periodRange(resolvePeriod({ periodo: "hoje" }, SP, now)), "05/11/2026");
+	assert.equal(periodRange(resolvePeriod({ periodo: "ontem" }, SP, now)), "04/11/2026");
+	assert.equal(periodRange(resolvePeriod({ periodo: "30d" }, SP, now)), "07/10/2026 – 05/11/2026");
+	assert.equal(periodRange(resolvePeriod({ periodo: "90d" }, SP, now)), "08/08/2026 – 05/11/2026");
+	assert.equal(periodRange(resolvePeriod({ periodo: "mes" }, SP, now)), "01/11/2026 – 05/11/2026");
+	const custom = resolvePeriod({ ate: "2026-11-05", de: "2026-01-01", periodo: "custom" }, SP, now);
+	assert.equal(custom.label, "01/01/2026 – 05/11/2026");
 });
