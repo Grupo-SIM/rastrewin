@@ -4,6 +4,7 @@ import type Player from "@vimeo/player";
 import { LoaderCircle, Play } from "lucide-react";
 import Image from "next/image";
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
+import { dueForReport, reportVideo } from "@/lib/video-tracking";
 import {
 	canPreloadPlayer,
 	loadVimeoPlayer,
@@ -63,6 +64,11 @@ export function VslPlayer({
 	/** Posição do vídeo, do último evento "timeupdate" do Vimeo. */
 	const positionRef = useRef<number | null>(null);
 	const progressRef = useRef(initialWatchProgress);
+	/** Medição (aba Vídeos do track): duração, ponto mais adiante, título do Vimeo e último envio. */
+	const durationRef = useRef(0);
+	const maxPositionRef = useRef(0);
+	const videoTitleRef = useRef<string | null>(null);
+	const lastReportAtRef = useRef(0);
 	const unlockedRef = useRef(unlocked);
 	const onUnlockRef = useRef(onUnlock);
 	const [status, setStatus] = useState<Status>("idle");
@@ -91,8 +97,41 @@ export function VslPlayer({
 		onUnlockRef.current(reason);
 	}, []);
 
+	/** Envia o progresso ao track (só depois do primeiro play). Nunca afeta o player. */
+	const report = useCallback(
+		(ended = false) => {
+			if (!startedRef.current) return;
+			lastReportAtRef.current = Date.now();
+			reportVideo({
+				cta: unlockAtSeconds,
+				duration: durationRef.current,
+				ended,
+				maxPosition: maxPositionRef.current,
+				title: videoTitleRef.current ?? title,
+				videoId,
+				watched: progressRef.current.watchedSeconds,
+			});
+		},
+		[title, unlockAtSeconds, videoId],
+	);
+
+	// Saiu da página ou trocou de aba: manda o progresso até ali.
+	useEffect(() => {
+		const onHide = () => {
+			if (document.visibilityState === "hidden") report();
+		};
+		const onPageHide = () => report();
+		document.addEventListener("visibilitychange", onHide);
+		window.addEventListener("pagehide", onPageHide);
+		return () => {
+			document.removeEventListener("visibilitychange", onHide);
+			window.removeEventListener("pagehide", onPageHide);
+		};
+	}, [report]);
+
+	// Conta o tempo assistido enquanto toca (para o botão e para a medição do vídeo inteiro).
 	const startTicking = useCallback(() => {
-		if (tickRef.current !== null || unlockedRef.current) return;
+		if (tickRef.current !== null) return;
 		// Recomeça a cada play: o tempo pausado não entra no tempo real entre leituras.
 		lastTickAtRef.current = performance.now();
 		tickRef.current = window.setInterval(() => {
@@ -102,12 +141,11 @@ export function VslPlayer({
 			const elapsedSeconds = (now - lastTickAtRef.current) / 1000;
 			lastTickAtRef.current = now;
 			progressRef.current = advanceWatchProgress(progressRef.current, position, elapsedSeconds);
-			if (progressRef.current.watchedSeconds >= unlockAtSeconds) {
-				stopTicking();
+			if (!unlockedRef.current && progressRef.current.watchedSeconds >= unlockAtSeconds)
 				unlock("watched");
-			}
+			if (dueForReport(Date.now(), lastReportAtRef.current)) report();
 		}, TICK_MS);
-	}, [stopTicking, unlock, unlockAtSeconds]);
+	}, [report, unlock, unlockAtSeconds]);
 
 	/** Descarta o player atual (o iframe sai da página). */
 	const discardPlayer = useCallback(() => {
@@ -191,8 +229,10 @@ export function VslPlayer({
 				iframeRef.current = iframe;
 				positionRef.current = null;
 
-				player.on("timeupdate", ({ seconds }) => {
+				player.on("timeupdate", ({ seconds, duration }) => {
 					positionRef.current = seconds;
+					if (seconds > maxPositionRef.current) maxPositionRef.current = seconds;
+					if (duration > 0) durationRef.current = duration;
 				});
 				// Tocou no play do Vimeo: a capa sai da frente.
 				player.on("play", () => {
@@ -200,6 +240,7 @@ export function VslPlayer({
 					startedRef.current = true;
 					setStarted(true);
 					setStatus("ready");
+					report();
 				});
 				player.on("playing", () => {
 					pausedRef.current = false;
@@ -212,12 +253,14 @@ export function VslPlayer({
 				player.on("pause", () => {
 					pausedRef.current = true;
 					stopTicking();
+					report();
 				});
 				player.on("ended", () => {
 					pausedRef.current = true;
 					stopTicking();
 					// Assistiu até o fim: libera mesmo que o vídeo seja mais curto que unlockAtSeconds.
 					unlock("watched");
+					report(true);
 				});
 				player.on("error", error => {
 					// Erros de um comando (ex.: autoplay bloqueado) não derrubam o player.
@@ -235,6 +278,12 @@ export function VslPlayer({
 						if (playerRef.current !== player) return;
 						clearLoadTimeout();
 						player.disableTextTrack().catch(() => {});
+						player
+							.getVideoTitle()
+							.then(t => {
+								videoTitleRef.current = t || null;
+							})
+							.catch(() => {});
 						setStatus(current => (current === "error" ? current : "ready"));
 					})
 					.catch(() => handleFailure(player));
@@ -245,7 +294,7 @@ export function VslPlayer({
 				creatingRef.current = false;
 			}
 		},
-		[clearLoadTimeout, fail, handleFailure, startTicking, stopTicking, title, unlock, videoId],
+		[clearLoadTimeout, fail, handleFailure, report, startTicking, stopTicking, title, unlock, videoId],
 	);
 
 	// Pré-carrega o player depois de a página abrir: o toque na capa já cai no play do Vimeo.
