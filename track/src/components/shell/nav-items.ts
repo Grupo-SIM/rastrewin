@@ -2,6 +2,7 @@ import {
 	ActivityIcon,
 	BanknoteIcon,
 	EarthIcon,
+	FileTextIcon,
 	LayoutDashboardIcon,
 	type LucideIcon,
 	MegaphoneIcon,
@@ -23,6 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
 	{ href: "/painel/eventos", icon: ActivityIcon, label: "Eventos", primary: true, short: "Eventos" },
 	{ href: "/painel/faturamento", icon: BanknoteIcon, label: "Faturamento", primary: true, short: "Vendas" },
 	{ href: "/painel/campanhas", icon: MegaphoneIcon, label: "Campanhas", primary: true, short: "Campanhas" },
+	{ href: "/painel/paginas", icon: FileTextIcon, label: "Páginas", primary: false, short: "Páginas" },
 	{ href: "/painel/geo", icon: EarthIcon, label: "Geo", primary: false, short: "Geo" },
 	{ href: "/painel/config", icon: SettingsIcon, label: "Configurações", primary: false, short: "Config" },
 ];
