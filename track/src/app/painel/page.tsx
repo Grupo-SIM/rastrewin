@@ -32,6 +32,8 @@ export default function VisaoGeralPage({ searchParams }: PageProps<"/painel">) {
 async function OverviewContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
 	const d = await getOverview(await searchParams);
 	const { kpis, funnel, currency } = d;
+	/** Em "Máximo" não há período anterior: os cartões não mostram a variação. */
+	const cmp = <T,>(x: T) => (d.period.compare ? x : undefined);
 	const conv = ratio(kpis.purchases, kpis.users);
 	const convPrev = ratio(kpis.purchasesPrev, kpis.usersPrev);
 	const steps = [
@@ -45,8 +47,8 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 			<div className="flex flex-col gap-4">
 				<FiltersBar />
 				<p className="text-muted-foreground text-xs">
-					{d.period.label} · {formatDayShort(d.period.from)} a {formatDayShort(d.period.to)} ·
-					comparado com os {formatInt(d.period.days)} dia(s) anteriores
+					{d.period.label} · {formatDayShort(d.period.from)} a {formatDayShort(d.period.to)}
+					{d.period.compare && ` · comparado com os ${formatInt(d.period.days)} dia(s) anteriores`}
 				</p>
 				<PendingArea className="flex flex-col gap-4">
 					{!d.hasAnyData && (
@@ -67,7 +69,7 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 							value={formatInt(kpis.users)}
 							icon={UsersIcon}
 							info="Visitantes diferentes (trck_user_id) com algum evento no período."
-							delta={{ value: delta(kpis.users, kpis.usersPrev) }}
+							delta={cmp({ value: delta(kpis.users, kpis.usersPrev) })}
 						/>
 						<KpiCard
 							label="Eventos"
@@ -75,7 +77,7 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 							icon={ActivityIcon}
 							tone="cyan"
 							info="Todos os eventos registrados no período (PageView, Lead, InitiateCheckout…)."
-							delta={{ value: delta(kpis.events, kpis.eventsPrev) }}
+							delta={cmp({ value: delta(kpis.events, kpis.eventsPrev) })}
 						/>
 						<KpiCard
 							label="Compras"
@@ -83,16 +85,16 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 							icon={ShoppingBagIcon}
 							tone="amber"
 							info="Vendas aprovadas (ou em mediação) pela data da venda."
-							delta={{ value: delta(kpis.purchases, kpis.purchasesPrev) }}
+							delta={cmp({ value: delta(kpis.purchases, kpis.purchasesPrev) })}
 						/>
 						<KpiCard
 							label="Conversão"
 							value={formatPct(conv)}
 							icon={PercentIcon}
 							info="Compras ÷ usuários únicos do período."
-							delta={{
+							delta={cmp({
 								value: conv !== null && convPrev !== null ? delta(conv, convPrev) : null,
-							}}
+							})}
 						/>
 						<KpiCard
 							className="col-span-2 lg:col-span-1"
@@ -101,7 +103,7 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 							icon={BanknoteIcon}
 							tone="cyan"
 							info="Soma do valor bruto pago nas compras do período (o mesmo valor enviado à Meta e ao GA4)."
-							delta={{ value: delta(kpis.revenue, kpis.revenuePrev) }}
+							delta={cmp({ value: delta(kpis.revenue, kpis.revenuePrev) })}
 						/>
 					</section>
 

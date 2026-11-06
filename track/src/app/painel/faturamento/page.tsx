@@ -46,6 +46,8 @@ export default function FaturamentoPage({ searchParams }: PageProps<"/painel/fat
 async function RevenueContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
 	const d = await getRevenue(await searchParams);
 	const { kpis, currency } = d;
+	/** Em "Máximo" não há período anterior: os cartões não mostram a variação. */
+	const cmp = <T,>(x: T) => (d.period.compare ? x : undefined);
 	const ticket = kpis.purchases ? kpis.revenue / kpis.purchases : 0;
 	const ticketPrev = kpis.purchasesPrev ? kpis.revenuePrev / kpis.purchasesPrev : 0;
 	const methodTotal = d.byPaymentMethod.reduce((s, m) => s + m.value, 0);
@@ -74,7 +76,7 @@ async function RevenueContent({ searchParams }: { searchParams: Promise<SearchPa
 							icon={BanknoteIcon}
 							tone="cyan"
 							info="Valor bruto pago nas compras aprovadas (ou em mediação) do período."
-							delta={{ value: delta(kpis.revenue, kpis.revenuePrev) }}
+							delta={cmp({ value: delta(kpis.revenue, kpis.revenuePrev) })}
 						/>
 						<KpiCard
 							label="Receita líquida"
@@ -88,14 +90,14 @@ async function RevenueContent({ searchParams }: { searchParams: Promise<SearchPa
 							icon={ReceiptIcon}
 							tone="amber"
 							info="Receita ÷ número de compras."
-							delta={{ value: ticketPrev ? delta(ticket, ticketPrev) : null }}
+							delta={cmp({ value: ticketPrev ? delta(ticket, ticketPrev) : null })}
 						/>
 						<KpiCard
 							label="Compras"
 							value={formatInt(kpis.purchases)}
 							icon={ShoppingBagIcon}
 							info="Vendas aprovadas (ou em mediação) pela data da venda."
-							delta={{ value: delta(kpis.purchases, kpis.purchasesPrev) }}
+							delta={cmp({ value: delta(kpis.purchases, kpis.purchasesPrev) })}
 						/>
 						<KpiCard
 							className="col-span-2 lg:col-span-1"

@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { daysOf, localDate, periodRange, resolvePeriod, startOfLocalDay } from "./period";
+import {
+	daysOf,
+	localDate,
+	maxLookback,
+	periodRange,
+	resolvePeriod,
+	startOfLocalDay,
+	withFrom,
+} from "./period";
 
 const SP = "America/Sao_Paulo";
 
@@ -60,4 +68,60 @@ test("periodRange: um dia mostra a data; vários dias mostram início – fim", 
 	assert.equal(periodRange(resolvePeriod({ periodo: "mes" }, SP, now)), "01/11/2026 – 05/11/2026");
 	const custom = resolvePeriod({ ate: "2026-11-05", de: "2026-01-01", periodo: "custom" }, SP, now);
 	assert.equal(custom.label, "01/01/2026 – 05/11/2026");
+});
+
+test("períodos no modelo da Meta: hoje e ontem, 14/28 dias, semanas e mês passado", () => {
+	// quinta-feira, 05/11/2026, 12:00 em Brasília
+	const now = new Date("2026-11-05T15:00:00Z");
+	const r = (periodo: string) => {
+		const p = resolvePeriod({ periodo }, SP, now);
+		return [p.key, p.from, p.to, p.days];
+	};
+	assert.deepEqual(r("hoje-ontem"), ["hoje-ontem", "2026-11-04", "2026-11-05", 2]);
+	assert.deepEqual(r("14d"), ["14d", "2026-10-23", "2026-11-05", 14]);
+	assert.deepEqual(r("28d"), ["28d", "2026-10-09", "2026-11-05", 28]);
+	assert.deepEqual(r("semana"), ["semana", "2026-11-01", "2026-11-05", 5]);
+	assert.deepEqual(r("semana-ant"), ["semana-ant", "2026-10-25", "2026-10-31", 7]);
+	assert.deepEqual(r("mes-ant"), ["mes-ant", "2026-10-01", "2026-10-31", 31]);
+	assert.equal(resolvePeriod({ periodo: "semana-ant" }, SP, now).label, "Semana passada");
+	assert.equal(resolvePeriod({ periodo: "14d" }, SP, now).compare, true);
+});
+
+test("semana começa no domingo: hoje domingo e hoje sábado", () => {
+	const domingo = new Date("2026-11-08T15:00:00Z");
+	assert.deepEqual(
+		[
+			resolvePeriod({ periodo: "semana" }, SP, domingo).from,
+			resolvePeriod({ periodo: "semana" }, SP, domingo).to,
+		],
+		["2026-11-08", "2026-11-08"],
+	);
+	const ant = resolvePeriod({ periodo: "semana-ant" }, SP, domingo);
+	assert.deepEqual([ant.from, ant.to], ["2026-11-01", "2026-11-07"]);
+	const sabado = new Date("2026-11-07T15:00:00Z");
+	assert.equal(resolvePeriod({ periodo: "semana" }, SP, sabado).from, "2026-11-01");
+});
+
+test("mês passado na virada do ano", () => {
+	const p = resolvePeriod({ periodo: "mes-ant" }, SP, new Date("2027-01-10T15:00:00Z"));
+	assert.deepEqual([p.from, p.to, p.days], ["2026-12-01", "2026-12-31", 31]);
+});
+
+test("Máximo: começa no 1º dado, sem comparação e limitado a 37 meses", () => {
+	const now = new Date("2026-11-05T15:00:00Z");
+	const p = resolvePeriod({ periodo: "max" }, SP, now, "2026-11-01");
+	assert.deepEqual(
+		[p.key, p.from, p.to, p.compare, p.label],
+		["max", "2026-11-01", "2026-11-05", false, "Máximo"],
+	);
+	assert.equal(p.prevStart.getTime(), p.start.getTime());
+	assert.equal(p.prevEnd.getTime(), p.start.getTime());
+	// sem dados: só hoje
+	assert.equal(resolvePeriod({ periodo: "max" }, SP, now).from, "2026-11-05");
+	// dado mais antigo que 37 meses: corta no limite da Meta
+	assert.equal(resolvePeriod({ periodo: "max" }, SP, now, "2019-01-01").from, "2023-10-06");
+	assert.equal(maxLookback("2026-11-05"), "2023-10-06");
+	// withFrom recua o início e mantém o fim e o "sem comparação"
+	const w = withFrom(p, "2026-05-16", SP);
+	assert.deepEqual([w.from, w.to, w.compare, w.days], ["2026-05-16", "2026-11-05", false, 174]);
 });

@@ -70,7 +70,7 @@ async function loadSales(sp: SearchParams) {
 		return {
 			currency,
 			period,
-			prevSales: await load(period.prevStart, period.prevEnd),
+			prevSales: period.compare ? await load(period.prevStart, period.prevEnd) : [],
 			sales: await load(period.start, period.end),
 			tz,
 		};
@@ -107,9 +107,11 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 	// 4) período anterior só se já estiver em cache (sem chamada extra à Meta)
 	const prevFrom = addDays(period.from, -period.days);
 	const prevTo = addDays(period.from, -1);
-	const prevRows = await Promise.all(accounts.map(a => peekInsights(a, prevFrom, prevTo, period.days)));
+	const prevRows = period.compare
+		? await Promise.all(accounts.map(a => peekInsights(a, prevFrom, prevTo, period.days)))
+		: [];
 	const prevTotals =
-		prevRows.every(r => r !== null) && accounts.length
+		period.compare && prevRows.every(r => r !== null) && accounts.length
 			? buildTree(prevRows.flat() as InsightRow[], prevSales).totals
 			: null;
 

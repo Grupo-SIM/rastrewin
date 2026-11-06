@@ -3,13 +3,21 @@
  * Intervalos meio-abertos [start, end) em UTC, prontos para o SQL.
  */
 
+/** Mesma ordem do Gerenciador de Anúncios da Meta. Semana de domingo a sábado. */
 export const PRESETS = [
 	{ key: "hoje", label: "Hoje" },
 	{ key: "ontem", label: "Ontem" },
+	{ key: "hoje-ontem", label: "Hoje e ontem" },
 	{ key: "7d", label: "Últimos 7 dias" },
+	{ key: "14d", label: "Últimos 14 dias" },
+	{ key: "28d", label: "Últimos 28 dias" },
 	{ key: "30d", label: "Últimos 30 dias" },
 	{ key: "90d", label: "Últimos 90 dias" },
+	{ key: "semana", label: "Esta semana" },
+	{ key: "semana-ant", label: "Semana passada" },
 	{ key: "mes", label: "Este mês" },
+	{ key: "mes-ant", label: "Mês passado" },
+	{ key: "max", label: "Máximo" },
 ] as const;
 export type PresetKey = (typeof PRESETS)[number]["key"];
 export const DEFAULT_PRESET: PresetKey = "30d";
@@ -26,6 +34,8 @@ export interface Period {
 	end: Date;
 	prevStart: Date;
 	prevEnd: Date;
+	/** false em "Máximo": não há período anterior para comparar (prevStart = prevEnd = start). */
+	compare: boolean;
 }
 
 /** Diferença (ms) entre o relógio local do fuso e o UTC naquele instante. */
@@ -95,12 +105,47 @@ export function periodRange(period: Pick<Period, "from" | "to">): string {
 		: `${fmtShort(period.from)} – ${fmtShort(period.to)}`;
 }
 
+/** Os "Últimos N dias" terminam hoje (N dias contando hoje). */
+const LAST_DAYS: Partial<Record<PresetKey, number>> = { "7d": 7, "14d": 14, "28d": 28, "30d": 30, "90d": 90 };
+
+/** Dia da semana de uma data local: 0 = domingo … 6 = sábado. */
+function weekday(ymd: string): number {
+	return new Date(utcDay(ymd)).getUTCDay();
+}
+
+/** Data mais antiga aceita em "Máximo": 37 meses atrás (limite dos insights da Meta), com 1 dia de folga. */
+export function maxLookback(today: string): string {
+	const [y, m, d] = today.split("-").map(Number);
+	return addDays(new Date(Date.UTC(y, m - 1 - 37, d)).toISOString().slice(0, 10), 1);
+}
+
+function build(key: Period["key"], from: string, to: string, timeZone: string): Period {
+	const days = daysBetween(from, to) + 1;
+	const start = startOfLocalDay(from, timeZone);
+	const end = startOfLocalDay(addDays(to, 1), timeZone);
+	const compare = key !== "max";
+	const prevStart = compare ? startOfLocalDay(addDays(from, -days), timeZone) : start;
+	const label =
+		key === "custom"
+			? `${fmtShort(from)} – ${fmtShort(to)}`
+			: (PRESETS.find(p => p.key === key)?.label ?? "");
+	return { compare, days, end, from, key, label, prevEnd: start, prevStart, start, to };
+}
+
+/** O mesmo período começando em outra data (usado por "Máximo" quando a Meta tem gasto mais antigo). */
+export function withFrom(period: Period, from: string, timeZone: string): Period {
+	return build(period.key, from, period.to, timeZone);
+}
+
 export function resolvePeriod(
 	params: { periodo?: string | null; de?: string | null; ate?: string | null },
 	timeZone: string,
 	now: Date = new Date(),
+	/** "Máximo": data local do dado mais antigo (sem dados = hoje). */
+	firstDay: string | null = null,
 ): Period {
 	const today = localDate(now, timeZone);
+	const yesterday = addDays(today, -1);
 	let key: Period["key"] =
 		(PRESETS.find(p => p.key === params.periodo)?.key as PresetKey) ?? DEFAULT_PRESET;
 	let from: string;
@@ -118,29 +163,34 @@ export function resolvePeriod(
 				from = today;
 				break;
 			case "ontem":
-				from = to = addDays(today, -1);
+				from = to = yesterday;
 				break;
-			case "7d":
-				from = addDays(today, -6);
+			case "hoje-ontem":
+				from = yesterday;
 				break;
-			case "90d":
-				from = addDays(today, -89);
+			case "semana":
+				from = addDays(today, -weekday(today));
+				break;
+			case "semana-ant":
+				to = addDays(today, -weekday(today) - 1);
+				from = addDays(to, -6);
 				break;
 			case "mes":
 				from = `${today.slice(0, 8)}01`;
 				break;
+			case "mes-ant":
+				to = addDays(`${today.slice(0, 8)}01`, -1);
+				from = `${to.slice(0, 8)}01`;
+				break;
+			case "max": {
+				const first = firstDay && YMD.test(firstDay) && firstDay < today ? firstDay : today;
+				const floor = maxLookback(today);
+				from = first < floor ? floor : first;
+				break;
+			}
 			default:
-				from = addDays(today, -29);
+				from = addDays(today, -((LAST_DAYS[key] ?? 30) - 1));
 		}
 	}
-
-	const days = daysBetween(from, to) + 1;
-	const start = startOfLocalDay(from, timeZone);
-	const end = startOfLocalDay(addDays(to, 1), timeZone);
-	const prevStart = startOfLocalDay(addDays(from, -days), timeZone);
-	const label =
-		key === "custom"
-			? `${fmtShort(from)} – ${fmtShort(to)}`
-			: (PRESETS.find(p => p.key === key)?.label ?? "");
-	return { days, end, from, key, label, prevEnd: start, prevStart, start, to };
+	return build(key, from, to, timeZone);
 }

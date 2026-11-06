@@ -30,12 +30,28 @@ export function withDashboard<T>(sp: SearchParams, fn: (ctx: DashboardCtx) => Pr
 			.from(settings)
 			.where(eq(settings.id, 1));
 		const tz = row?.timezone ?? DEFAULT_TIMEZONE;
+		const periodo = param(sp, "periodo");
 		const period = resolvePeriod(
-			{ ate: param(sp, "ate"), de: param(sp, "de"), periodo: param(sp, "periodo") },
+			{ ate: param(sp, "ate"), de: param(sp, "de"), periodo },
 			tz,
+			undefined,
+			periodo === "max" ? await firstDataDay(tx, tz) : null,
 		);
 		return fn({ currency: row?.currency ?? "BRL", period, tx, tz });
 	});
+}
+
+/** Data local (no fuso) do registro mais antigo do track: visita, evento ou venda. null sem dados. */
+export async function firstDataDay(tx: ReaderTx, tz: string): Promise<string | null> {
+	const [r] = await rows<{ day: string | null }>(
+		tx,
+		sql`select ((least(
+          (select min(created_at) from visitors),
+          (select min(created_at) from events_log),
+          (select min(coalesce(occurred_at, created_at)) from purchases)
+        ) at time zone ${tz})::date)::text as day`,
+	);
+	return r?.day ?? null;
 }
 
 /** Executa SQL e devolve as linhas tipadas. */
