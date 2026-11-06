@@ -7,6 +7,7 @@ import {
 	type LucideIcon,
 	MegaphoneIcon,
 	SettingsIcon,
+	VideoIcon,
 } from "lucide-react";
 
 export interface NavItem {
@@ -25,6 +26,7 @@ export const NAV_ITEMS: NavItem[] = [
 	{ href: "/painel/faturamento", icon: BanknoteIcon, label: "Faturamento", primary: true, short: "Vendas" },
 	{ href: "/painel/campanhas", icon: MegaphoneIcon, label: "Campanhas", primary: true, short: "Campanhas" },
 	{ href: "/painel/paginas", icon: FileTextIcon, label: "Páginas", primary: false, short: "Páginas" },
+	{ href: "/painel/videos", icon: VideoIcon, label: "Vídeos", primary: false, short: "Vídeos" },
 	{ href: "/painel/geo", icon: EarthIcon, label: "Geo", primary: false, short: "Geo" },
 	{ href: "/painel/config", icon: SettingsIcon, label: "Configurações", primary: false, short: "Config" },
 ];
