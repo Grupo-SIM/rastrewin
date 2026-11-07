@@ -28,6 +28,7 @@ import { type AdSpend, getAdSpend } from "@/lib/campaigns/query";
 import type { SearchParams } from "@/lib/dashboard/context";
 import {
 	delta,
+	formatDayRangeShort,
 	formatDayShort,
 	formatInt,
 	formatMoney,
@@ -36,7 +37,7 @@ import {
 	ratio,
 } from "@/lib/dashboard/format";
 import { getOverview } from "@/lib/dashboard/overview";
-import type { Period } from "@/lib/dashboard/period";
+import { type Period, previousDays } from "@/lib/dashboard/period";
 import { safeErrorMessage } from "@/lib/errors";
 
 export const metadata: Metadata = { title: "Visão geral" };
@@ -57,6 +58,7 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 	const { kpis, funnel, currency } = d;
 	/** Em "Máximo" não há período anterior: os cartões não mostram a variação. */
 	const cmp = <T,>(x: T) => (d.period.compare ? x : undefined);
+	const prev = previousDays(d.period);
 	const conv = ratio(kpis.purchases, kpis.users);
 	const convPrev = ratio(kpis.purchasesPrev, kpis.usersPrev);
 	const steps = [
@@ -70,8 +72,8 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 			<div className="flex flex-col gap-4">
 				<FiltersBar />
 				<p className="text-muted-foreground text-xs">
-					{d.period.label} · {formatDayShort(d.period.from)} a {formatDayShort(d.period.to)}
-					{d.period.compare && ` · comparado com os ${formatInt(d.period.days)} dia(s) anteriores`}
+					{d.period.label} · {formatDayRangeShort(d.period)}
+					{prev && ` · comparado com ${formatDayRangeShort(prev)}`}
 				</p>
 				<PendingArea className="flex flex-col gap-4">
 					{!d.hasAnyData && (

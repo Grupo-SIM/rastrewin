@@ -106,6 +106,14 @@ export function periodRange(period: Pick<Period, "from" | "to">): string {
 		: `${fmtShort(period.from)} – ${fmtShort(period.to)}`;
 }
 
+/** Datas do período anterior (mesmo tamanho, logo antes); null em "Máximo", que não compara. */
+export function previousDays(
+	period: Pick<Period, "from" | "days" | "compare">,
+): { from: string; to: string } | null {
+	if (!period.compare) return null;
+	return { from: addDays(period.from, -period.days), to: addDays(period.from, -1) };
+}
+
 /** Os "Últimos N dias" terminam hoje (N dias contando hoje). */
 const LAST_DAYS: Partial<Record<PresetKey, number>> = { "7d": 7, "14d": 14, "28d": 28, "30d": 30, "90d": 90 };
 

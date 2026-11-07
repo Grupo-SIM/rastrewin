@@ -68,6 +68,13 @@ export function formatDayShort(ymd: string): string {
 	return `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}`;
 }
 
+/** Intervalo curto: "06/11" (um dia) ou "31/10 a 06/11". */
+export function formatDayRangeShort(range: { from: string; to: string }): string {
+	return range.from === range.to
+		? formatDayShort(range.from)
+		: `${formatDayShort(range.from)} a ${formatDayShort(range.to)}`;
+}
+
 const countryNames = new Intl.DisplayNames(["pt-BR"], { type: "region" });
 export function countryName(code: string | null): string {
 	if (!code) return "Desconhecido";

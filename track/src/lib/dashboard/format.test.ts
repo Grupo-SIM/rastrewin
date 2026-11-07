@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { countryName, delta, formatDelta, formatMoney, formatPct, formatRoas } from "./format";
+import {
+	countryName,
+	delta,
+	formatDayRangeShort,
+	formatDelta,
+	formatMoney,
+	formatPct,
+	formatRoas,
+} from "./format";
 
 const nb = (s: string) => s.replace(/ /g, " ");
 
@@ -11,6 +19,8 @@ test("dinheiro e percentuais em pt-BR", () => {
 	assert.equal(formatRoas(2.345), "2,35");
 	assert.equal(formatRoas(3), "3,00");
 	assert.equal(formatRoas(null), "—");
+	assert.equal(formatDayRangeShort({ from: "2026-11-06", to: "2026-11-06" }), "06/11");
+	assert.equal(formatDayRangeShort({ from: "2026-10-31", to: "2026-11-06" }), "31/10 a 06/11");
 });
 
 test("delta entre períodos", () => {

@@ -5,6 +5,7 @@ import {
 	localDate,
 	maxLookback,
 	periodRange,
+	previousDays,
 	resolvePeriod,
 	startOfLocalDay,
 	withFrom,
@@ -110,6 +111,19 @@ test("semana começa no domingo: hoje domingo e hoje sábado", () => {
 test("mês passado na virada do ano", () => {
 	const p = resolvePeriod({ periodo: "mes-ant" }, SP, new Date("2027-01-10T15:00:00Z"));
 	assert.deepEqual([p.from, p.to, p.days], ["2026-12-01", "2026-12-31", 31]);
+});
+
+test("previousDays: datas do período anterior mostradas na Visão geral", () => {
+	const now = new Date("2026-11-06T15:00:00Z");
+	const r = (periodo: string) => previousDays(resolvePeriod({ periodo }, SP, now));
+	assert.deepEqual(r("hoje"), { from: "2026-11-05", to: "2026-11-05" });
+	assert.deepEqual(r("ontem"), { from: "2026-11-04", to: "2026-11-04" });
+	assert.deepEqual(r("7d"), { from: "2026-10-24", to: "2026-10-30" });
+	assert.deepEqual(r("hoje-ontem"), { from: "2026-11-03", to: "2026-11-04" });
+	assert.equal(previousDays(resolvePeriod({ periodo: "max" }, SP, now, "2026-10-17")), null);
+	// bate com o intervalo que as consultas usam (prevStart … start)
+	const d7 = resolvePeriod({ periodo: "7d" }, SP, now);
+	assert.equal(startOfLocalDay(r("7d")!.from, SP).getTime(), d7.prevStart.getTime());
 });
 
 test("Máximo: começa no 1º dado, sem comparação e limitado a 37 meses", () => {
