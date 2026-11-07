@@ -25,6 +25,7 @@ import { formatInt, formatPct, ratio } from "@/lib/dashboard/format";
 import { periodRange } from "@/lib/dashboard/period";
 import { formatClock } from "@/lib/dashboard/video-stats";
 import { getVideos } from "@/lib/dashboard/videos";
+import { formatDateTime } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Vídeos" };
 
@@ -87,7 +88,11 @@ async function VideosContent({ searchParams }: { searchParams: Promise<SearchPar
 									value={formatPct(ratio(v.plays, v.pageViews))}
 									icon={MousePointerClickIcon}
 									tone="cyan"
-									info={`Plays ÷ visualizações da página do vídeo (${formatInt(v.pageViews)} no período).`}
+									info={
+										v.measuredSince
+											? `Plays ÷ visualizações da página do vídeo (${formatInt(v.pageViews)}). Visualizações contadas desde o início da medição (${formatDateTime(v.measuredSince, d.timeZone)}), quando o primeiro play foi registrado.`
+											: `Plays ÷ visualizações da página do vídeo (${formatInt(v.pageViews)} no período).`
+									}
 								/>
 								<KpiCard
 									label="% médio assistido"
