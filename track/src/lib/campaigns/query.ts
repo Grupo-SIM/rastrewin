@@ -95,6 +95,53 @@ export function metaRange(period: Period): { since: string; days: number; max: b
 	return { days: daysBetween(since, period.to) + 1, max: true, since };
 }
 
+export interface AdSpend {
+	/** Há conta de anúncios ativa cadastrada. */
+	configured: boolean;
+	/** Gasto de todas as contas ativas; null se nenhuma conta trouxe dados (aviso/erro). */
+	spend: number | null;
+	/** Gasto do período anterior, SÓ se já estiver em cache (null = sem comparação). */
+	prevSpend: number | null;
+	notice: string | null;
+}
+
+const sumSpend = (list: InsightRow[]) => list.reduce((acc, r) => acc + r.spend, 0);
+
+/**
+ * Gasto da Meta para a Visão geral. Mesmos argumentos de getInsights que a aba Campanhas usa:
+ * mesma chave de cache e mesmo limite, então uma aba aquece o cache da outra.
+ */
+export async function getAdSpend(period: Period, timeZone: string): Promise<AdSpend> {
+	const accounts = await listAdAccounts();
+	if (!accounts.length) return { configured: false, notice: null, prevSpend: null, spend: null };
+	// Mesma proteção de getCampaigns contra a pré-renderização.
+	await connection();
+	const includesToday = period.to >= localDate(new Date(), timeZone);
+	const meta = metaRange(period);
+	const results = await Promise.all(
+		accounts.map(a => getInsights(a, meta.since, period.to, meta.days, includesToday, meta.max)),
+	);
+	const withData = results.filter(r => r.fetchedAt !== null);
+	const notice = results.find(r => r.notice)?.notice ?? null;
+
+	let prevSpend: number | null = null;
+	if (period.compare) {
+		const prev = await Promise.all(
+			accounts.map(a =>
+				peekInsights(a, addDays(period.from, -period.days), addDays(period.from, -1), period.days),
+			),
+		);
+		if (prev.every(r => r !== null)) prevSpend = sumSpend(prev.flat() as InsightRow[]);
+	}
+
+	return {
+		configured: true,
+		notice,
+		prevSpend,
+		spend: withData.length ? sumSpend(withData.flatMap(r => r.rows)) : null,
+	};
+}
+
 export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 	// 1) vendas do período (RLS) — fora desta transação vem a chamada à Meta
 	const loaded = await loadSales(sp);

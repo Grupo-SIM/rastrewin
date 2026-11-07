@@ -32,6 +32,13 @@ export function formatPct(ratio: number | null): string {
 	return ratio === null || !Number.isFinite(ratio) ? "—" : pctFmt.format(ratio);
 }
 
+/** ROAS: 2.345 → "2,35"; null → "—" */
+export function formatRoas(r: number | null): string {
+	return r === null || !Number.isFinite(r)
+		? "—"
+		: r.toLocaleString("pt-BR", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+}
+
 export function ratio(part: number, whole: number): number | null {
 	return whole > 0 ? part / whole : null;
 }

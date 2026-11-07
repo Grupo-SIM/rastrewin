@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { countryName, delta, formatDelta, formatMoney, formatPct } from "./format";
+import { countryName, delta, formatDelta, formatMoney, formatPct, formatRoas } from "./format";
 
 const nb = (s: string) => s.replace(/ /g, " ");
 
@@ -8,6 +8,9 @@ test("dinheiro e percentuais em pt-BR", () => {
 	assert.equal(nb(formatMoney(1234.5)), "R$ 1.234,50");
 	assert.equal(formatPct(0.1234), "12,3%");
 	assert.equal(formatPct(null), "—");
+	assert.equal(formatRoas(2.345), "2,35");
+	assert.equal(formatRoas(3), "3,00");
+	assert.equal(formatRoas(null), "—");
 });
 
 test("delta entre períodos", () => {

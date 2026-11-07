@@ -10,6 +10,7 @@ export interface DailyPoint {
 
 export interface Overview {
 	period: Period;
+	timeZone: string;
 	currency: string;
 	hasAnyData: boolean;
 	kpis: {
@@ -145,6 +146,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 			},
 			period,
 			revenueByDay: fillDays(period, revenueByDay),
+			timeZone: tz,
 			usersByDay: fillDays(period, usersByDay),
 		};
 	});
