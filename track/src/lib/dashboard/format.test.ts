@@ -4,6 +4,7 @@ import {
 	countryName,
 	delta,
 	formatBytes,
+	formatDayLong,
 	formatDayRangeShort,
 	formatDelta,
 	formatMoney,
@@ -47,4 +48,9 @@ test("tamanho em bytes", () => {
 	assert.equal(formatBytes(12 * 1024), "12 KB");
 	assert.equal(formatBytes(3.45 * 1024 ** 2), "3,5 MB");
 	assert.equal(formatBytes(5 * 1024 ** 3), "5 GB");
+});
+
+test("formatDayLong: data completa dd/mm/aaaa", () => {
+	assert.equal(formatDayLong("2025-04-19"), "19/04/2025");
+	assert.equal(formatDayLong("2026-11-08"), "08/11/2026");
 });

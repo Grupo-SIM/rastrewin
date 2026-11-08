@@ -92,6 +92,11 @@ export function formatDayShort(ymd: string): string {
 	return `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}`;
 }
 
+/** "2025-04-19" → "19/04/2025" */
+export function formatDayLong(ymd: string): string {
+	return `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}/${ymd.slice(0, 4)}`;
+}
+
 /** Intervalo curto: "06/11" (um dia) ou "31/10 a 06/11". */
 export function formatDayRangeShort(range: { from: string; to: string }): string {
 	return range.from === range.to

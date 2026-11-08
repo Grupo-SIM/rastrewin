@@ -114,6 +114,8 @@ export interface AdSpend {
 	notice: string | null;
 	/** A Meta cortou o detalhe e os totais da conta não vieram: o gasto está abaixo do real. */
 	incomplete: boolean;
+	/** Só no "Máximo": dia do primeiro gasto da conta na Meta (o gasto conta desde ele). */
+	firstDay: string | null;
 }
 
 /** Com o detalhe cortado, gasto/impressões/cliques vêm dos totais da conta (exatos). */
@@ -135,7 +137,14 @@ function withSpend(totals: Metrics, s: SpendSummary): Metrics {
 export async function getAdSpend(period: Period, timeZone: string): Promise<AdSpend> {
 	const accounts = await listAdAccounts();
 	if (!accounts.length)
-		return { configured: false, incomplete: false, notice: null, prevSpend: null, spend: null };
+		return {
+			configured: false,
+			firstDay: null,
+			incomplete: false,
+			notice: null,
+			prevSpend: null,
+			spend: null,
+		};
 	// Mesma proteção de getCampaigns contra a pré-renderização.
 	await connection();
 	const includesToday = period.to >= localDate(new Date(), timeZone);
@@ -162,8 +171,16 @@ export async function getAdSpend(period: Period, timeZone: string): Promise<AdSp
 	}
 
 	const now = effectiveSpend(withData);
+	// "Máximo": o gasto vem desde o 1º gasto da conta, que pode ser bem antes do 1º dado do track.
+	const firstDay = meta.max
+		? (results
+				.map(r => r.firstDay)
+				.filter((d): d is string => !!d && d >= meta.since)
+				.sort()[0] ?? null)
+		: null;
 	return {
 		configured: true,
+		firstDay,
 		incomplete: now.incomplete,
 		notice,
 		prevSpend,

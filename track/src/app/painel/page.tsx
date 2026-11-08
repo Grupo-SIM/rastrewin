@@ -28,6 +28,7 @@ import { type AdSpend, getAdSpend } from "@/lib/campaigns/query";
 import type { SearchParams } from "@/lib/dashboard/context";
 import {
 	delta,
+	formatDayLong,
 	formatDayRangeShort,
 	formatDayShort,
 	formatInt,
@@ -282,6 +283,7 @@ async function SpendCards({
 		console.error("[visão geral] gasto da Meta:", safeErrorMessage(err));
 		ads = {
 			configured: true,
+			firstDay: null,
 			incomplete: false,
 			notice: "Não foi possível consultar a Meta agora.",
 			prevSpend: null,
@@ -295,7 +297,9 @@ async function SpendCards({
 			? (ads.notice ?? "Sem dados da Meta ainda.")
 			: ads.incomplete
 				? "Incompleto: a Meta cortou o detalhe. Veja a aba Campanhas."
-				: undefined;
+				: period.key === "max" && ads.firstDay
+					? `Desde ${formatDayLong(ads.firstDay)} (primeiro gasto na Meta)`
+					: undefined;
 	const r = spend === null ? null : roas({ revenue, spend });
 	const rPrev = prevSpend === null ? null : roas({ revenue: revenuePrev, spend: prevSpend });
 	const compare = period.compare && spend !== null && prevSpend !== null;
