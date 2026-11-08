@@ -7,8 +7,10 @@ import {
 	combineStructures,
 	fromMinor,
 	mergeStructure,
+	splitArchived,
 	statusOf,
 	type StructureItem,
+	sumMetrics,
 } from "./structure";
 
 const NOW = new Date("2026-11-08T12:00:00Z");
@@ -174,4 +176,45 @@ test("combineStructures: junta contas e propaga o corte", () => {
 	assert.ok(all);
 	assert.equal(Object.keys(all.campaigns).length, 6);
 	assert.equal(all.truncated, true);
+});
+
+test("splitArchived: arquivadas e excluídas (fora da lista completa) vão para o grupo; o resto fica", () => {
+	const s: AdStructure = {
+		...structure,
+		campaigns: { ...structure.campaigns, cArq: { ...item({ status: "ARCHIVED" }), name: "Arquivada" } },
+	};
+	const nodes = mergeStructure(
+		[
+			node({ id: "c1", level: "campaign", spend: 42 }),
+			node({ id: "cArq", level: "campaign", spend: 10 }),
+			node({ id: "cDel", level: "campaign", spend: 20 }),
+			node({ id: "cOutra", level: "campaign", spend: 5 }),
+		],
+		s,
+		"BRL",
+		NOW,
+	);
+	const complete = new Set(["c1", "cArq", "cDel"]);
+	const { current, archived } = splitArchived(nodes, id => complete.has(id));
+	assert.deepEqual(
+		current.map(n => n.id),
+		["c1", "cOutra", "c5", "c2"],
+		"sem lista completa da conta, a campanha fica; ociosas ficam",
+	);
+	assert.deepEqual(
+		archived.map(n => n.id),
+		["cArq", "cDel"],
+	);
+	assert.equal(archived[0].status?.label, "Arquivada");
+	assert.equal(archived[1].status, undefined, "excluída: sem selo");
+	const sum = sumMetrics(archived);
+	assert.equal(sum.spend, 30);
+	assert.equal(sum.clicks, 0);
+});
+
+test("splitArchived: sem estrutura nenhuma, nada vai para o grupo", () => {
+	const tree = [node({ id: "c1", level: "campaign", spend: 1 })];
+	const { current, archived } = splitArchived(mergeStructure(tree, null, "BRL", NOW), () => false);
+	assert.equal(current.length, 1);
+	assert.equal(archived.length, 0);
 });

@@ -41,6 +41,24 @@ const COLUMNS: { key: string; label: string; info: string }[] = [
 
 const LEVEL = { ad: "Anúncio", adset: "Conjunto", campaign: "Campanha" } as const;
 
+/** Chave do grupo no estado de abertos (ids da Meta são só números: não colide). */
+const ARCHIVED_GROUP = "arquivadas";
+
+function ArchivedTitle({ count }: { count: number }) {
+	return (
+		<span className="min-w-0">
+			<span className="flex items-center gap-1.5 font-semibold">
+				<ArchiveIcon className="text-muted-foreground size-3.5" aria-hidden />
+				Arquivadas ou excluídas{" "}
+				<span className="num text-muted-foreground font-normal">({count})</span>
+			</span>
+			<span className="text-muted-foreground block text-xs">
+				Encerradas na Meta; o gasto delas continua no total.
+			</span>
+		</span>
+	);
+}
+
 /* Situação SEMPRE com ícone + rótulo (nunca só cor); cores de status reservadas. */
 const STATUS_ICON: Record<StatusKey, typeof CircleCheckIcon> = {
 	analise: ClockIcon,
@@ -148,8 +166,29 @@ function cells(m: Metrics, currency: string) {
 	};
 }
 
+/** Colunas de números de uma linha (mesma ordem de COLUMNS; impressões e CTR somem < 1400px). */
+function MetricCells({ m, currency }: { m: Metrics; currency: string }) {
+	const c = cells(m, currency);
+	return (
+		<>
+			<td className="num py-2 pr-2.5 text-right">{c.spend}</td>
+			<td className="num hidden py-2 pr-2.5 text-right min-[1400px]:table-cell">{c.impressions}</td>
+			<td className="num py-2 pr-2.5 text-right">{c.clicks}</td>
+			<td className="num hidden py-2 pr-2.5 text-right min-[1400px]:table-cell">{c.ctr}</td>
+			<td className="num py-2 pr-2.5 text-right">{c.purchases}</td>
+			<td className="num py-2 pr-2.5 text-right">{c.revenue}</td>
+			<td className="py-2 pr-2.5 text-right">
+				<Roas m={m} />
+			</td>
+			<td className="num py-2 pr-2.5 text-right">{c.cpa}</td>
+			<td className="num text-muted-foreground py-2 text-right">{c.meta}</td>
+		</>
+	);
+}
+
 export function CampaignTree({
 	tree,
+	archived,
 	totals,
 	unattributed,
 	currency,
@@ -157,6 +196,7 @@ export function CampaignTree({
 	showAccount,
 }: {
 	tree: StructuredNode[];
+	archived: { nodes: StructuredNode[]; totals: Metrics } | null;
 	totals: Metrics;
 	unattributed: Metrics | null;
 	currency: string;
@@ -172,7 +212,7 @@ export function CampaignTree({
 			return n;
 		});
 
-	if (!tree.length)
+	if (!tree.length && !archived)
 		return (
 			<p className="text-muted-foreground py-10 text-center text-sm">
 				Sem gasto em anúncios neste período.
@@ -180,7 +220,6 @@ export function CampaignTree({
 		);
 
 	const renderRow = (n: StructuredNode, depth: number): React.ReactNode => {
-		const c = cells(n, currency);
 		const expandable = n.children.length > 0;
 		const isOpen = open.has(n.id);
 		return (
@@ -234,19 +273,7 @@ export function CampaignTree({
 							</span>
 						</span>
 					</th>
-					<td className="num py-2 pr-2.5 text-right">{c.spend}</td>
-					<td className="num hidden py-2 pr-2.5 text-right min-[1400px]:table-cell">
-						{c.impressions}
-					</td>
-					<td className="num py-2 pr-2.5 text-right">{c.clicks}</td>
-					<td className="num hidden py-2 pr-2.5 text-right min-[1400px]:table-cell">{c.ctr}</td>
-					<td className="num py-2 pr-2.5 text-right">{c.purchases}</td>
-					<td className="num py-2 pr-2.5 text-right">{c.revenue}</td>
-					<td className="py-2 pr-2.5 text-right">
-						<Roas m={n} />
-					</td>
-					<td className="num py-2 pr-2.5 text-right">{c.cpa}</td>
-					<td className="num text-muted-foreground py-2 text-right">{c.meta}</td>
+					<MetricCells m={n} currency={currency} />
 				</tr>
 				{isOpen && n.children.map(child => renderRow(child, depth + 1))}
 			</Fragment>
@@ -286,7 +313,42 @@ export function CampaignTree({
 							))}
 						</tr>
 					</thead>
-					<tbody>{tree.map(n => renderRow(n, 0))}</tbody>
+					<tbody>
+						{tree.map(n => renderRow(n, 0))}
+						{archived && (
+							<>
+								<tr
+									className="hover:bg-accent/50 cursor-pointer border-b last:border-0"
+									onClick={() => toggle(ARCHIVED_GROUP)}
+								>
+									<th scope="row" className="py-2 pr-3 text-left font-normal">
+										<span className="flex items-start gap-1.5">
+											<button
+												type="button"
+												aria-expanded={open.has(ARCHIVED_GROUP)}
+												aria-label={`${open.has(ARCHIVED_GROUP) ? "Recolher" : "Expandir"} campanhas arquivadas ou excluídas`}
+												onClick={e => {
+													e.stopPropagation();
+													toggle(ARCHIVED_GROUP);
+												}}
+												className="hover:bg-accent -my-1 grid size-7 shrink-0 place-items-center rounded-md"
+											>
+												<ChevronRightIcon
+													className={cn(
+														"size-4 transition-transform",
+														open.has(ARCHIVED_GROUP) && "rotate-90",
+													)}
+												/>
+											</button>
+											<ArchivedTitle count={archived.nodes.length} />
+										</span>
+									</th>
+									<MetricCells m={archived.totals} currency={currency} />
+								</tr>
+								{open.has(ARCHIVED_GROUP) && archived.nodes.map(n => renderRow(n, 1))}
+							</>
+						)}
+					</tbody>
 					<tfoot>
 						<tr className="border-t-2 font-semibold">
 							<th scope="row" className="py-2 pr-3 text-left">
@@ -343,6 +405,50 @@ export function CampaignTree({
 						toggle={toggle}
 					/>
 				))}
+				{archived && (
+					<li className="bg-card/40 rounded-lg border">
+						<button
+							type="button"
+							className="flex w-full items-start gap-2 p-3 text-left"
+							aria-expanded={open.has(ARCHIVED_GROUP)}
+							onClick={() => toggle(ARCHIVED_GROUP)}
+						>
+							<ChevronRightIcon
+								className={cn(
+									"mt-0.5 size-4 shrink-0 transition-transform",
+									open.has(ARCHIVED_GROUP) && "rotate-90",
+								)}
+							/>
+							<span className="min-w-0 flex-1">
+								<ArchivedTitle count={archived.nodes.length} />
+								<span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+									<span className="text-muted-foreground">Gasto</span>
+									<span className="num text-right">
+										{formatMoney(archived.totals.spend, currency)}
+									</span>
+									<span className="text-muted-foreground">Receita</span>
+									<span className="num text-right">
+										{formatMoney(archived.totals.revenue, currency)}
+									</span>
+								</span>
+							</span>
+						</button>
+						{open.has(ARCHIVED_GROUP) && (
+							<ul className="flex flex-col gap-2 pr-2 pb-2">
+								{archived.nodes.map(n => (
+									<MobileNode
+										key={n.id}
+										node={n}
+										depth={1}
+										currency={currency}
+										open={open}
+										toggle={toggle}
+									/>
+								))}
+							</ul>
+						)}
+					</li>
+				)}
 				{unattributed && unattributed.purchases > 0 && (
 					<li className="text-muted-foreground rounded-lg border border-dashed p-3 text-sm">
 						Sem campanha identificada:{" "}

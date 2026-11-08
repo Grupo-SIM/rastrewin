@@ -178,6 +178,7 @@ async function CampaignsContent({ searchParams }: { searchParams: Promise<Search
 						<CardContent>
 							<CampaignTree
 								tree={d.tree}
+								archived={d.archived}
 								totals={t}
 								unattributed={d.unattributed}
 								currency={currency}

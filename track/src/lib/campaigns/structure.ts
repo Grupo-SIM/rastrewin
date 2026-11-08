@@ -191,3 +191,31 @@ export function combineStructures(list: (AdStructure | null)[]): AdStructure | n
 		truncated: ok.some(s => s.truncated),
 	};
 }
+
+/**
+ * Separa as campanhas para o grupo "Arquivadas ou excluídas" (fechado, no fim da lista):
+ * - arquivadas: a Meta informa ARCHIVED/DELETED;
+ * - excluídas: a Meta não lista mais a campanha, MAS só quando a lista da conta veio completa
+ *   (isComplete). Sem a situação da conta, ou com a lista cortada, a campanha fica onde está:
+ *   nunca some uma campanha ativa por falta de dado.
+ * Não muda números: os totais da tela continuam somando tudo.
+ */
+export function splitArchived(
+	nodes: StructuredNode[],
+	isComplete: (campaignId: string) => boolean,
+): { current: StructuredNode[]; archived: StructuredNode[] } {
+	const current: StructuredNode[] = [];
+	const archived: StructuredNode[] = [];
+	for (const n of nodes) {
+		const gone = n.status ? n.status.key === "arquivada" : !n.idle && isComplete(n.id);
+		(gone ? archived : current).push(n);
+	}
+	return { archived, current };
+}
+
+/** Soma das métricas de vários nós (linha do grupo). */
+export function sumMetrics(nodes: Metrics[]): Metrics {
+	const total = zeroMetrics();
+	for (const n of nodes) for (const k of Object.keys(total) as (keyof Metrics)[]) total[k] += n[k];
+	return total;
+}

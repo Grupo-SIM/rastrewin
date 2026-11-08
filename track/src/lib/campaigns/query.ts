@@ -16,7 +16,13 @@ import {
 	type SpendSummary,
 } from "./build";
 import { type AdAccount, getInsights, getStructure, type InsightsResult, peekInsights } from "./cache";
-import { combineStructures, mergeStructure, type StructuredNode } from "./structure";
+import {
+	combineStructures,
+	mergeStructure,
+	splitArchived,
+	type StructuredNode,
+	sumMetrics,
+} from "./structure";
 
 /** Contas de anúncio ATIVAS, com token decifrado (só no servidor). */
 export async function listAdAccounts(): Promise<AdAccount[]> {
@@ -46,6 +52,8 @@ export interface CampaignsView {
 	/** Situação e orçamento: avisos por conta (sem estrutura) e se alguma lista veio cortada. */
 	structure: { notices: { adAccountId: string; label: string; notice: string }[]; truncated: boolean };
 	tree: StructuredNode[];
+	/** Campanhas arquivadas ou excluídas com gasto no período (grupo fechado no fim) e a soma delas. */
+	archived: { nodes: StructuredNode[]; totals: Metrics } | null;
 	totals: Metrics;
 	prevTotals: Metrics | null;
 	unattributed: Metrics | null;
@@ -215,6 +223,17 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 		combineStructures(structures.map(s => s.structure)),
 		viewCurrency,
 	);
+	// Grupo "Arquivadas ou excluídas": só conta com lista completa pode dizer que uma campanha sumiu.
+	const completeAccounts = new Set(
+		accounts
+			.filter((_, i) => structures[i].structure && !structures[i].structure?.truncated)
+			.map(a => a.adAccountId),
+	);
+	const accountOf = new Map<string, string>();
+	for (const r of results) for (const row of r.rows) accountOf.set(row.campaignId, r.adAccountId);
+	const { current, archived } = splitArchived(structured, id =>
+		completeAccounts.has(accountOf.get(id) ?? ""),
+	);
 
 	// Detalhe cortado pela Meta: os totais usam os da conta (a árvore segue com o que veio).
 	const spendNow = effectiveSpend(results);
@@ -243,6 +262,7 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 
 	return {
 		accounts: all.map(a => ({ adAccountId: a.adAccountId, label: a.label })),
+		archived: archived.length ? { nodes: archived, totals: sumMetrics(archived) } : null,
 		campaignAccount,
 		currency: viewCurrency,
 		daily,
@@ -272,7 +292,7 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 		},
 		timeZone: tz,
 		totals,
-		tree: structured,
+		tree: current,
 		unattributed: selected ? null : unattributed,
 	};
 }

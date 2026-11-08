@@ -232,6 +232,18 @@ interface RawAd {
 }
 
 const STRUCTURE_MAX_PAGES = 5;
+/** Todas as situações de campanha, inclusive ARCHIVED (excluídas, DELETED, ficam de fora). */
+const CAMPAIGN_STATUSES = [
+	"ACTIVE",
+	"PAUSED",
+	"ARCHIVED",
+	"IN_PROCESS",
+	"WITH_ISSUES",
+	"PENDING_REVIEW",
+	"DISAPPROVED",
+	"PREAPPROVED",
+	"PENDING_BILLING_INFO",
+];
 
 export type StructureFetch =
 	| { ok: true; structure: AdStructure; usage: GraphUsage; calls: number }
@@ -248,11 +260,13 @@ async function listLevel<T>(
 	token: string,
 	edge: "campaigns" | "adsets" | "ads",
 	fields: string,
+	extra: Record<string, string> = {},
 ): Promise<
 	| { ok: true; items: T[]; truncated: boolean; usage: GraphUsage; calls: number }
 	| { ok: false; status: number; error: GraphError; usage: GraphUsage; calls: number }
 > {
 	let res = await graphGet<StructurePage<T>>(`act_${adAccountId}/${edge}`, token, {
+		...extra,
 		fields,
 		limit: "500",
 	});
@@ -276,12 +290,17 @@ async function listLevel<T>(
  */
 export async function fetchAdStructure(adAccountId: string, token: string): Promise<StructureFetch> {
 	const budget = "effective_status,daily_budget,lifetime_budget,budget_remaining";
-	const campaigns = await listLevel<RawCampaign>(
-		adAccountId,
-		token,
-		"campaigns",
-		`id,name,${budget},stop_time`,
-	);
+	const campaignFields = `id,name,${budget},stop_time`;
+	// Por padrão a Meta não lista campanhas arquivadas: pede também elas (para o grupo
+	// "Arquivadas ou excluídas"). Se o filtro for recusado, repete sem ele.
+	let campaigns = await listLevel<RawCampaign>(adAccountId, token, "campaigns", campaignFields, {
+		effective_status: JSON.stringify(CAMPAIGN_STATUSES),
+	});
+	if (!campaigns.ok && campaigns.status !== 0 && campaigns.error.code === 100) {
+		const first = campaigns.calls;
+		campaigns = await listLevel<RawCampaign>(adAccountId, token, "campaigns", campaignFields);
+		campaigns.calls += first;
+	}
 	if (!campaigns.ok) return campaigns;
 	const adsets = await listLevel<RawAdset>(
 		adAccountId,
