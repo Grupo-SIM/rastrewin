@@ -147,11 +147,17 @@ export function getHealthView(): Promise<HealthView> {
 		const bytes = await dbBytes(tx);
 		const maintenance = await lastMaintenance(tx);
 
-		const tableRows = await rows<{ name: string; bytes: unknown; est: unknown }>(
+		// Linhas: contagem viva das estatísticas do Postgres (n_live_tup), atualizada a cada gravação e
+		// legível pelo app_reader até nas tabelas de login. A estimativa do planejador (reltuples) só
+		// aparece depois do primeiro ANALYZE, que nas tabelas pequenas demora: ficava em 0 ou atrasada.
+		const tableRows = await rows<{ name: string; bytes: unknown; live: unknown }>(
 			tx,
 			sql`
-      select c.relname as name, pg_total_relation_size(c.oid) as bytes, c.reltuples as est
-      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      select c.relname as name, pg_total_relation_size(c.oid) as bytes,
+             coalesce(s.n_live_tup, greatest(c.reltuples, 0)) as live
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      left join pg_stat_user_tables s on s.relid = c.oid
       where n.nspname = 'public' and c.relkind = 'r'
       order by pg_total_relation_size(c.oid) desc`,
 		);
@@ -160,20 +166,18 @@ export function getHealthView(): Promise<HealthView> {
 		const growth: Parameters<typeof growthPerDay>[0] = [];
 		for (const t of tableRows) {
 			const grows = GROWING[t.name];
-			let total = Math.max(0, Math.round(num(t.est)));
+			let total = Math.max(0, Math.round(num(t.live)));
 			let recent: number | null = null;
 			if (grows) {
-				// Contagem exata quando o Postgres ainda não estimou a tabela (reltuples = -1 ou 0).
+				// Ritmo de crescimento: linhas criadas nos últimos 7 dias (contagem exata, pelo índice de data).
 				const col = sql.identifier(grows.column);
-				const table = sql.identifier(t.name);
-				const [c] = await rows<{ total: unknown; recent: unknown }>(
+				const [c] = await rows<{ recent: unknown }>(
 					tx,
-					total > 0
-						? sql`select ${total}::bigint as total, count(*) as recent from ${table} where ${col} >= now() - interval '7 days'`
-						: sql`select count(*) as total, count(*) filter (where ${col} >= now() - interval '7 days') as recent from ${table}`,
+					sql`select count(*) as recent from ${sql.identifier(t.name)} where ${col} >= now() - interval '7 days'`,
 				);
-				total = num(c?.total);
 				recent = num(c?.recent);
+				// As estatísticas podem estar alguns segundos atrás da contagem exata.
+				total = Math.max(total, recent);
 			}
 			growth.push({ bytes: num(t.bytes), rows: total, rows7d: recent });
 			tables.push({
