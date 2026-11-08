@@ -1,9 +1,21 @@
 "use client";
 
-import { ChevronRightIcon, CircleAlertIcon, CircleCheckIcon, InfoIcon } from "lucide-react";
+import {
+	ArchiveIcon,
+	ChevronRightIcon,
+	CircleAlertIcon,
+	CircleCheckIcon,
+	CircleDashedIcon,
+	CirclePauseIcon,
+	CircleXIcon,
+	ClockIcon,
+	FlagIcon,
+	InfoIcon,
+} from "lucide-react";
 import { Fragment, useState } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cpa, ctr, type Metrics, roas, type TreeNode } from "@/lib/campaigns/build";
+import { cpa, ctr, type Metrics, roas } from "@/lib/campaigns/build";
+import type { NodeStatus, StatusKey, StatusTone, StructuredNode } from "@/lib/campaigns/structure";
 import { formatInt, formatMoney, formatPct } from "@/lib/dashboard/format";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +40,77 @@ const COLUMNS: { key: string; label: string; info: string }[] = [
 ];
 
 const LEVEL = { ad: "Anúncio", adset: "Conjunto", campaign: "Campanha" } as const;
+
+/* Situação SEMPRE com ícone + rótulo (nunca só cor); cores de status reservadas. */
+const STATUS_ICON: Record<StatusKey, typeof CircleCheckIcon> = {
+	analise: ClockIcon,
+	arquivada: ArchiveIcon,
+	ativa: CircleCheckIcon,
+	concluida: FlagIcon,
+	outra: CircleDashedIcon,
+	pagamento: CircleAlertIcon,
+	pausada: CirclePauseIcon,
+	problema: CircleAlertIcon,
+	reprovada: CircleXIcon,
+};
+const TONE_COLOR: Record<StatusTone, string> = {
+	critical: "var(--status-critical)",
+	good: "var(--status-good)",
+	muted: "var(--muted-foreground)",
+	warning: "var(--status-warning)",
+};
+
+function StatusLabel({ status }: { status: NodeStatus }) {
+	const Icon = STATUS_ICON[status.key];
+	return (
+		<span className="inline-flex items-center gap-1 whitespace-nowrap">
+			<Icon className="size-3" style={{ color: TONE_COLOR[status.tone] }} aria-hidden />
+			<span className={status.tone === "muted" ? undefined : "text-foreground"}>{status.label}</span>
+		</span>
+	);
+}
+
+/** Linha com " · " entre os itens (o separador fica dentro de cada item: não sobra sozinho). */
+function Dotted({ parts }: { parts: [string, React.ReactNode][] }) {
+	return (
+		<span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-xs">
+			{parts.map(([key, p], i) => (
+				<span key={key} className="inline-flex items-center gap-1.5">
+					{i > 0 && <span aria-hidden>·</span>}
+					{p}
+				</span>
+			))}
+		</span>
+	);
+}
+
+/** Sob o nome: nível · conta · situação; numa 2ª linha, orçamento · sem entrega. */
+function NodeMeta({ n, account }: { n: StructuredNode; account?: string }) {
+	const top: [string, React.ReactNode][] = [["nivel", LEVEL[n.level]]];
+	if (account) top.push(["conta", account]);
+	if (n.status) top.push(["situacao", <StatusLabel key="situacao" status={n.status} />]);
+	const bottom: [string, React.ReactNode][] = [];
+	if (n.budget)
+		bottom.push([
+			"orcamento",
+			<span key="orcamento" className="num whitespace-nowrap">
+				{n.budget}
+			</span>,
+		]);
+	if (n.idle)
+		bottom.push([
+			"ocioso",
+			<span key="ocioso" className="whitespace-nowrap">
+				sem entrega no período
+			</span>,
+		]);
+	return (
+		<>
+			<Dotted parts={top} />
+			{bottom.length > 0 && <Dotted parts={bottom} />}
+		</>
+	);
+}
 
 function Roas({ m }: { m: Metrics }) {
 	const r = roas(m);
@@ -73,7 +156,7 @@ export function CampaignTree({
 	campaignAccount,
 	showAccount,
 }: {
-	tree: TreeNode[];
+	tree: StructuredNode[];
 	totals: Metrics;
 	unattributed: Metrics | null;
 	currency: string;
@@ -96,7 +179,7 @@ export function CampaignTree({
 			</p>
 		);
 
-	const renderRow = (n: TreeNode, depth: number): React.ReactNode => {
+	const renderRow = (n: StructuredNode, depth: number): React.ReactNode => {
 		const c = cells(n, currency);
 		const expandable = n.children.length > 0;
 		const isOpen = open.has(n.id);
@@ -144,12 +227,10 @@ export function CampaignTree({
 								>
 									{n.name}
 								</span>
-								<span className="text-muted-foreground block text-xs">
-									{LEVEL[n.level]}
-									{depth === 0 && showAccount && campaignAccount[n.id]
-										? ` · ${campaignAccount[n.id]}`
-										: ""}
-								</span>
+								<NodeMeta
+									n={n}
+									account={depth === 0 && showAccount ? campaignAccount[n.id] : undefined}
+								/>
 							</span>
 						</span>
 					</th>
@@ -281,7 +362,7 @@ function MobileNode({
 	open,
 	toggle,
 }: {
-	node: TreeNode;
+	node: StructuredNode;
 	depth: number;
 	currency: string;
 	open: Set<string>;
@@ -304,7 +385,7 @@ function MobileNode({
 				)}
 				<span className="min-w-0 flex-1">
 					<span className="block truncate font-medium">{node.name}</span>
-					<span className="text-muted-foreground block text-xs">{LEVEL[node.level]}</span>
+					<NodeMeta n={node} />
 					<span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
 						<span className="text-muted-foreground">Gasto</span>
 						<span className="num text-right">{c.spend}</span>

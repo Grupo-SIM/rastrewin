@@ -79,7 +79,12 @@ async function CampaignsContent({ searchParams }: { searchParams: Promise<Search
 						/>
 					)}
 				</FiltersBar>
-				<StatusStrip results={d.results} detail={d.detail} timeZone={d.timeZone} />
+				<StatusStrip
+					results={d.results}
+					detail={d.detail}
+					structure={d.structure}
+					timeZone={d.timeZone}
+				/>
 				<PendingArea className="flex flex-col gap-4">
 					<section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
 						<KpiCard
@@ -166,7 +171,8 @@ async function CampaignsContent({ searchParams }: { searchParams: Promise<Search
 								{d.period.key !== "custom" && ` (${periodRange(d.period)})`}
 							</CardTitle>
 							<CardDescription>
-								Toque numa campanha para ver os conjuntos e anúncios. Ordenado por gasto.
+								Toque numa campanha para ver os conjuntos e anúncios. Ordenado por gasto;
+								campanhas ativas sem gasto no período aparecem no fim.
 							</CardDescription>
 						</CardHeader>
 						<CardContent>

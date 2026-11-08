@@ -14,9 +14,9 @@ import {
 	type Metrics,
 	type SalePurchase,
 	type SpendSummary,
-	type TreeNode,
 } from "./build";
-import { type AdAccount, getInsights, type InsightsResult, peekInsights } from "./cache";
+import { type AdAccount, getInsights, getStructure, type InsightsResult, peekInsights } from "./cache";
+import { combineStructures, mergeStructure, type StructuredNode } from "./structure";
 
 /** Contas de anúncio ATIVAS, com token decifrado (só no servidor). */
 export async function listAdAccounts(): Promise<AdAccount[]> {
@@ -43,7 +43,9 @@ export interface CampaignsView {
 	 * incomplete = além disso, os totais da conta não vieram, então o gasto mostrado é menor que o real.
 	 */
 	detail: { truncated: boolean; incomplete: boolean };
-	tree: TreeNode[];
+	/** Situação e orçamento: avisos por conta (sem estrutura) e se alguma lista veio cortada. */
+	structure: { notices: { adAccountId: string; label: string; notice: string }[]; truncated: boolean };
+	tree: StructuredNode[];
 	totals: Metrics;
 	prevTotals: Metrics | null;
 	unattributed: Metrics | null;
@@ -202,6 +204,18 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 		unattributed,
 		attributions,
 	} = selected ? buildTree(insightRows, attributedSales) : built;
+	// 3b) situação e orçamento (cache próprio por conta; não mexe em números nem na ordem).
+	const structures = await Promise.all(accounts.map(a => getStructure(a)));
+	structures.forEach((s, i) => {
+		for (const id of Object.keys(s.structure?.campaigns ?? {})) campaignAccount[id] ??= accounts[i].label;
+	});
+	const viewCurrency = results.find(r => r.currency)?.currency ?? currency;
+	const structured = mergeStructure(
+		tree,
+		combineStructures(structures.map(s => s.structure)),
+		viewCurrency,
+	);
+
 	// Detalhe cortado pela Meta: os totais usam os da conta (a árvore segue com o que veio).
 	const spendNow = effectiveSpend(results);
 	const totals = withSpend(treeTotals, spendNow);
@@ -230,7 +244,7 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 	return {
 		accounts: all.map(a => ({ adAccountId: a.adAccountId, label: a.label })),
 		campaignAccount,
-		currency: results.find(r => r.currency)?.currency ?? currency,
+		currency: viewCurrency,
 		daily,
 		dailyAvailable: insightRows.some(r => r.date !== null) || spendNow.dailySpend.size > 0,
 		detail: { incomplete: spendNow.incomplete, truncated: spendNow.truncated },
@@ -248,9 +262,17 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 		salesInPeriod: sales.length,
 		salesWithCampaignUtm: sales.filter(s => s.utmCampaign || s.utmContent || s.utmTerm).length,
 		selected,
+		structure: {
+			notices: structures.flatMap((s, i) =>
+				s.notice
+					? [{ adAccountId: accounts[i].adAccountId, label: accounts[i].label, notice: s.notice }]
+					: [],
+			),
+			truncated: structures.some(s => s.structure?.truncated),
+		},
 		timeZone: tz,
 		totals,
-		tree,
+		tree: structured,
 		unattributed: selected ? null : unattributed,
 	};
 }

@@ -1,5 +1,6 @@
 import "server-only";
 import { type AccountTotals, type InsightRow, metaPurchase } from "@/lib/campaigns/build";
+import type { AdStructure } from "@/lib/campaigns/structure";
 import { type GraphError, graphGet, graphGetUrl, type GraphUsage } from "./graph";
 
 /*
@@ -198,4 +199,126 @@ export async function fetchAccountTotals(
 		if (daily && r.date_start) totals.daily.push({ date: r.date_start, spend });
 	}
 	return { calls: 1, ok: true, totals, usage: res.usage };
+}
+
+// ---------------------------------------------------------------- estrutura (situação e orçamento)
+
+interface StructurePage<T> {
+	data?: T[];
+	paging?: { next?: string };
+}
+interface RawCampaign {
+	id: string;
+	name?: string;
+	effective_status?: string;
+	daily_budget?: string;
+	lifetime_budget?: string;
+	budget_remaining?: string;
+	stop_time?: string;
+}
+interface RawAdset {
+	id: string;
+	campaign_id?: string;
+	effective_status?: string;
+	daily_budget?: string;
+	lifetime_budget?: string;
+	budget_remaining?: string;
+	end_time?: string;
+}
+interface RawAd {
+	id: string;
+	adset_id?: string;
+	effective_status?: string;
+}
+
+const STRUCTURE_MAX_PAGES = 5;
+
+export type StructureFetch =
+	| { ok: true; structure: AdStructure; usage: GraphUsage; calls: number }
+	| { ok: false; status: number; error: GraphError; usage: GraphUsage; calls: number };
+
+const num = (v: string | undefined) => {
+	const n = Number(v);
+	return v !== undefined && Number.isFinite(n) ? n : null;
+};
+
+/** Lista paginada de um nível (campaigns/adsets/ads) da conta; para no limite de páginas. */
+async function listLevel<T>(
+	adAccountId: string,
+	token: string,
+	edge: "campaigns" | "adsets" | "ads",
+	fields: string,
+): Promise<
+	| { ok: true; items: T[]; truncated: boolean; usage: GraphUsage; calls: number }
+	| { ok: false; status: number; error: GraphError; usage: GraphUsage; calls: number }
+> {
+	let res = await graphGet<StructurePage<T>>(`act_${adAccountId}/${edge}`, token, {
+		fields,
+		limit: "500",
+	});
+	let calls = 1;
+	const items: T[] = [];
+	for (;;) {
+		if (!res.ok) return { calls, error: res.error, ok: false, status: res.status, usage: res.usage };
+		items.push(...(res.data.data ?? []));
+		const next = res.data.paging?.next;
+		if (!next || calls >= STRUCTURE_MAX_PAGES)
+			return { calls, items, ok: true, truncated: !!next, usage: res.usage };
+		res = await graphGetUrl<StructurePage<T>>(next);
+		calls++;
+	}
+}
+
+/**
+ * Situação (effective_status) e orçamento de campanhas, conjuntos e anúncios da conta.
+ * Três listas simples (até 5 páginas de 500 cada); não dependem do período. Orçamentos chegam na
+ * menor unidade da moeda e são convertidos na tela (src/lib/campaigns/structure.ts).
+ */
+export async function fetchAdStructure(adAccountId: string, token: string): Promise<StructureFetch> {
+	const budget = "effective_status,daily_budget,lifetime_budget,budget_remaining";
+	const campaigns = await listLevel<RawCampaign>(
+		adAccountId,
+		token,
+		"campaigns",
+		`id,name,${budget},stop_time`,
+	);
+	if (!campaigns.ok) return campaigns;
+	const adsets = await listLevel<RawAdset>(
+		adAccountId,
+		token,
+		"adsets",
+		`id,campaign_id,${budget},end_time`,
+	);
+	if (!adsets.ok) return { ...adsets, calls: campaigns.calls + adsets.calls };
+	const ads = await listLevel<RawAd>(adAccountId, token, "ads", "id,adset_id,effective_status");
+	const calls = campaigns.calls + adsets.calls + ads.calls;
+	if (!ads.ok) return { ...ads, calls };
+
+	const structure: AdStructure = {
+		ads: {},
+		adsets: {},
+		campaigns: {},
+		truncated: campaigns.truncated || adsets.truncated || ads.truncated,
+	};
+	for (const c of campaigns.items)
+		structure.campaigns[c.id] = {
+			daily: num(c.daily_budget),
+			end: c.stop_time ?? null,
+			lifetime: num(c.lifetime_budget),
+			name: c.name ?? c.id,
+			remaining: num(c.budget_remaining),
+			status: c.effective_status ?? "",
+		};
+	for (const s of adsets.items)
+		structure.adsets[s.id] = {
+			campaignId: s.campaign_id ?? "",
+			daily: num(s.daily_budget),
+			end: s.end_time ?? null,
+			lifetime: num(s.lifetime_budget),
+			remaining: num(s.budget_remaining),
+			status: s.effective_status ?? "",
+		};
+	for (const a of ads.items)
+		structure.ads[a.id] = { adsetId: a.adset_id ?? "", status: a.effective_status ?? "" };
+	return { calls, ok: true, structure, usage: ads.usage };
 }

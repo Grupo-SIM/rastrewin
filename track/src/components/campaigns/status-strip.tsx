@@ -13,10 +13,12 @@ import { formatDateTime } from "@/lib/time";
 export function StatusStrip({
 	results,
 	detail,
+	structure,
 	timeZone,
 }: {
 	results: CampaignsView["results"];
 	detail: CampaignsView["detail"];
+	structure: CampaignsView["structure"];
 	timeZone: string;
 }) {
 	const params = useSearchParams();
@@ -51,6 +53,22 @@ export function StatusStrip({
 						{detail.incomplete
 							? "A Meta devolveu mais de 5.000 linhas (anúncio × dia) e os totais da conta não vieram: o gasto mostrado está abaixo do real. Tente “Atualizar agora” ou use um período menor."
 							: "A Meta devolveu mais de 5.000 linhas (anúncio × dia). Os totais estão corretos; o detalhe por anúncio está incompleto. Use um período menor para ver tudo."}
+					</span>
+				)}
+				{structure.notices.map(n => (
+					<span
+						key={`estrutura-${n.adAccountId}`}
+						className="text-amber flex items-start gap-1.5 text-xs"
+					>
+						<CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" />
+						{results.length > 1 ? `${n.label}: ` : ""}Situação das campanhas indisponível agora.{" "}
+						{n.notice}
+					</span>
+				))}
+				{structure.truncated && (
+					<span className="text-amber flex items-start gap-1.5 text-xs">
+						<CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" />A conta tem mais itens do que
+						o painel lê de uma vez: alguns aparecem sem a situação.
 					</span>
 				)}
 				{notices.map(r => (
