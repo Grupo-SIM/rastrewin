@@ -70,6 +70,12 @@ export async function POST(request: Request) {
 		phone: d.user_data?.phone,
 		trckUserId: d.trck_user_id,
 		userAgent,
+		// Sem UTM no evento, o visitante mantém as que já tinha (o upsert só troca o conjunto inteiro).
+		utmCampaign: d.utm_campaign,
+		utmContent: d.utm_content,
+		utmMedium: d.utm_medium,
+		utmSource: d.utm_source,
+		utmTerm: d.utm_term,
 	});
 
 	const customData = d.custom_data

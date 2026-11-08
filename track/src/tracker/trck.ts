@@ -376,6 +376,8 @@ type TrckWindow = Window & {
 			trck_user_id: trckId,
 			...fbIds(),
 			...ga,
+			// Mesmas UTMs do identify: o PageView sai junto com ele e pode chegar antes.
+			...utms,
 			...(Object.keys(custom).length ? { custom_data: custom } : {}),
 			...(() => {
 				const ud = {

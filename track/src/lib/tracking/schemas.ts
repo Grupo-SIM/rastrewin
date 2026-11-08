@@ -77,6 +77,8 @@ export const eventSchema = z.object({
 	ga_session_id: optStr(40).refine(v => v === null || /^\d+$/.test(v), "formato inválido"),
 	trck_user_id: z.string().regex(TRCK_ID),
 	user_data: z.object(userData).optional(),
+	// Mesmas UTMs do identify: o evento pode chegar antes dele (os dois saem juntos no PageView).
+	...utm,
 });
 export type EventInput = z.infer<typeof eventSchema>;
 

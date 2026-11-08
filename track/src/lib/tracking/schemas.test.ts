@@ -32,3 +32,16 @@ test("identify aceita vazio (o servidor gera o id) e normaliza vazios para null"
 	assert.equal(r.success, true);
 	assert.equal(r.success && r.data.utm_source, null);
 });
+
+test("evento aceita as UTMs (opcionais) com os mesmos limites do identify", () => {
+	const ok = eventSchema.safeParse({
+		...base,
+		utm_campaign: "VSL Nov|120200000000001",
+		utm_source: "facebook",
+	});
+	assert.equal(ok.success, true);
+	assert.equal(ok.success && ok.data.utm_source, "facebook");
+	assert.equal(eventSchema.safeParse({ ...base, utm_source: "x".repeat(201) }).success, false);
+	// t.js antigo, sem UTMs no evento, continua válido
+	assert.equal(eventSchema.safeParse(base).success, true);
+});
