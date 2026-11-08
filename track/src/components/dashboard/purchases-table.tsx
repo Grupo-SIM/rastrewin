@@ -1,7 +1,6 @@
 "use client";
 
 import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
-import Link from "next/link";
 import { useState, useTransition } from "react";
 import { loadPurchaseDetail } from "@/app/painel/faturamento/actions";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,6 +9,7 @@ import type { PurchaseDetail } from "@/lib/dashboard/details";
 import { formatMoney } from "@/lib/dashboard/format";
 import type { PurchaseRow } from "@/lib/dashboard/revenue";
 import { formatDateTime } from "@/lib/time";
+import { JourneyLink } from "./back-button";
 import { JsonBlock } from "./json-block";
 import { DeliveryStatus, PurchaseStatus } from "./status-badge";
 
@@ -222,12 +222,12 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 										{detail.trckUserId ? (
 											<>
 												<span className="num">{detail.trckUserId}</span>{" "}
-												<Link
+												<JourneyLink
 													href={`/painel/visitante/${encodeURIComponent(detail.trckUserId)}`}
 													className="text-primary text-xs whitespace-nowrap underline-offset-4 hover:underline"
 												>
 													Ver jornada →
-												</Link>
+												</JourneyLink>
 											</>
 										) : (
 											"Não ligada a um visitante"

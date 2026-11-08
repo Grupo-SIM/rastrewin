@@ -32,6 +32,8 @@ export type JourneyItem =
 			kind: "event";
 			at: string;
 			key: string;
+			/** id da linha em events_log (abre o detalhe com o envio à Meta). */
+			rowId: number;
 			eventId: string;
 			name: string;
 			url: string | null;
@@ -224,6 +226,7 @@ export function getJourney(id: string, ver: string | null): Promise<Journey | nu
 					metaStatus: String(r.meta_status),
 					name: String(r.event_name),
 					place: place(r),
+					rowId: num(r.id),
 					url: str(r.event_source_url),
 					userAgent: str(r.user_agent),
 					utm: utmOf(r),

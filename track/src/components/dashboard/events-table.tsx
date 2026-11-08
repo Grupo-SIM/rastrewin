@@ -1,16 +1,13 @@
 "use client";
 
-import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
-import Link from "next/link";
+import { ChevronRightIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { loadEventDetail } from "@/app/painel/eventos/actions";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EventDetail } from "@/lib/dashboard/details";
 import type { EventRow } from "@/lib/dashboard/events";
 import { formatMoney } from "@/lib/dashboard/format";
 import { formatDateTime } from "@/lib/time";
-import { JsonBlock } from "./json-block";
+import { EventDetailDialog } from "./event-detail-dialog";
 import { DeliveryStatus } from "./status-badge";
 
 export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: string }) {
@@ -128,70 +125,13 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 				))}
 			</ul>
 
-			<Dialog open={open} onOpenChange={setOpen}>
-				<DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">
-					<DialogHeader>
-						<DialogTitle>{detail?.eventName ?? "Evento"}</DialogTitle>
-						<DialogDescription>
-							O que foi enviado e o que cada destino respondeu.
-						</DialogDescription>
-					</DialogHeader>
-					{loading || !detail ? (
-						<div className="text-muted-foreground grid place-items-center py-16">
-							<LoaderCircleIcon className="size-5 animate-spin" />
-						</div>
-					) : (
-						<div className="flex min-w-0 flex-col gap-4">
-							<dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-								<dt className="text-muted-foreground">Quando</dt>
-								<dd className="num">{formatDateTime(detail.createdAt, timeZone)}</dd>
-								<dt className="text-muted-foreground">event_id</dt>
-								<dd className="num break-all">{detail.eventId}</dd>
-								<dt className="text-muted-foreground">Visitante</dt>
-								<dd className="break-all">
-									<span className="num">{detail.trckUserId}</span>{" "}
-									<Link
-										href={`/painel/visitante/${encodeURIComponent(detail.trckUserId)}`}
-										className="text-primary text-xs whitespace-nowrap underline-offset-4 hover:underline"
-									>
-										Ver jornada →
-									</Link>
-								</dd>
-								<dt className="text-muted-foreground">Página</dt>
-								<dd className="break-all">{detail.eventSourceUrl ?? "—"}</dd>
-								<dt className="text-muted-foreground">IP</dt>
-								<dd className="num">{detail.ip ?? "—"}</dd>
-								<dt className="text-muted-foreground">Navegador</dt>
-								<dd className="text-xs break-all">{detail.userAgent ?? "—"}</dd>
-							</dl>
-							<Tabs defaultValue="meta-payload" className="min-w-0 gap-3">
-								<TabsList className="h-10 w-max max-w-full overflow-x-auto">
-									<TabsTrigger value="meta-payload">Meta · enviado</TabsTrigger>
-									<TabsTrigger value="meta-response">Meta · resposta</TabsTrigger>
-									<TabsTrigger value="ga4">GA4</TabsTrigger>
-								</TabsList>
-								<TabsContent value="meta-payload">
-									<JsonBlock
-										value={detail.payloadMeta}
-										empty="Payload não registrado (sem pixel ativo ou expirado após 14 dias)."
-									/>
-								</TabsContent>
-								<TabsContent value="meta-response">
-									<JsonBlock value={detail.responseMeta} />
-								</TabsContent>
-								<TabsContent value="ga4" className="flex flex-col gap-2">
-									<p className="text-muted-foreground text-xs">
-										Eventos do site vão ao GA4 pela gtag no navegador; o servidor só envia
-										a compra (Measurement Protocol).
-									</p>
-									<JsonBlock value={detail.payloadGa4} />
-									{detail.responseGa4 !== null && <JsonBlock value={detail.responseGa4} />}
-								</TabsContent>
-							</Tabs>
-						</div>
-					)}
-				</DialogContent>
-			</Dialog>
+			<EventDetailDialog
+				open={open}
+				onOpenChange={setOpen}
+				detail={detail}
+				loading={loading}
+				timeZone={timeZone}
+			/>
 		</>
 	);
 }

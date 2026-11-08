@@ -12,6 +12,8 @@ import {
 import type { Metadata } from "next";
 import Link from "next/link";
 import { type ReactNode, Suspense } from "react";
+import { BackButton, JourneyLink } from "@/components/dashboard/back-button";
+import { EventDetailButton } from "@/components/dashboard/event-detail-dialog";
 import { DeliveryStatus, PurchaseStatus } from "@/components/dashboard/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { GlassCard } from "@/components/glass-card";
@@ -35,7 +37,6 @@ import {
 	utmSummary,
 } from "@/lib/dashboard/journey-format";
 import { pageKey } from "@/lib/dashboard/page-url";
-import { localDate } from "@/lib/dashboard/period";
 import { formatClock } from "@/lib/dashboard/video-stats";
 import { formatDateTime } from "@/lib/time";
 
@@ -56,6 +57,9 @@ const MATCH_LABEL: Record<string, string> = {
 export default function VisitantePage({ params, searchParams }: PageProps<"/painel/visitante/[id]">) {
 	return (
 		<div className="flex flex-col gap-6">
+			<div className="-mb-3">
+				<BackButton fallback="/painel/eventos" />
+			</div>
 			<PageHeader
 				title="Jornada do visitante"
 				description="Tudo o que esta pessoa fez, do primeiro acesso à compra. Todo o histórico, sem filtro de período."
@@ -384,9 +388,9 @@ function RelatedCard({ j }: { j: Journey }) {
 								</span>
 							</span>
 							<Button asChild variant="outline" size="sm" className="h-9">
-								<Link href={`/painel/visitante/${encodeURIComponent(r.id)}`}>
+								<JourneyLink href={`/painel/visitante/${encodeURIComponent(r.id)}`}>
 									Ver jornada <ArrowRightIcon />
-								</Link>
+								</JourneyLink>
 							</Button>
 						</li>
 					))}
@@ -464,7 +468,6 @@ function ItemRow({ item, newOrigin, j }: { item: JourneyItem; newOrigin: boolean
 			{formatTimeSec(item.at, j.timeZone)}
 		</span>
 	);
-	const day = localDate(new Date(item.at), j.timeZone);
 
 	if (item.kind === "event")
 		return (
@@ -513,12 +516,13 @@ function ItemRow({ item, newOrigin, j }: { item: JourneyItem; newOrigin: boolean
 						</Row>
 					</dl>
 					<UtmLines utm={item.utm} />
-					<Link
-						href={`/painel/eventos?periodo=custom&de=${day}&ate=${day}&q=${encodeURIComponent(item.eventId)}`}
+					<EventDetailButton
+						eventRowId={item.rowId}
+						timeZone={j.timeZone}
 						className="text-primary self-start text-xs underline-offset-4 hover:underline"
 					>
 						Ver o que foi enviado e recebido da Meta →
-					</Link>
+					</EventDetailButton>
 				</div>
 			</details>
 		);
