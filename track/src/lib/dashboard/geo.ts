@@ -4,6 +4,9 @@ import { ACTIVE_SALE, num, rows, type SearchParams, withDashboard } from "./cont
 import { countryName } from "./format";
 import type { Period } from "./period";
 
+/** Teto de cidades enviadas à tela (que mostra de 20 em 20). O total real vem em `citiesTotal`. */
+export const CITIES_MAX = 500;
+
 export interface UfStat {
 	uf: string;
 	visitors: number;
@@ -14,8 +17,12 @@ export interface Geo {
 	period: Period;
 	currency: string;
 	byUf: UfStat[];
+	/** Gráfico: 10 maiores + "Outros / desconhecido". */
 	countries: { label: string; value: number }[];
+	/** Tabela: todos os países, sem agrupar. */
+	allCountries: { label: string; value: number }[];
 	cities: { city: string; region: string | null; country: string | null; visitors: number }[];
+	citiesTotal: number;
 	totals: { visitors: number; withGeo: number };
 }
 
@@ -41,7 +48,7 @@ export function getGeo(sp: SearchParams): Promise<Geo> {
 			tx,
 			sql`
       select geo_country as c, count(distinct trck_user_id) as v from events_log
-      where created_at >= ${s} and created_at < ${e} group by 1 order by 2 desc`,
+      where created_at >= ${s} and created_at < ${e} group by 1 order by 2 desc, 1`,
 		);
 		const cities = await rows<{
 			city: string;
@@ -53,7 +60,16 @@ export function getGeo(sp: SearchParams): Promise<Geo> {
 			sql`
       select geo_city as city, geo_region as region, geo_country as country, count(distinct trck_user_id) as v from events_log
       where created_at >= ${s} and created_at < ${e} and geo_city is not null
-      group by 1, 2, 3 order by 4 desc limit 20`,
+      group by 1, 2, 3 order by 4 desc, 1, 2, 3 limit ${CITIES_MAX}`,
+		);
+		const [ct] = await rows<{ n: unknown }>(
+			tx,
+			sql`
+      select count(*) as n from (
+        select 1 from events_log
+        where created_at >= ${s} and created_at < ${e} and geo_city is not null
+        group by geo_city, geo_region, geo_country
+      ) x`,
 		);
 		const [t] = await rows<{ total: unknown; geo: unknown }>(
 			tx,
@@ -76,7 +92,13 @@ export function getGeo(sp: SearchParams): Promise<Geo> {
 			countries.filter(c => !c.c).reduce((sum, c) => sum + num(c.v), 0);
 		if (rest) top.push({ label: "Outros / desconhecido", value: rest });
 
+		const allCountries = countries.map(c => ({
+			label: c.c ? countryName(c.c) : "Desconhecido",
+			value: num(c.v),
+		}));
+
 		return {
+			allCountries,
 			byUf: [...ufs.values()],
 			cities: cities.map(c => ({
 				city: c.city,
@@ -84,6 +106,7 @@ export function getGeo(sp: SearchParams): Promise<Geo> {
 				region: c.region,
 				visitors: num(c.v),
 			})),
+			citiesTotal: num(ct?.n),
 			countries: top,
 			currency,
 			period,
