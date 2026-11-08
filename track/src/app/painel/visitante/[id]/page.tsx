@@ -181,8 +181,8 @@ function VisitorCard({ j }: { j: Journey }) {
 				</dl>
 				{!v?.name && !v?.phone && (
 					<p className="text-muted-foreground mt-3 text-xs">
-						Nome e telefone só aparecem quando a pessoa compra: no cadastro eles são guardados
-						apenas em código irreversível.
+						Nome e telefone só aparecem quando há um evento de venda (PIX gerado, compra…): no
+						cadastro eles são guardados apenas em código irreversível.
 					</p>
 				)}
 			</CardContent>
