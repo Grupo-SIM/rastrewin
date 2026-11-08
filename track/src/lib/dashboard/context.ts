@@ -4,6 +4,7 @@ import type { ReaderTx } from "@/db";
 import { settings } from "@/db/schema";
 import { readAsUser } from "@/lib/dal";
 import { DEFAULT_TIMEZONE } from "@/lib/time";
+import { ownHostsOf } from "@/lib/tracking/referrer";
 import { type Period, resolvePeriod } from "./period";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
@@ -52,6 +53,15 @@ export async function firstDataDay(tx: ReaderTx, tz: string): Promise<string | n
         ) at time zone ${tz})::date)::text as day`,
 	);
 	return r?.day ?? null;
+}
+
+/** Sites próprios (origens autorizadas + domínios do checkout): referrer deles não é origem. */
+export async function ownHosts(tx: ReaderTx): Promise<string[]> {
+	const [row] = await tx
+		.select({ allowed: settings.allowedOrigins, checkout: settings.checkoutDomains })
+		.from(settings)
+		.where(eq(settings.id, 1));
+	return ownHostsOf(row?.allowed, row?.checkout);
 }
 
 /** Executa SQL e devolve as linhas tipadas. */

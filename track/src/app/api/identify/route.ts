@@ -5,6 +5,8 @@ import { allowedOrigin, corsHeaders, json, preflight } from "@/lib/http/cors";
 import { createRateLimiter } from "@/lib/http/rate-limit";
 import { botReason, countIgnoredVisit } from "@/lib/tracking/bot-guard";
 import { newTrckUserId } from "@/lib/tracking/ids";
+import { cleanReferrer, ownHostsOf } from "@/lib/tracking/referrer";
+import { getRuntimeConfig } from "@/lib/tracking/runtime-config";
 import { identifySchema } from "@/lib/tracking/schemas";
 import { upsertVisitor } from "@/lib/tracking/visitors";
 
@@ -59,6 +61,9 @@ export async function POST(request: Request) {
 	const ip = clientIp(request.headers);
 	const userAgent = request.headers.get("user-agent")?.slice(0, 512) ?? null;
 	const trckUserId = d.trck_user_id ?? newTrckUserId();
+	// Origem sem UTM: só site externo, sem query (o próprio site e o checkout não contam).
+	const config = await getRuntimeConfig();
+	const referrer = cleanReferrer(d.referrer, ownHostsOf(config.allowedOrigins, config.checkoutDomains));
 
 	await upsertVisitor({
 		email: d.email,
@@ -73,7 +78,7 @@ export async function POST(request: Request) {
 		lastName: d.last_name,
 		phone: d.phone,
 		pixelId: d.pixel_id,
-		referrer: d.referrer,
+		referrer,
 		trckUserId,
 		userAgent,
 		utmCampaign: d.utm_campaign,

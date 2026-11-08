@@ -7,8 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EventDetail } from "@/lib/dashboard/details";
 import { formatDateTime } from "@/lib/time";
+import type { Origin } from "@/lib/tracking/referrer";
 import { JourneyLink } from "./back-button";
 import { JsonBlock } from "./json-block";
+import { OriginText } from "./origin-text";
 
 /** Janela de detalhe de um evento (o que foi enviado e o que cada destino respondeu). Usada em Eventos e na Jornada. */
 export function EventDetailDialog({
@@ -17,6 +19,7 @@ export function EventDetailDialog({
 	detail,
 	loading,
 	timeZone,
+	origin,
 	showJourneyLink = true,
 }: {
 	open: boolean;
@@ -24,6 +27,8 @@ export function EventDetailDialog({
 	detail: EventDetail | null;
 	loading: boolean;
 	timeZone: string;
+	/** Origem já calculada na lista de Eventos (UTM, site de onde veio ou Direto). */
+	origin?: Origin;
 	/** Na própria jornada o link "Ver jornada" não faz sentido. */
 	showJourneyLink?: boolean;
 }) {
@@ -57,6 +62,14 @@ export function EventDetailDialog({
 									</JourneyLink>
 								)}
 							</dd>
+							{origin && (
+								<>
+									<dt className="text-muted-foreground">Origem</dt>
+									<dd className="break-all">
+										<OriginText origin={origin} withHost />
+									</dd>
+								</>
+							)}
 							<dt className="text-muted-foreground">Página</dt>
 							<dd className="break-all">{detail.eventSourceUrl ?? "—"}</dd>
 							<dt className="text-muted-foreground">IP</dt>

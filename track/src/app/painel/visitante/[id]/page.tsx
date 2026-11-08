@@ -272,9 +272,16 @@ function OriginCard({ j }: { j: Journey }) {
 						<span className="text-xs break-all">{dash(v?.landingUrl)}</span>
 					</Row>
 					<Row label="Veio de">
-						<span className="text-xs break-all">
-							{v?.referrer || "Acesso direto / sem referência"}
-						</span>
+						{v && v.referrerSource.key !== "direto" ? (
+							<span>
+								{v.referrerSource.label}
+								<span className="text-muted-foreground block text-xs break-all">
+									{v.referrer}
+								</span>
+							</span>
+						) : (
+							<span className="text-muted-foreground">Direto / sem referência</span>
+						)}
 					</Row>
 					<Row label="Clique em anúncio Meta">
 						{click ? (

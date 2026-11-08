@@ -34,7 +34,7 @@ export type VisitorRow = typeof visitors.$inferSelect;
  * UPSERT do visitante. Regras:
  * - dados novos só sobrescrevem se vierem preenchidos (coalesce);
  * - UTMs: última origem com UTM (o conjunto inteiro é trocado junto);
- * - referrer/landing_url: os da PRIMEIRA visita;
+ * - referrer: a PRIMEIRA origem externa (a rota já descarta o próprio site); landing_url: a da 1ª visita;
  * - email fica em texto (painel); telefone e nomes, só o hash.
  */
 export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {

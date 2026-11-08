@@ -1,7 +1,8 @@
 import "server-only";
 import { sql } from "drizzle-orm";
+import { type ReferrerSource, referrerSource } from "@/lib/tracking/referrer";
 import { TRCK_ID } from "@/lib/tracking/schemas";
-import { num, rows, withDashboard } from "./context";
+import { num, ownHosts, rows, withDashboard } from "./context";
 import { META_STATUS } from "./events";
 import { latestChronological, type Utm } from "./journey-format";
 
@@ -104,6 +105,8 @@ export interface Journey {
 		place: string | null;
 		landingUrl: string | null;
 		referrer: string | null;
+		/** Rótulo amigável do referrer (próprio site e vazio = Direto). */
+		referrerSource: ReferrerSource;
 		utm: Utm;
 		createdAt: string | null;
 		updatedAt: string | null;
@@ -133,6 +136,7 @@ export function getJourney(id: string, ver: string | null): Promise<Journey | nu
 	const limit = journeyLimit(ver);
 
 	return withDashboard({}, async ({ tx, tz, currency }) => {
+		const own = await ownHosts(tx);
 		const [v] = await rows<Record<string, unknown>>(
 			tx,
 			sql`
@@ -334,6 +338,7 @@ export function getJourney(id: string, ver: string | null): Promise<Journey | nu
 						phone: str(latestBuyer?.phone),
 						place: place(v),
 						referrer: str(v.referrer),
+						referrerSource: referrerSource(str(v.referrer), own),
 						updatedAt: iso(v.updated_at),
 						userAgent: str(v.user_agent),
 						utm: utmOf(v),

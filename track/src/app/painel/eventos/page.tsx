@@ -50,7 +50,7 @@ async function EventsContent({ searchParams }: { searchParams: Promise<SearchPar
 							value: f.key,
 						}))}
 					/>
-					<SearchFilter placeholder="Visitante, event_id ou campanha" />
+					<SearchFilter placeholder="Visitante, campanha ou origem" />
 				</FiltersBar>
 				<PendingArea>
 					<GlassCard>

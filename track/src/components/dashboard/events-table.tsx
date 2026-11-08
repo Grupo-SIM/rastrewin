@@ -1,23 +1,27 @@
 "use client";
 
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, InfoIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { loadEventDetail } from "@/app/painel/eventos/actions";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { EventDetail } from "@/lib/dashboard/details";
 import type { EventRow } from "@/lib/dashboard/events";
 import { formatMoney } from "@/lib/dashboard/format";
 import { formatDateTime } from "@/lib/time";
 import { JourneyLink } from "./back-button";
 import { EventDetailDialog } from "./event-detail-dialog";
+import { OriginText } from "./origin-text";
 import { DeliveryStatus } from "./status-badge";
 
 export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: string }) {
 	const [open, setOpen] = useState(false);
 	const [detail, setDetail] = useState<EventDetail | null>(null);
+	const [selected, setSelected] = useState<EventRow | null>(null);
 	const [loading, startLoading] = useTransition();
 
 	function show(row: EventRow) {
 		setDetail(null);
+		setSelected(row);
 		setOpen(true);
 		startLoading(async () => setDetail(await loadEventDetail(row.id)));
 	}
@@ -29,7 +33,6 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 			</p>
 		);
 
-	const origin = (r: EventRow) => [r.utmSource, r.utmCampaign].filter(Boolean).join(" · ") || "—";
 	const value = (r: EventRow) => (r.value === null ? "—" : formatMoney(r.value, r.currency ?? "BRL"));
 
 	return (
@@ -52,7 +55,18 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 								Valor
 							</th>
 							<th scope="col" className="py-2 pr-3 font-medium">
-								Origem
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span className="inline-flex cursor-help items-center gap-1">
+											Origem <InfoIcon className="size-3" />
+										</span>
+									</TooltipTrigger>
+									<TooltipContent className="max-w-64">
+										UTM do evento. Sem UTM, o site de onde a pessoa veio na primeira
+										visita com origem externa (Google, Instagram...). Sem nenhum dos dois,
+										Direto.
+									</TooltipContent>
+								</Tooltip>
 							</th>
 							<th scope="col" className="py-2 pr-3 font-medium">
 								Local
@@ -80,8 +94,8 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 									<VisitorLink id={r.trckUserId} />
 								</td>
 								<td className="num py-2 pr-3 text-right">{value(r)}</td>
-								<td className="text-muted-foreground max-w-56 truncate py-2 pr-3">
-									{origin(r)}
+								<td className="max-w-56 truncate py-2 pr-3">
+									<OriginText origin={r.origin} />
 								</td>
 								<td className="text-muted-foreground max-w-40 truncate py-2 pr-3">
 									{r.place ?? "—"}
@@ -119,8 +133,8 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 								<span className="num text-muted-foreground block text-xs">
 									{formatDateTime(r.createdAt, timeZone)}
 								</span>
-								<span className="text-muted-foreground block truncate text-xs">
-									{origin(r)}
+								<span className="block truncate text-xs">
+									<OriginText origin={r.origin} />
 								</span>
 							</span>
 							<span className="flex shrink-0 flex-col items-end gap-1">
@@ -142,6 +156,7 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 				detail={detail}
 				loading={loading}
 				timeZone={timeZone}
+				origin={selected?.origin}
 			/>
 		</>
 	);
