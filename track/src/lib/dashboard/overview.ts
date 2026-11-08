@@ -44,16 +44,17 @@ export function fillDays(period: Period, data: { day: string; value: unknown }[]
 
 export function getOverview(sp: SearchParams): Promise<Overview> {
 	return withDashboard(sp, async ({ tx, tz, period, currency }) => {
-		const { start: s, end: e, prevStart: ps } = period;
+		// Período anterior = [ps, pe). Nos filtros de mês ele não encosta no atual (01–08/10 × 01–08/11).
+		const { start: s, end: e, prevStart: ps, prevEnd: pe } = period;
 
 		const [ev] = await rows<Record<string, unknown>>(
 			tx,
 			sql`
       select
         count(distinct trck_user_id) filter (where created_at >= ${s} and created_at < ${e}) as users,
-        count(distinct trck_user_id) filter (where created_at < ${s}) as users_prev,
+        count(distinct trck_user_id) filter (where created_at < ${pe}) as users_prev,
         count(*) filter (where created_at >= ${s} and created_at < ${e}) as events,
-        count(*) filter (where created_at < ${s}) as events_prev
+        count(*) filter (where created_at < ${pe}) as events_prev
       from events_log where created_at >= ${ps} and created_at < ${e}`,
 		);
 
@@ -69,9 +70,9 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
         coalesce(sum(value) filter (where d >= ${s}), 0) as revenue,
         coalesce(sum(value) filter (where d >= ${s} and ren), 0) as renewal_revenue,
         coalesce(sum(value) filter (where d >= ${s} and not ren), 0) as revenue_new,
-        count(*) filter (where d < ${s} and not ren) as purchases_prev,
-        coalesce(sum(value) filter (where d < ${s}), 0) as revenue_prev,
-        coalesce(sum(value) filter (where d < ${s} and not ren), 0) as revenue_new_prev
+        count(*) filter (where d < ${pe} and not ren) as purchases_prev,
+        coalesce(sum(value) filter (where d < ${pe}), 0) as revenue_prev,
+        coalesce(sum(value) filter (where d < ${pe} and not ren), 0) as revenue_new_prev
       from p where d >= ${ps} and d < ${e}`,
 		);
 

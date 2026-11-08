@@ -48,8 +48,9 @@ async function RevenueContent({ searchParams }: { searchParams: Promise<SearchPa
 	const { kpis, currency } = d;
 	/** Em "Máximo" não há período anterior: os cartões não mostram a variação. */
 	const cmp = <T,>(x: T) => (d.period.compare ? x : undefined);
-	const ticket = kpis.purchases ? kpis.revenue / kpis.purchases : 0;
-	const ticketPrev = kpis.purchasesPrev ? kpis.revenuePrev / kpis.purchasesPrev : 0;
+	// Sem compras não há ticket médio: mostra "—" e a comparação fica de fora.
+	const ticket = kpis.purchases ? kpis.revenue / kpis.purchases : null;
+	const ticketPrev = kpis.purchasesPrev ? kpis.revenuePrev / kpis.purchasesPrev : null;
 	const methodTotal = d.byPaymentMethod.reduce((s, m) => s + m.value, 0);
 
 	return (
@@ -86,11 +87,11 @@ async function RevenueContent({ searchParams }: { searchParams: Promise<SearchPa
 						/>
 						<KpiCard
 							label="Ticket médio"
-							value={formatMoney(ticket, currency)}
+							value={ticket === null ? "—" : formatMoney(ticket, currency)}
 							icon={ReceiptIcon}
 							tone="amber"
 							info="Receita ÷ número de compras."
-							delta={cmp({ value: ticketPrev ? delta(ticket, ticketPrev) : null })}
+							delta={cmp({ value: delta(ticket, ticketPrev) })}
 						/>
 						<KpiCard
 							label="Compras"

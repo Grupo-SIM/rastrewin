@@ -72,7 +72,9 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 			<div className="flex flex-col gap-4">
 				<FiltersBar />
 				<p className="text-muted-foreground text-xs">
-					{d.period.label} · {formatDayRangeShort(d.period)}
+					{d.period.label}
+					{/* No personalizado o nome já traz as datas */}
+					{d.period.key !== "custom" && ` · ${formatDayRangeShort(d.period)}`}
 					{prev && ` · comparado com ${formatDayRangeShort(prev)}`}
 				</p>
 				<PendingArea className="flex flex-col gap-4">
@@ -118,7 +120,7 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 							icon={PercentIcon}
 							info="Compras (vendas novas) ÷ usuários únicos do período."
 							delta={cmp({
-								value: conv !== null && convPrev !== null ? delta(conv, convPrev) : null,
+								value: delta(conv, convPrev),
 							})}
 						/>
 					</section>

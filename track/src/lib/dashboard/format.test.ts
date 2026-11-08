@@ -27,10 +27,13 @@ test("dinheiro e percentuais em pt-BR", () => {
 test("delta entre períodos", () => {
 	assert.equal(delta(120, 100), 0.2);
 	assert.equal(delta(0, 0), 0);
-	assert.equal(delta(5, 0), null);
+	assert.equal(delta(5, 0), "novo");
+	assert.equal(delta(null, 0.1), null); // ex.: conversão sem visitantes no período
+	assert.equal(delta(0, null), null); // ex.: período anterior sem base
 	assert.equal(formatDelta(0.2), "+20%");
 	assert.equal(formatDelta(-0.05), "−5%");
-	assert.equal(formatDelta(null), "novo");
+	assert.equal(formatDelta("novo"), "novo");
+	assert.equal(formatDelta(null), "sem comparação");
 });
 
 test("nome do país", () => {

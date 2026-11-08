@@ -63,7 +63,8 @@ const PAGE_SIZE = 25;
 
 export function getRevenue(sp: SearchParams): Promise<Revenue> {
 	return withDashboard(sp, async ({ tx, tz, period, currency }) => {
-		const { start: s, end: e, prevStart: ps } = period;
+		// Período anterior = [ps, pe). Nos filtros de mês ele não encosta no atual (01–08/10 × 01–08/11).
+		const { start: s, end: e, prevStart: ps, prevEnd: pe } = period;
 		const d = sql`coalesce(occurred_at, created_at)`;
 
 		const [k] = await rows<Record<string, unknown>>(
@@ -73,11 +74,11 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
         count(*) filter (where ${d} >= ${s}) as purchases,
         coalesce(sum(value) filter (where ${d} >= ${s}), 0) as revenue,
         coalesce(sum(net_value) filter (where ${d} >= ${s}), 0) as net,
-        count(*) filter (where ${d} < ${s}) as purchases_prev,
-        coalesce(sum(value) filter (where ${d} < ${s}), 0) as revenue_prev,
+        count(*) filter (where ${d} < ${pe}) as purchases_prev,
+        coalesce(sum(value) filter (where ${d} < ${pe}), 0) as revenue_prev,
         count(*) filter (where ${d} >= ${s} and is_renewal) as renewals,
         coalesce(sum(value) filter (where ${d} >= ${s} and is_renewal), 0) as renewals_value,
-        count(*) filter (where ${d} < ${s} and is_renewal) as renewals_prev
+        count(*) filter (where ${d} < ${pe} and is_renewal) as renewals_prev
       from purchases where status in ${ACTIVE_SALE} and ${d} >= ${ps} and ${d} < ${e}`,
 		);
 

@@ -57,15 +57,25 @@ export function ratio(part: number, whole: number): number | null {
 	return whole > 0 ? part / whole : null;
 }
 
-/** Variação relativa entre períodos; null quando não dá para comparar (anterior = 0). */
-export function delta(current: number, previous: number): number | null {
-	if (previous === 0) return current === 0 ? 0 : null;
+/**
+ * Variação relativa entre períodos.
+ * - número: a variação (0,2 = +20%);
+ * - "novo": antes era zero e agora tem valor (não há percentual);
+ * - null: sem comparação, porque um dos lados não existe (ex.: conversão sem visitantes, ticket
+ *   médio sem vendas).
+ */
+export type Delta = number | "novo" | null;
+
+export function delta(current: number | null, previous: number | null): Delta {
+	if (current === null || previous === null) return null;
+	if (previous === 0) return current === 0 ? 0 : "novo";
 	return (current - previous) / previous;
 }
 
-/** "+12,3%" / "−4%" / "0%" */
-export function formatDelta(d: number | null): string {
-	if (d === null) return "novo";
+/** "+12,3%" / "−4%" / "0%" / "novo" / "sem comparação" */
+export function formatDelta(d: Delta): string {
+	if (d === null) return "sem comparação";
+	if (d === "novo") return "novo";
 	if (d === 0) return "0%";
 	const s = pctFmt.format(Math.abs(d));
 	return d > 0 ? `+${s}` : `−${s}`;

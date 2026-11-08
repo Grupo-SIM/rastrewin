@@ -4,15 +4,7 @@ import { connection } from "next/server";
 import { serviceDb } from "@/db";
 import { metaAdAccounts } from "@/db/schema";
 import { ACTIVE_SALE, num, param, rows, type SearchParams, withDashboard } from "@/lib/dashboard/context";
-import {
-	addDays,
-	daysBetween,
-	daysOf,
-	localDate,
-	maxLookback,
-	type Period,
-	withFrom,
-} from "@/lib/dashboard/period";
+import { daysBetween, daysOf, localDate, maxLookback, type Period, withFrom } from "@/lib/dashboard/period";
 import { decryptSecret } from "@/lib/secrets";
 import {
 	buildTree,
@@ -148,7 +140,12 @@ export async function getAdSpend(period: Period, timeZone: string): Promise<AdSp
 	if (period.compare) {
 		const prev = await Promise.all(
 			accounts.map(a =>
-				peekInsights(a, addDays(period.from, -period.days), addDays(period.from, -1), period.days),
+				peekInsights(
+					a,
+					period.prevFrom,
+					period.prevTo,
+					daysBetween(period.prevFrom, period.prevTo) + 1,
+				),
 			),
 		);
 		if (prev.every(r => r !== null)) prevSpend = effectiveSpend(prev.filter(r => r !== null)).spend;
@@ -210,10 +207,9 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 	const totals = withSpend(treeTotals, spendNow);
 
 	// 4) período anterior só se já estiver em cache (sem chamada extra à Meta)
-	const prevFrom = addDays(period.from, -period.days);
-	const prevTo = addDays(period.from, -1);
+	const prevDays = daysBetween(period.prevFrom, period.prevTo) + 1;
 	const prevSources = period.compare
-		? await Promise.all(accounts.map(a => peekInsights(a, prevFrom, prevTo, period.days)))
+		? await Promise.all(accounts.map(a => peekInsights(a, period.prevFrom, period.prevTo, prevDays)))
 		: [];
 	const prevComplete = prevSources.filter(r => r !== null);
 	const prevTotals =

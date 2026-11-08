@@ -1,7 +1,7 @@
 import { ArrowDownRightIcon, ArrowUpRightIcon, InfoIcon, type LucideIcon, MinusIcon } from "lucide-react";
 import { GlassCard } from "@/components/glass-card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatDelta } from "@/lib/dashboard/format";
+import { type Delta, formatDelta } from "@/lib/dashboard/format";
 import { cn } from "@/lib/utils";
 
 const tones = {
@@ -27,14 +27,16 @@ export function KpiCard({
 	/** Definição da métrica (ⓘ) */
 	info?: string;
 	/** Variação vs período anterior; goodWhenUp define a cor */
-	delta?: { value: number | null; goodWhenUp?: boolean };
+	delta?: { value: Delta; goodWhenUp?: boolean };
 	icon: LucideIcon;
 	tone?: keyof typeof tones;
 }) {
-	const d = delta?.value;
-	const good = d === null || d === undefined || d === 0 ? null : d > 0 === (delta?.goodWhenUp ?? true);
-	const DeltaIcon =
-		d === null || d === undefined || d === 0 ? MinusIcon : d > 0 ? ArrowUpRightIcon : ArrowDownRightIcon;
+	const d = delta?.value ?? null;
+	// "novo" = subiu a partir de zero.
+	const up = d === "novo" || (typeof d === "number" && d > 0);
+	const down = typeof d === "number" && d < 0;
+	const good = up || down ? up === (delta?.goodWhenUp ?? true) : null;
+	const DeltaIcon = up ? ArrowUpRightIcon : down ? ArrowDownRightIcon : MinusIcon;
 
 	return (
 		<GlassCard size="sm" className={cn("min-w-0 gap-2 px-4", className)}>
@@ -88,14 +90,16 @@ export function KpiCard({
 						)}
 					>
 						<DeltaIcon className="size-3.5" aria-hidden />
-						<span className="num">{formatDelta(d ?? null)}</span>
+						<span className={cn(typeof d === "number" && "num")}>{formatDelta(d)}</span>
 					</span>
-					<span
-						className="text-muted-foreground whitespace-nowrap"
-						title="Comparado com o período anterior de mesmo tamanho"
-					>
-						vs anterior
-					</span>
+					{d !== null && (
+						<span
+							className="text-muted-foreground whitespace-nowrap"
+							title="Comparado com o período anterior (nos filtros de mês, os mesmos dias do mês anterior)"
+						>
+							vs anterior
+						</span>
+					)}
 				</div>
 			)}
 			{hint && <div className="text-muted-foreground text-xs">{hint}</div>}
