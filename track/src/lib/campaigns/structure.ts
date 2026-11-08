@@ -76,8 +76,12 @@ const BY_META: Record<string, Exclude<StatusKey, "outra" | "concluida">> = {
 	WITH_ISSUES: "problema",
 };
 
-/** effective_status da Meta → selo do painel. Data de fim já passada vence tudo ("Concluída"). */
+/**
+ * effective_status da Meta → selo do painel. Arquivada/excluída vence tudo (vai para o grupo
+ * "Arquivadas ou excluídas"); depois, data de fim já passada vira "Concluída".
+ */
 export function statusOf(effective: string, end: string | null, now: Date = new Date()): NodeStatus {
+	if (BY_META[effective] === "arquivada") return { key: "arquivada", ...STATUS.arquivada };
 	if (end) {
 		const t = Date.parse(end);
 		if (Number.isFinite(t) && t <= now.getTime()) return { key: "concluida", ...STATUS.concluida };

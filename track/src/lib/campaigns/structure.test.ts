@@ -68,6 +68,12 @@ test("statusOf: data de fim passada vence a situação; fim futuro não muda nad
 	assert.equal(statusOf("ACTIVE", "data inválida", NOW).label, "Ativa");
 });
 
+test("statusOf: arquivada vence a data de fim (campanha encerrada e depois arquivada)", () => {
+	assert.equal(statusOf("ARCHIVED", "2025-04-30T23:59:59-0300", NOW).label, "Arquivada");
+	assert.equal(statusOf("DELETED", "2025-04-30T23:59:59-0300", NOW).key, "arquivada");
+	assert.equal(statusOf("ARCHIVED", null, NOW).label, "Arquivada");
+});
+
 test("statusOf: situação desconhecida aparece legível e neutra", () => {
 	const s = statusOf("SOME_NEW_STATUS", null, NOW);
 	assert.equal(s.key, "outra");
@@ -181,7 +187,18 @@ test("combineStructures: junta contas e propaga o corte", () => {
 test("splitArchived: arquivadas e excluídas (fora da lista completa) vão para o grupo; o resto fica", () => {
 	const s: AdStructure = {
 		...structure,
-		campaigns: { ...structure.campaigns, cArq: { ...item({ status: "ARCHIVED" }), name: "Arquivada" } },
+		campaigns: {
+			...structure.campaigns,
+			cArq: {
+				...item({
+					end: "2025-04-30T23:59:59-0300",
+					lifetime: 2000,
+					remaining: 0,
+					status: "ARCHIVED",
+				}),
+				name: "Arquivada",
+			},
+		},
 	};
 	const nodes = mergeStructure(
 		[
