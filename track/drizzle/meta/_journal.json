@@ -63,6 +63,13 @@
 			"tag": "0008_video_views",
 			"version": "7",
 			"when": 1793987630440
+		},
+		{
+			"breakpoints": true,
+			"idx": 9,
+			"tag": "0009_events_log_journey_idx",
+			"version": "7",
+			"when": 1794102553779
 		}
 	],
 	"version": "7"

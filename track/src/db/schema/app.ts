@@ -161,6 +161,8 @@ export const eventsLog = pgTable(
 		index("events_log_event_name_idx").on(t.eventName),
 		index("events_log_created_at_idx").on(t.createdAt),
 		index("events_log_event_name_created_at_idx").on(t.eventName, t.createdAt),
+		// Jornada do visitante: todos os eventos de uma pessoa, em ordem.
+		index("events_log_trck_user_id_created_at_idx").on(t.trckUserId, t.createdAt),
 		// Retenção: só linhas que ainda têm payload (o job diário não relê o que já limpou).
 		index("events_log_retention_idx")
 			.on(t.createdAt)
