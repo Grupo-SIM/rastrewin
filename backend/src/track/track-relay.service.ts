@@ -9,6 +9,8 @@ const BATCH = 20;
 /** ~3 dias de tentativas (backoff de 1 min até 6 h); a CAPI da Meta aceita vendas de até 7 dias. */
 const MAX_ATTEMPTS = 20;
 const backoffMs = (attempts: number) => Math.min(60_000 * 2 ** (attempts - 1), 6 * 3600_000);
+/** Quantas vendas desistidas vão no sinal (só ID do evento, tentativas e erro técnico). */
+const FAILED_SAMPLE = 20;
 
 type SendResult = { ok: true } | { ok: false; error: string; retry: boolean };
 
@@ -23,17 +25,25 @@ type SendResult = { ok: true } | { ok: false; error: string; retry: boolean };
  * track confirma (2xx). Se o track estiver fora do ar, um worker reenvia a cada minuto com backoff
  * (até ~3 dias). O track deduplica por eventId, então reenviar nunca duplica a venda.
  * Sem TRACK_WEBHOOK_URL/SECRET, não faz nada. Nunca lança erro nem loga dados pessoais.
+ *
+ * Sinal de vida: a cada minuto, depois de drenar a fila, manda ao track a situação dela
+ * (POST /api/webhook/relay-status, mesma assinatura): quantas vendas esperam, a mais antiga e as
+ * que ele desistiu de enviar. A aba Saúde do painel avisa quando há atraso, desistência ou falta
+ * de sinal. Se o usuário pedir "Tentar de novo" lá, a resposta traz retry_failed e as vendas
+ * desistidas voltam para a fila.
  */
 @Injectable()
 export class TrackRelayService implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(TrackRelayService.name);
 	private timer?: NodeJS.Timeout;
 	private draining = false;
+	/** Último resultado do sinal (para logar só quando muda, e não a cada minuto). */
+	private heartbeatOk: boolean | null = null;
 
 	constructor(private readonly prisma: PrismaService) {}
 
 	onModuleInit() {
-		this.timer = setInterval(() => void this.drain(), WORKER_INTERVAL_MS);
+		this.timer = setInterval(() => void this.drain().then(() => this.heartbeat()), WORKER_INTERVAL_MS);
 		this.timer.unref();
 	}
 
@@ -126,6 +136,81 @@ export class TrackRelayService implements OnModuleInit, OnModuleDestroy {
 				`Repasse ao track: erro na fila (evento ${eventId}): ${error instanceof Error ? error.name : "erro"}`,
 			);
 		}
+	}
+
+	/** Manda ao track a situação da fila. Nunca lança. */
+	async heartbeat() {
+		const config = this.config();
+		if (!config) return;
+		try {
+			const [pending, failed, oldest, sample, last] = await Promise.all([
+				this.prisma.trackRelay.count({ where: { nextAttemptAt: { not: null } } }),
+				this.prisma.trackRelay.count({ where: { nextAttemptAt: null } }),
+				this.prisma.trackRelay.findFirst({
+					orderBy: { createdAt: "asc" },
+					select: { createdAt: true },
+					where: { nextAttemptAt: { not: null } },
+				}),
+				this.prisma.trackRelay.findMany({
+					orderBy: { createdAt: "desc" },
+					select: { attempts: true, createdAt: true, eventId: true, lastError: true },
+					take: FAILED_SAMPLE,
+					where: { nextAttemptAt: null },
+				}),
+				this.prisma.trackRelay.findFirst({
+					orderBy: { createdAt: "desc" },
+					select: { lastError: true },
+					where: { lastError: { not: null }, nextAttemptAt: { not: null } },
+				}),
+			]);
+			const body = JSON.stringify({
+				failed,
+				failed_sample: sample.map(r => ({
+					attempts: r.attempts,
+					created_at: r.createdAt.toISOString(),
+					event_id: r.eventId,
+					last_error: r.lastError?.slice(0, 300) ?? null,
+				})),
+				last_error: last?.lastError?.slice(0, 300) ?? null,
+				oldest_pending_at: oldest?.createdAt.toISOString() ?? null,
+				pending,
+				sent_at: new Date().toISOString(),
+				type: "relay_status",
+			});
+			const res = await fetch(new URL("/api/webhook/relay-status", config.url), {
+				body,
+				headers: {
+					"content-type": "application/json",
+					"x-simintpay-signature": signBody(body, config.secret),
+				},
+				method: "POST",
+				redirect: "error",
+				signal: AbortSignal.timeout(TIMEOUT_MS),
+			});
+			this.logHeartbeat(res.ok, `HTTP ${res.status}`);
+			if (!res.ok) return;
+			const answer = (await res.json().catch(() => null)) as { retry_failed?: unknown } | null;
+			if (answer?.retry_failed === true) {
+				const { count } = await this.prisma.trackRelay.updateMany({
+					data: { attempts: 0, nextAttemptAt: new Date() },
+					where: { nextAttemptAt: null },
+				});
+				this.logger.log(`Repasse ao track: ${count} venda(s) de volta na fila (pedido do painel)`);
+			}
+		} catch (error) {
+			const code = (error as { cause?: { code?: unknown } })?.cause?.code;
+			this.logHeartbeat(
+				false,
+				typeof code === "string" ? code : error instanceof Error ? error.name : "erro",
+			);
+		}
+	}
+
+	private logHeartbeat(ok: boolean, detail: string) {
+		if (ok === this.heartbeatOk) return;
+		this.heartbeatOk = ok;
+		if (ok) this.logger.log("Sinal ao track: entregue");
+		else this.logger.warn(`Sinal ao track falhou (${detail}); o painel avisa se continuar sem sinal`);
 	}
 
 	private async send(body: string): Promise<SendResult> {
