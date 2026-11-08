@@ -1,11 +1,20 @@
 "use client";
 
-import { CalendarIcon, SearchIcon } from "lucide-react";
+import { CalendarIcon, ChevronDownIcon, SearchIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, type FormEvent, type ReactNode, use, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { parseEventTypes, serializeEventTypes } from "@/lib/dashboard/event-types";
 import { DEFAULT_PRESET, PRESETS } from "@/lib/dashboard/period";
 import { cn } from "@/lib/utils";
 
@@ -173,6 +182,86 @@ export function SelectFilter({
 				))}
 			</SelectContent>
 		</Select>
+	);
+}
+
+/**
+ * Filtro de tipo de evento com várias opções marcadas (?tipo=A,B). Marcar/desmarcar não recarrega
+ * a cada clique: aplica ao fechar o menu (ou em "Aplicar"), numa única navegação.
+ */
+export function EventTypesFilter({ options }: { options: string[] }) {
+	const { setParams } = useFilters();
+	const applied = parseEventTypes(useSearchParams().get("tipo"));
+	const [open, setOpen] = useState(false);
+	const [draft, setDraft] = useState<string[]>(applied);
+	// Tipo marcado que não existe no período atual continua na lista, para poder desmarcar.
+	const all = [...options, ...applied.filter(t => !options.includes(t))];
+
+	function apply(next: string[]) {
+		const value = serializeEventTypes(all.filter(t => next.includes(t)));
+		if (value !== serializeEventTypes(applied)) setParams({ tipo: value });
+	}
+	function onOpenChange(next: boolean) {
+		if (next) setDraft(applied);
+		else apply(draft);
+		setOpen(next);
+	}
+	const toggle = (t: string, on: boolean) => setDraft(d => (on ? [...d, t] : d.filter(x => x !== t)));
+
+	const label =
+		applied.length === 0
+			? "Todos os eventos"
+			: applied.length === 1
+				? applied[0]
+				: `${applied.length} tipos de evento`;
+
+	return (
+		<DropdownMenu open={open} onOpenChange={onOpenChange}>
+			<DropdownMenuTrigger
+				aria-label={`Tipo de evento: ${applied.length ? applied.join(", ") : "todos"}`}
+				className={cn(
+					trigger,
+					"border-input focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50 flex w-[13rem] items-center justify-between gap-1.5 rounded-lg border py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-3",
+				)}
+			>
+				<span className="truncate">{label}</span>
+				<ChevronDownIcon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+			</DropdownMenuTrigger>
+			<DropdownMenuContent className="w-60">
+				<DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+					Marque um ou mais tipos
+				</DropdownMenuLabel>
+				{all.length ? (
+					all.map(t => (
+						<DropdownMenuCheckboxItem
+							key={t}
+							checked={draft.includes(t)}
+							onCheckedChange={on => toggle(t, on === true)}
+							onSelect={e => e.preventDefault()}
+							className="min-h-9"
+						>
+							{t}
+						</DropdownMenuCheckboxItem>
+					))
+				) : (
+					<p className="text-muted-foreground px-2 py-1.5 text-sm">Nenhum evento no período</p>
+				)}
+				<DropdownMenuSeparator />
+				<div className="flex gap-2 p-1">
+					<Button
+						variant="ghost"
+						className="h-9 flex-1"
+						disabled={!draft.length}
+						onClick={() => setDraft([])}
+					>
+						Limpar
+					</Button>
+					<Button className="h-9 flex-1" onClick={() => onOpenChange(false)}>
+						Aplicar
+					</Button>
+				</div>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
 

@@ -1,6 +1,7 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { num, param, rows, type SearchParams, withDashboard } from "./context";
+import { parseEventTypes } from "./event-types";
 import type { Period } from "./period";
 
 export const DELIVERY_FILTERS = [
@@ -44,7 +45,7 @@ export interface EventsPage {
 	page: number;
 	pageSize: number;
 	eventNames: string[];
-	filters: { tipo: string; envio: string; q: string };
+	filters: { tipos: string[]; envio: string; q: string };
 }
 
 const PAGE_SIZE = 50;
@@ -52,7 +53,7 @@ const PAGE_SIZE = 50;
 export function getEvents(sp: SearchParams): Promise<EventsPage> {
 	return withDashboard(sp, async ({ tx, tz, period }) => {
 		const { start: s, end: e } = period;
-		const tipo = (param(sp, "tipo") ?? "").slice(0, 40);
+		const tipos = parseEventTypes(param(sp, "tipo"));
 		const envio = DELIVERY_FILTERS.some(f => f.key === param(sp, "envio"))
 			? param(sp, "envio")!
 			: "todos";
@@ -62,7 +63,14 @@ export function getEvents(sp: SearchParams): Promise<EventsPage> {
 		const where = sql.join(
 			[
 				sql`l.created_at >= ${s} and l.created_at < ${e}`,
-				...(tipo ? [sql`l.event_name = ${tipo}`] : []),
+				...(tipos.length
+					? [
+							sql`l.event_name in (${sql.join(
+								tipos.map(t => sql`${t}`),
+								sql`, `,
+							)})`,
+						]
+					: []),
 				...(q
 					? [
 							sql`(l.trck_user_id = ${q} or l.event_id = ${q} or l.utm_campaign ilike ${`%${q}%`} or l.utm_source ilike ${`%${q}%`})`,
@@ -98,7 +106,7 @@ export function getEvents(sp: SearchParams): Promise<EventsPage> {
 
 		return {
 			eventNames: names.map(n => n.event_name),
-			filters: { envio, q, tipo },
+			filters: { envio, q, tipos },
 			page,
 			pageSize: PAGE_SIZE,
 			period,

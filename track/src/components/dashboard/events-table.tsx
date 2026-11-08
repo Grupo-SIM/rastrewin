@@ -7,6 +7,7 @@ import type { EventDetail } from "@/lib/dashboard/details";
 import type { EventRow } from "@/lib/dashboard/events";
 import { formatMoney } from "@/lib/dashboard/format";
 import { formatDateTime } from "@/lib/time";
+import { JourneyLink } from "./back-button";
 import { EventDetailDialog } from "./event-detail-dialog";
 import { DeliveryStatus } from "./status-badge";
 
@@ -44,6 +45,9 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 							<th scope="col" className="py-2 pr-3 font-medium">
 								Evento
 							</th>
+							<th scope="col" className="py-2 pr-3 font-medium">
+								Visitante
+							</th>
 							<th scope="col" className="py-2 pr-3 text-right font-medium">
 								Valor
 							</th>
@@ -72,6 +76,9 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 									{formatDateTime(r.createdAt, timeZone)}
 								</td>
 								<td className="py-2 pr-3 font-medium">{r.eventName}</td>
+								<td className="py-2 pr-3">
+									<VisitorLink id={r.trckUserId} />
+								</td>
 								<td className="num py-2 pr-3 text-right">{value(r)}</td>
 								<td className="text-muted-foreground max-w-56 truncate py-2 pr-3">
 									{origin(r)}
@@ -102,10 +109,10 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 			{/* Celular */}
 			<ul className="flex flex-col gap-2 md:hidden">
 				{rows.map(r => (
-					<li key={r.id}>
+					<li key={r.id} className="bg-card/40 rounded-lg border">
 						<button
 							onClick={() => show(r)}
-							className="bg-card/40 flex w-full items-start justify-between gap-3 rounded-lg border p-3 text-left"
+							className="flex w-full items-start justify-between gap-3 p-3 pb-2 text-left"
 						>
 							<span className="min-w-0">
 								<span className="block font-medium">{r.eventName}</span>
@@ -121,6 +128,10 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 								<DeliveryStatus status={r.metaStatus} />
 							</span>
 						</button>
+						<div className="flex items-center gap-1.5 px-3 pb-2 text-xs">
+							<span className="text-muted-foreground">Visitante</span>
+							<VisitorLink id={r.trckUserId} />
+						</div>
 					</li>
 				))}
 			</ul>
@@ -133,5 +144,21 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 				timeZone={timeZone}
 			/>
 		</>
+	);
+}
+
+/** ID do visitante que abre a jornada dele (sem abrir o detalhe do evento). */
+function VisitorLink({ id }: { id: string }) {
+	return (
+		<JourneyLink
+			href={`/painel/visitante/${encodeURIComponent(id)}`}
+			title="Ver a jornada deste visitante"
+			aria-label={`Ver a jornada do visitante ${id}`}
+			onClick={e => e.stopPropagation()}
+			className="num text-muted-foreground hover:text-primary inline-flex min-h-9 items-center gap-0.5 text-xs underline-offset-4 hover:underline"
+		>
+			{id}
+			<ChevronRightIcon className="size-3.5 shrink-0" aria-hidden />
+		</JourneyLink>
 	);
 }
