@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
 	countryName,
 	delta,
+	formatBytes,
 	formatDayRangeShort,
 	formatDelta,
 	formatMoney,
@@ -35,4 +36,12 @@ test("delta entre períodos", () => {
 test("nome do país", () => {
 	assert.equal(countryName("BR"), "Brasil");
 	assert.equal(countryName(null), "Desconhecido");
+});
+
+test("tamanho em bytes", () => {
+	assert.equal(formatBytes(0), "0 B");
+	assert.equal(formatBytes(512), "512 B");
+	assert.equal(formatBytes(12 * 1024), "12 KB");
+	assert.equal(formatBytes(3.45 * 1024 ** 2), "3,5 MB");
+	assert.equal(formatBytes(5 * 1024 ** 3), "5 GB");
 });

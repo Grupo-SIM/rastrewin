@@ -36,7 +36,7 @@ export interface GeneralView {
 
 /** Limpeza diária (agendada pelo app) + diagnóstico do proxy. Estados calculados no servidor. */
 export interface MaintenanceView {
-	/** nunca = ainda não rodou; rodando = em andamento; atrasada = última execução ok há mais de 2 dias. */
+	/** nunca = ainda não rodou; rodando = em andamento; atrasada = última execução ok há mais de 36 h. */
 	health: "ok" | "erro" | "rodando" | "atrasada" | "nunca";
 	lastRun: {
 		startedAt: string;

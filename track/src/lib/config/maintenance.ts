@@ -8,7 +8,8 @@ import type { MaintenanceView } from "./types";
 
 /** Mesmo valor padrão da procedure (drizzle/0005_retention.sql). */
 export const RETENTION_DAYS = 14;
-const STALE_MS = 2 * 24 * 60 * 60 * 1000;
+/** Roda todo dia às 03:15: mais de 36 h sem rodar = perdeu uma noite (com folga para atrasos). */
+const STALE_MS = 36 * 60 * 60 * 1000;
 const RUNNING_LIMIT_MS = 60 * 60 * 1000;
 
 export function maintenanceHealth(

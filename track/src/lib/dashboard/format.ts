@@ -9,6 +9,20 @@ export function formatInt(n: number): string {
 	return intFmt.format(n);
 }
 
+const bytesFmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+
+/** Tamanho em bytes no padrão do sistema (base 1024): 512 B, 12 KB, 3,4 MB, 1,2 GB. */
+export function formatBytes(n: number): string {
+	const units = ["B", "KB", "MB", "GB", "TB"];
+	let v = Math.max(0, n);
+	let i = 0;
+	while (v >= 1024 && i < units.length - 1) {
+		v /= 1024;
+		i++;
+	}
+	return `${i === 0 ? intFmt.format(v) : bytesFmt.format(v)} ${units[i]}`;
+}
+
 export function formatCompact(n: number): string {
 	return Math.abs(n) < 10_000 ? intFmt.format(n) : compactFmt.format(n);
 }

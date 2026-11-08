@@ -107,7 +107,7 @@ export function MaintenanceCard({
 					)}
 					{m.health === "atrasada" && (
 						<p className="bg-amber/10 text-amber rounded-lg px-3 py-2 text-sm">
-							Nenhuma limpeza nos últimos 2 dias. Ela roda dentro do app: confira os logs (
+							Nenhuma limpeza nas últimas 36 horas. Ela roda dentro do app: confira os logs (
 							<code className="text-xs">docker compose logs app | grep retenção</code>).
 						</p>
 					)}

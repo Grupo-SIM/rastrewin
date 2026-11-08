@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { SessionGate } from "@/components/auth/session-gate";
 import { UserBadge } from "@/components/auth/user-badge";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { HealthBanner } from "@/components/shell/health-banner";
 import { MobileNav } from "@/components/shell/mobile-nav";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
@@ -20,6 +21,10 @@ export default function PainelLayout({ children }: LayoutProps<"/painel">) {
 				<Topbar />
 				{/* pb extra no mobile para não ficar atrás da barra inferior */}
 				<main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-5 pb-28 sm:px-6 lg:px-8 lg:pt-8 lg:pb-10">
+					{/* Aviso dos bastidores (Saúde): não atrasa a página; aparece quando chega */}
+					<Suspense fallback={null}>
+						<HealthBanner />
+					</Suspense>
 					<Suspense fallback={<PageSkeleton />}>
 						<SessionGate>{children}</SessionGate>
 					</Suspense>

@@ -17,6 +17,7 @@ import {
 	webhookSecretSchema,
 } from "@/lib/config/validation";
 import { requireSession } from "@/lib/dal";
+import { requestRelayRetry } from "@/lib/health/relay";
 import { decryptSecret, encryptSecret, secretHint } from "@/lib/secrets";
 import { invalidateRuntimeConfig } from "@/lib/tracking/runtime-config";
 
@@ -259,4 +260,17 @@ export async function setWebhookSecret(value: unknown): Promise<ActionResult> {
 	invalidateRuntimeConfig();
 	refresh();
 	return { message: "Segredo do webhook salvo.", ok: true };
+}
+
+// ---------------------------------------------------------------- saúde
+
+/** "Tentar de novo": o backend recoloca na fila as vendas em que desistiu, no próximo sinal (até 1 min). */
+export async function retryBackendRelays(): Promise<ActionResult> {
+	await requireSession();
+	requestRelayRetry();
+	refresh();
+	return {
+		message: "Pedido enviado. O backend tenta de novo no próximo sinal (até 1 minuto).",
+		ok: true,
+	};
 }
