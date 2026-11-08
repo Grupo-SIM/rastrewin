@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { loadEventDetail } from "@/app/painel/eventos/actions";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -147,7 +148,15 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 								<dt className="text-muted-foreground">event_id</dt>
 								<dd className="num break-all">{detail.eventId}</dd>
 								<dt className="text-muted-foreground">Visitante</dt>
-								<dd className="num break-all">{detail.trckUserId}</dd>
+								<dd className="break-all">
+									<span className="num">{detail.trckUserId}</span>{" "}
+									<Link
+										href={`/painel/visitante/${encodeURIComponent(detail.trckUserId)}`}
+										className="text-primary text-xs whitespace-nowrap underline-offset-4 hover:underline"
+									>
+										Ver jornada →
+									</Link>
+								</dd>
 								<dt className="text-muted-foreground">Página</dt>
 								<dd className="break-all">{detail.eventSourceUrl ?? "—"}</dd>
 								<dt className="text-muted-foreground">IP</dt>

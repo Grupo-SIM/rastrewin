@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { loadPurchaseDetail } from "@/app/painel/faturamento/actions";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -216,6 +217,22 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 									)}
 									<dt className="text-muted-foreground">Comprador</dt>
 									<dd className="break-all">{detail.email ?? "—"}</dd>
+									<dt className="text-muted-foreground">Visitante</dt>
+									<dd className="break-all">
+										{detail.trckUserId ? (
+											<>
+												<span className="num">{detail.trckUserId}</span>{" "}
+												<Link
+													href={`/painel/visitante/${encodeURIComponent(detail.trckUserId)}`}
+													className="text-primary text-xs whitespace-nowrap underline-offset-4 hover:underline"
+												>
+													Ver jornada →
+												</Link>
+											</>
+										) : (
+											"Não ligada a um visitante"
+										)}
+									</dd>
 									<dt className="text-muted-foreground">Ligada por</dt>
 									<dd>
 										{(() => {

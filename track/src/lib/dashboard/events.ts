@@ -12,7 +12,7 @@ export const DELIVERY_FILTERS = [
 ] as const;
 
 /** Status do envio à Meta de cada evento (derivado do log). */
-const META_STATUS = sql`
+export const META_STATUS = sql`
   case
     when l.payload_meta is null and l.response_meta is null and l.created_at < now() - interval '14 days' then 'expirado'
     when l.response_meta is null then 'pendente'
