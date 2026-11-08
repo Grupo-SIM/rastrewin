@@ -3,7 +3,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { serviceDb } from "@/db";
 import { purchases, visitors } from "@/db/schema";
 import { hashed, normEmail, normName, normPhone, splitFullName } from "@/lib/tracking/normalize";
-import { nextStatus, type SalesEvent, toPurchaseFields } from "./simintpay";
+import { nextStatus, postApprovalOnly, type SalesEvent, toPurchaseFields } from "./simintpay";
 
 type Tx = Parameters<Parameters<ReturnType<typeof serviceDb>["transaction"]>[0]>[0];
 type VisitorRow = typeof visitors.$inferSelect;
@@ -139,6 +139,7 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 
 		const [existing] = await tx
 			.select({
+				approvedAt: purchases.approvedAt,
 				id: purchases.id,
 				match: purchases.match,
 				status: purchases.status,
@@ -148,6 +149,21 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 			.where(eq(purchases.transactionId, f.transactionId))
 			.for("update");
 		const status = nextStatus(existing.status, f.status);
+
+		// Venda já aprovada + evento que não é aprovação: só status e data do reembolso mudam.
+		if (postApprovalOnly(existing.approvedAt, f.status)) {
+			await tx
+				.update(purchases)
+				.set({
+					refundedAt: isRefund
+						? sql`coalesce(${purchases.refundedAt}, ${f.occurredAt})`
+						: purchases.refundedAt,
+					status,
+					updatedAt: new Date(),
+				})
+				.where(eq(purchases.id, existing.id));
+			return { match: existing.match as MatchResult, purchaseId: existing.id, status, visitor: null };
+		}
 		const keepOldMatch = !match.found && (existing.match as MatchResult | null)?.found;
 
 		// Eventos seguintes (reembolso, chargeback...) costumam vir SEM tracking/email.

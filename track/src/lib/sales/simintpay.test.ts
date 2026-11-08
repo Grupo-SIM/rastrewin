@@ -5,6 +5,7 @@ import {
 	isSaleActive,
 	mapStatus,
 	nextStatus,
+	postApprovalOnly,
 	salesEventSchema,
 	toPurchaseFields,
 } from "./simintpay";
@@ -77,4 +78,16 @@ test("status: mapeamento e precedência (evento atrasado não desfaz reembolso)"
 	assert.equal(nextStatus("refund_requested", "approved"), "approved"); // mediação resolvida
 	assert.equal(isSaleActive("approved"), true);
 	assert.equal(isRefunded("chargeback"), true);
+});
+
+test("postApprovalOnly: depois da aprovação, só uma nova aprovação muda os dados da venda", () => {
+	const approved = new Date("2026-11-05T12:00:00Z");
+	// já aprovada: reembolso, chargeback, pedido de reembolso e PIX não regravam valor/UTM
+	for (const s of ["refunded", "chargeback", "refund_requested", "pending", "declined", "expired"] as const)
+		assert.equal(postApprovalOnly(approved, s), true, s);
+	// nova aprovação do mesmo pedido continua podendo atualizar
+	assert.equal(postApprovalOnly(approved, "approved"), false);
+	// antes da aprovação (PIX gerado → aprovado) os dados seguem sendo preenchidos
+	assert.equal(postApprovalOnly(null, "pending"), false);
+	assert.equal(postApprovalOnly(undefined, "refunded"), false);
 });
