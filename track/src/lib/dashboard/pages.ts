@@ -14,7 +14,8 @@ import type { Period } from "./period";
  *     sem renovação, ligadas pelo trck_user_id — as mesmas regras do Faturamento.
  */
 
-const MAX_ROWS = 100;
+/** Linhas por página da tabela (a lista inteira é navegável com Anterior/Próxima). */
+const PAGE_SIZE = 100;
 
 export interface PageStat {
 	page: string;
@@ -30,6 +31,8 @@ export interface PagesView {
 	currency: string;
 	q: string | null;
 	rows: PageStat[];
+	page: number;
+	pageSize: number;
 	totals: { pages: number; views: number; users: number; checkout: number; buyers: number };
 }
 
@@ -37,6 +40,7 @@ export function getPages(sp: SearchParams): Promise<PagesView> {
 	return withDashboard(sp, async ({ tx, period, currency }) => {
 		const { start: s, end: e } = period;
 		const q = param(sp, "q")?.trim().toLowerCase().slice(0, 200) || null;
+		const pageNum = Math.max(1, Math.min(10_000, Number(param(sp, "page")) || 1));
 		const page = pageKeySql(sql`event_source_url`);
 		const search = q ? sql`and strpos(page, ${q}) > 0` : sql``;
 
@@ -76,7 +80,7 @@ export function getPages(sp: SearchParams): Promise<PagesView> {
       left join buyers b on b.trck_user_id = v.trck_user_id
       group by p.page, p.views, p.users
       order by p.users desc, p.views desc, p.page
-      limit ${MAX_ROWS}`,
+      limit ${PAGE_SIZE} offset ${(pageNum - 1) * PAGE_SIZE}`,
 		);
 
 		// Totais do período: pessoas DISTINTAS (não a soma das linhas, que repete quem viu várias páginas).
@@ -97,6 +101,8 @@ export function getPages(sp: SearchParams): Promise<PagesView> {
 
 		return {
 			currency,
+			page: pageNum,
+			pageSize: PAGE_SIZE,
 			period,
 			q,
 			rows: list.map(r => ({

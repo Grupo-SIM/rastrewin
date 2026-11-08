@@ -2,7 +2,7 @@
 
 import { CalendarIcon, SearchIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { createContext, type FormEvent, type ReactNode, use, useState, useTransition } from "react";
+import { createContext, type FormEvent, type ReactNode, use, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -207,27 +207,38 @@ function SearchInput({ initial, placeholder }: { initial: string; placeholder: s
 
 export function Pagination({ page, total, pageSize }: { page: number; total: number; pageSize: number }) {
 	const { setParams } = useFilters();
+	const navRef = useRef<HTMLElement>(null);
 	const pages = Math.max(1, Math.ceil(total / pageSize));
 	if (pages <= 1) return null;
+
+	// Quem clica em "Próxima" no fim de uma lista longa volta ao topo do cartão para ler a nova página
+	// desde o começo (descontando a barra fixa do topo no celular).
+	function go(to: number) {
+		setParams({ page: String(to) });
+		const card = navRef.current?.closest<HTMLElement>("[data-slot=card]");
+		if (!card) return;
+		const top = card.getBoundingClientRect().top;
+		if (top < 0) window.scrollTo({ behavior: "smooth", top: window.scrollY + top - 80 });
+	}
+
 	return (
-		<nav aria-label="Paginação" className="flex items-center justify-between gap-3 pt-2 text-sm">
+		<nav
+			ref={navRef}
+			aria-label="Paginação"
+			className="flex items-center justify-between gap-3 pt-2 text-sm"
+		>
 			<span className="text-muted-foreground">
 				Página <span className="num">{page}</span> de <span className="num">{pages}</span>
 			</span>
 			<div className="flex gap-2">
-				<Button
-					variant="outline"
-					className="h-10"
-					disabled={page <= 1}
-					onClick={() => setParams({ page: String(page - 1) })}
-				>
+				<Button variant="outline" className="h-10" disabled={page <= 1} onClick={() => go(page - 1)}>
 					Anterior
 				</Button>
 				<Button
 					variant="outline"
 					className="h-10"
 					disabled={page >= pages}
-					onClick={() => setParams({ page: String(page + 1) })}
+					onClick={() => go(page + 1)}
 				>
 					Próxima
 				</Button>

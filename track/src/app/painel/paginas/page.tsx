@@ -8,7 +8,13 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { FiltersBar, FiltersProvider, PendingArea, SearchFilter } from "@/components/dashboard/filters";
+import {
+	FiltersBar,
+	FiltersProvider,
+	Pagination,
+	PendingArea,
+	SearchFilter,
+} from "@/components/dashboard/filters";
 import { GlassCard } from "@/components/glass-card";
 import { KpiCard } from "@/components/kpi-card";
 import { PageHeader } from "@/components/page-header";
@@ -114,9 +120,20 @@ async function PagesContent({ searchParams }: { searchParams: Promise<SearchPara
 							<CardDescription>
 								Quem viu mais de uma página conta em todas elas (ex.: a VSL e o cadastro), por
 								isso as linhas não somam o total. Ordenado por usuários.
+								{t.pages > d.pageSize && d.rows.length > 0 && (
+									<>
+										{" "}
+										Mostrando{" "}
+										<span className="num">
+											{formatInt((d.page - 1) * d.pageSize + 1)}–
+											{formatInt((d.page - 1) * d.pageSize + d.rows.length)}
+										</span>{" "}
+										de <span className="num">{formatInt(t.pages)}</span> páginas.
+									</>
+								)}
 							</CardDescription>
 						</CardHeader>
-						<CardContent>
+						<CardContent className="flex flex-col gap-2">
 							{d.rows.length ? (
 								<div className="overflow-x-auto">
 									<table className="w-full min-w-[56rem] text-sm">
@@ -182,11 +199,14 @@ async function PagesContent({ searchParams }: { searchParams: Promise<SearchPara
 								</div>
 							) : (
 								<p className="text-muted-foreground py-8 text-center text-sm">
-									{d.q
-										? "Nenhuma página com essa busca no período."
-										: "Nenhuma página no período. Elas aparecem assim que o script do track registrar PageViews."}
+									{d.page > 1
+										? "Esta página da lista está vazia. Volte para a anterior."
+										: d.q
+											? "Nenhuma página com essa busca no período."
+											: "Nenhuma página no período. Elas aparecem assim que o script do track registrar PageViews."}
 								</p>
 							)}
+							<Pagination page={d.page} total={t.pages} pageSize={d.pageSize} />
 						</CardContent>
 					</GlassCard>
 				</PendingArea>
