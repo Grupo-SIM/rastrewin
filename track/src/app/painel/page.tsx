@@ -194,6 +194,20 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 						</ChartCard>
 					</div>
 
+					<ChartCard
+						title="Origens dos visitantes"
+						description="Pessoas únicas do período por origem: a UTM quando houver; sem UTM, o site de onde vieram na primeira visita (Google, Instagram...)."
+						table={{
+							columns: [
+								{ key: "origem", label: "Origem" },
+								{ align: "right", key: "pessoas", label: "Pessoas" },
+							],
+							rows: d.origins.map(o => ({ origem: o.label, pessoas: formatInt(o.value) })),
+						}}
+					>
+						<RankedBars items={d.origins} color="var(--viz-1)" />
+					</ChartCard>
+
 					<div className="grid gap-4 lg:grid-cols-2">
 						<ChartCard
 							title="Usuários únicos por dia"

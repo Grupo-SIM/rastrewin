@@ -1,6 +1,7 @@
 import "server-only";
 import { sql } from "drizzle-orm";
-import { ACTIVE_SALE, num, rows, type SearchParams, withDashboard } from "./context";
+import { summarizeOrigins } from "@/lib/tracking/referrer";
+import { ACTIVE_SALE, num, ownHosts, rows, type SearchParams, withDashboard } from "./context";
 import { daysOf, type Period } from "./period";
 
 export interface DailyPoint {
@@ -33,6 +34,8 @@ export interface Overview {
 	/** Pessoas: Visitou ⊇ Checkout ⊇ Comprou. outsideFunnel = COMPRAS sem ligação ou sem checkout registrado. */
 	funnel: { visited: number; checkout: number; purchased: number; outsideFunnel: number };
 	eventsByType: { label: string; value: number }[];
+	/** Pessoas únicas do período por origem: UTM (fonte) quando houver; senão, o site de onde vieram. */
+	origins: { label: string; value: number }[];
 	usersByDay: DailyPoint[];
 	revenueByDay: DailyPoint[];
 }
@@ -132,6 +135,26 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 
 		const purchases = num(pu.purchases);
 		const purchased = num(fu.purchased);
+		// Origens: por visitante do período, a utm_source mais recente dos eventos do período; sem UTM,
+		// o domínio do referrer guardado (1ª origem externa). Total = usuários únicos do período.
+		const originRows = await rows<{ utm: string | null; host: string | null; visitors: unknown }>(
+			tx,
+			sql`
+      with p as (
+        select trck_user_id,
+               (array_agg(utm_source order by created_at desc) filter (where utm_source is not null))[1] as utm
+        from events_log where created_at >= ${s} and created_at < ${e}
+        group by trck_user_id
+      )
+      select p.utm, lower(substring(v.referrer from '^[a-zA-Z]+://([^/:?#]+)')) as host, count(*) as visitors
+      from p left join visitors v on v.trck_user_id = p.trck_user_id
+      group by 1, 2`,
+		);
+		const origins = summarizeOrigins(
+			originRows.map(r => ({ referrer: r.host, utmSource: r.utm, visitors: num(r.visitors) })),
+			await ownHosts(tx),
+		);
+
 		const eventsByType = byType.map(r => ({ label: r.label, value: num(r.value) }));
 		if (purchases) eventsByType.push({ label: "Purchase", value: purchases });
 		eventsByType.sort((a, b) => b.value - a.value);
@@ -159,6 +182,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 				users: num(ev.users),
 				usersPrev: num(ev.users_prev),
 			},
+			origins,
 			period,
 			revenueByDay: fillDays(period, revenueByDay),
 			timeZone: tz,
