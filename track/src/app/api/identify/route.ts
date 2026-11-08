@@ -1,8 +1,9 @@
-import { botNetwork, lookupGeo } from "@/lib/geo";
+import { lookupGeo } from "@/lib/geo";
 import { readJsonBody } from "@/lib/http/body";
 import { clientIp, rateLimitKey } from "@/lib/http/client-ip";
 import { allowedOrigin, corsHeaders, json, preflight } from "@/lib/http/cors";
 import { createRateLimiter } from "@/lib/http/rate-limit";
+import { botReason, countIgnoredVisit } from "@/lib/tracking/bot-guard";
 import { newTrckUserId } from "@/lib/tracking/ids";
 import { identifySchema } from "@/lib/tracking/schemas";
 import { upsertVisitor } from "@/lib/tracking/visitors";
@@ -26,9 +27,13 @@ export async function POST(request: Request) {
 
 	if (!limiter.take(rateLimitKey(request.headers))) return json({ error: "muitas requisições" }, 429, cors);
 
-	// Robô da Meta/Google executando a página (revisão de anúncio, prévia de link): não é cliente.
-	// Responde OK para o t.js e não grava nem envia nada.
-	if (botNetwork(clientIp(request.headers))) return json({ ignored: true, ok: true }, 200, cors);
+	// Robô (rede da Meta/Google ou de nuvem, navegador de robô): não é cliente. Responde OK para o
+	// t.js e não grava nem envia nada. O identify sai uma vez por página: é aqui que se conta.
+	const bot = botReason(clientIp(request.headers), request.headers.get("user-agent"));
+	if (bot) {
+		countIgnoredVisit(bot);
+		return json({ ignored: true, ok: true }, 200, cors);
+	}
 
 	const body = await readJsonBody(request, MAX_BYTES);
 	if (!body.ok)
@@ -46,6 +51,10 @@ export async function POST(request: Request) {
 			cors,
 		);
 	const d = parsed.data;
+	if (d.wd) {
+		countIgnoredVisit("automacao");
+		return json({ ignored: true, ok: true }, 200, cors);
+	}
 
 	const ip = clientIp(request.headers);
 	const userAgent = request.headers.get("user-agent")?.slice(0, 512) ?? null;

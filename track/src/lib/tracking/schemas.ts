@@ -36,6 +36,9 @@ const userData = {
 
 const url = optStr(2048).refine(v => v === null || /^https?:\/\//i.test(v), "URL inválida");
 
+/** O t.js avisa quando o navegador é controlado por programa (navigator.webdriver): é robô. */
+const webdriver = { wd: z.boolean().optional() };
+
 export const identifySchema = z.object({
 	fbc: fbCookie,
 	fbp: fbCookie,
@@ -47,6 +50,7 @@ export const identifySchema = z.object({
 	trck_user_id: z.string().regex(TRCK_ID).optional().nullable(),
 	...utm,
 	...userData,
+	...webdriver,
 });
 export type IdentifyInput = z.infer<typeof identifySchema>;
 
@@ -79,6 +83,7 @@ export const eventSchema = z.object({
 	user_data: z.object(userData).optional(),
 	// Mesmas UTMs do identify: o evento pode chegar antes dele (os dois saem juntos no PageView).
 	...utm,
+	...webdriver,
 });
 export type EventInput = z.infer<typeof eventSchema>;
 
@@ -98,5 +103,6 @@ export const videoSchema = z.object({
 	video_id: z.string().regex(/^[a-z]{2,20}:[A-Za-z0-9_-]{1,64}$/, "id de vídeo inválido"),
 	view_id: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
 	watched: videoSeconds,
+	...webdriver,
 });
 export type VideoInput = z.infer<typeof videoSchema>;

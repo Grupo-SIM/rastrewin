@@ -247,8 +247,17 @@ type TrckWindow = Window & {
 	}
 
 	// ---------------------------------------------------------------- envio ao servidor
+	// Navegador controlado por programa (Selenium, Puppeteer, Playwright): o servidor ignora a visita.
+	const automated = (() => {
+		try {
+			return navigator.webdriver === true;
+		} catch {
+			return false;
+		}
+	})();
+
 	function send(path: string, body: Dict) {
-		const payload = JSON.stringify(body);
+		const payload = JSON.stringify(automated ? { ...body, wd: true } : body);
 		const beacon = () => navigator.sendBeacon?.(BASE + path, payload);
 		try {
 			// text/plain evita o preflight do CORS; o servidor valida a origem e o JSON.

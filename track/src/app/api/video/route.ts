@@ -1,9 +1,10 @@
 import { safeErrorMessage } from "@/lib/errors";
-import { botNetwork, lookupGeo } from "@/lib/geo";
+import { lookupGeo } from "@/lib/geo";
 import { readJsonBody } from "@/lib/http/body";
 import { clientIp, rateLimitKey } from "@/lib/http/client-ip";
 import { allowedOrigin, corsHeaders, json, preflight } from "@/lib/http/cors";
 import { createRateLimiter } from "@/lib/http/rate-limit";
+import { botReason } from "@/lib/tracking/bot-guard";
 import { videoSchema } from "@/lib/tracking/schemas";
 import { recordVideoView } from "@/lib/tracking/videos";
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
 	if (!limiter.take(rateLimitKey(request.headers))) return json({ error: "muitas requisições" }, 429, cors);
 
 	const ip = clientIp(request.headers);
-	if (botNetwork(ip)) return json({ ignored: true, ok: true }, 200, cors);
+	if (botReason(ip, request.headers.get("user-agent"))) return json({ ignored: true, ok: true }, 200, cors);
 
 	const body = await readJsonBody(request, MAX_BYTES);
 	if (!body.ok)
@@ -46,6 +47,8 @@ export async function POST(request: Request) {
 			400,
 			cors,
 		);
+
+	if (parsed.data.wd) return json({ ignored: true, ok: true }, 200, cors);
 
 	try {
 		await recordVideoView(parsed.data, lookupGeo(ip));

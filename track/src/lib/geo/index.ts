@@ -2,7 +2,7 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import { type AsnResponse, type CityResponse, Reader } from "maxmind";
-import { botNetworkName } from "./bot-networks";
+import { type BotNetworkKind, botNetworkOf } from "./bot-networks";
 import { brStateToUf } from "./br-states";
 
 /*
@@ -69,11 +69,11 @@ function asnReader(): Reader<AsnResponse> | null {
 	return g.__asnReader;
 }
 
-/** Nome da rede de robôs (Meta, Google) dona do IP, ou null para visitantes comuns. */
-export function botNetwork(ip: string | null): string | null {
+/** Rede de robôs/nuvem dona do IP (ex.: Meta, Amazon AWS), ou null para visitantes comuns. */
+export function botNetwork(ip: string | null): { name: string; kind: BotNetworkKind } | null {
 	if (!ip) return null;
 	try {
-		return botNetworkName(asnReader()?.get(ip)?.autonomous_system_number);
+		return botNetworkOf(asnReader()?.get(ip)?.autonomous_system_number);
 	} catch {
 		return null;
 	}
