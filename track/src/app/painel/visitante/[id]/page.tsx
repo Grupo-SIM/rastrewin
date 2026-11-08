@@ -178,6 +178,9 @@ function VisitorCard({ j }: { j: Journey }) {
 					<Row label="Meta _fbp">
 						<span className="num text-xs break-all">{dash(v?.fbp)}</span>
 					</Row>
+					<Row label="Meta _fbc">
+						<span className="num text-xs break-all">{dash(v?.fbc)}</span>
+					</Row>
 				</dl>
 				{!v?.name && !v?.phone && (
 					<p className="text-muted-foreground mt-3 text-xs">
