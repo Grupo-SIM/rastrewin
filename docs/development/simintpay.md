@@ -35,6 +35,7 @@ The SimIntPay "sales API" (`Grupo-SIM/simintpay`: `docs/central-sales-api.md`):
     - `tracking`: the checkout's own keys win; the tracking saved at sign-up (`User.tracking`: `src` = `trck_user_id`, `utm_*`, `fbc`, `fbp`) fills the rest;
     - `renewal: true` on `purchase_approved` when the buyer already had a paid order. The track stores it but does not send it to Meta/GA4.
 - The relay never blocks the answer to SimIntPay. Each event is first stored in the backend table `TrackRelay` and removed only when the track answers 2xx. A worker retries due rows every minute with backoff (1 min up to 6 h, 20 attempts, about 3 days; the Meta CAPI accepts sales up to 7 days old). 401/503 from the track (secret changed or not generated yet) are retried; other 4xx stop the retries and keep the row with `lastError`. The track deduplicates by `eventId`, so a resend never duplicates a sale. Logs carry no personal data. Without both `TRACK_WEBHOOK_*` variables the relay is off.
+- **Heartbeat:** every minute, after draining the queue, the backend posts the queue state to the track (`POST /api/webhook/relay-status`, same signature): pending count, oldest pending, and the rows it gave up on (event ID, attempts, technical error only). The track shows it in Configurações › Saúde and warns when a sale waits more than 30 min, when the backend gave up on one, or when no heartbeat arrives for 10 min. If someone clicks "Tentar de novo" there, the response carries `retry_failed: true` and the backend puts the given-up rows back in the queue.
 
 ## Environment (backend)
 
