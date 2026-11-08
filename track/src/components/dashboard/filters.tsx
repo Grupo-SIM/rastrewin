@@ -177,9 +177,15 @@ export function SelectFilter({
 }
 
 export function SearchFilter({ placeholder }: { placeholder: string }) {
+	// A chave refaz o campo quando a busca da URL muda: o Next 16 guarda o estado de páginas já
+	// visitadas, então sem isso o campo mostrava o texto antigo (ex.: link com ?q= vindo da Jornada).
+	const q = useSearchParams().get("q") ?? "";
+	return <SearchInput key={q} initial={q} placeholder={placeholder} />;
+}
+
+function SearchInput({ initial, placeholder }: { initial: string; placeholder: string }) {
 	const { setParams } = useFilters();
-	const params = useSearchParams();
-	const [value, setValue] = useState(params.get("q") ?? "");
+	const [value, setValue] = useState(initial);
 	function submit(e: FormEvent) {
 		e.preventDefault();
 		setParams({ q: value.trim() || null });
