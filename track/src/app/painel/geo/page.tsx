@@ -40,7 +40,7 @@ async function GeoContent({ searchParams }: { searchParams: Promise<SearchParams
 					<div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
 						<ChartCard
 							title="Brasil por estado"
-							description={`${formatInt(d.totals.withGeo)} de ${formatInt(d.totals.visitors)} visitantes com localização (${formatPct(ratio(d.totals.withGeo, d.totals.visitors))}).`}
+							description={`${formatInt(d.totals.withGeo)} de ${formatInt(d.totals.visitors)} visitantes com localização (${formatPct(ratio(d.totals.withGeo, d.totals.visitors))}). Compras e receita: só vendas novas.`}
 							table={{
 								columns: [
 									{ key: "uf", label: "Estado" },

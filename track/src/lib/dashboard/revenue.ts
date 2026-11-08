@@ -48,6 +48,10 @@ export interface Revenue {
 		purchasesPrev: number;
 		refunds: number;
 		refundsValue: number;
+		/** Renovações (recompra de quem já tinha pago): já incluídas em receita e compras. */
+		renewals: number;
+		renewalsPrev: number;
+		renewalsValue: number;
 	};
 	revenueByDay: DailyPoint[];
 	byPaymentMethod: { key: string; label: string; value: number; count: number }[];
@@ -70,7 +74,10 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
         coalesce(sum(value) filter (where ${d} >= ${s}), 0) as revenue,
         coalesce(sum(net_value) filter (where ${d} >= ${s}), 0) as net,
         count(*) filter (where ${d} < ${s}) as purchases_prev,
-        coalesce(sum(value) filter (where ${d} < ${s}), 0) as revenue_prev
+        coalesce(sum(value) filter (where ${d} < ${s}), 0) as revenue_prev,
+        count(*) filter (where ${d} >= ${s} and is_renewal) as renewals,
+        coalesce(sum(value) filter (where ${d} >= ${s} and is_renewal), 0) as renewals_value,
+        count(*) filter (where ${d} < ${s} and is_renewal) as renewals_prev
       from purchases where status in ${ACTIVE_SALE} and ${d} >= ${ps} and ${d} < ${e}`,
 		);
 
@@ -144,6 +151,9 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 				purchasesPrev: num(k.purchases_prev),
 				refunds: num(r.refunds),
 				refundsValue: num(r.refunds_value),
+				renewals: num(k.renewals),
+				renewalsPrev: num(k.renewals_prev),
+				renewalsValue: num(k.renewals_value),
 				revenue: num(k.revenue),
 				revenuePrev: num(k.revenue_prev),
 			},

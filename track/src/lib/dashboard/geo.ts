@@ -33,7 +33,7 @@ export function getGeo(sp: SearchParams): Promise<Geo> {
 			tx,
 			sql`
       select geo_region as uf, count(*) as c, sum(value) as r from purchases
-      where status in ${ACTIVE_SALE} and coalesce(occurred_at, created_at) >= ${s} and coalesce(occurred_at, created_at) < ${e}
+      where status in ${ACTIVE_SALE} and not is_renewal and coalesce(occurred_at, created_at) >= ${s} and coalesce(occurred_at, created_at) < ${e}
         and geo_country = 'BR' and geo_region ~ '^[A-Z]{2}$'
       group by 1`,
 		);

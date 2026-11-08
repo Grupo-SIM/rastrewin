@@ -18,10 +18,17 @@ export interface Overview {
 		usersPrev: number;
 		events: number;
 		eventsPrev: number;
+		/** Vendas NOVAS (renovações não contam: compras/conversão medem aquisição). */
 		purchases: number;
 		purchasesPrev: number;
+		/** Receita de TODAS as vendas (é dinheiro que entrou), renovações incluídas. */
 		revenue: number;
 		revenuePrev: number;
+		/** Parte da receita que veio de renovações. */
+		renewalRevenue: number;
+		/** Receita só das vendas novas (base do ROAS). */
+		revenueNew: number;
+		revenueNewPrev: number;
 	};
 	/** Pessoas: Visitou ⊇ Checkout ⊇ Comprou. outsideFunnel = COMPRAS sem ligação ou sem checkout registrado. */
 	funnel: { visited: number; checkout: number; purchased: number; outsideFunnel: number };
@@ -54,13 +61,17 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 			tx,
 			sql`
       with p as (
-        select coalesce(occurred_at, created_at) as d, value from purchases where status in ${ACTIVE_SALE}
+        select coalesce(occurred_at, created_at) as d, value, is_renewal as ren
+        from purchases where status in ${ACTIVE_SALE}
       )
       select
-        count(*) filter (where d >= ${s}) as purchases,
+        count(*) filter (where d >= ${s} and not ren) as purchases,
         coalesce(sum(value) filter (where d >= ${s}), 0) as revenue,
-        count(*) filter (where d < ${s}) as purchases_prev,
-        coalesce(sum(value) filter (where d < ${s}), 0) as revenue_prev
+        coalesce(sum(value) filter (where d >= ${s} and ren), 0) as renewal_revenue,
+        coalesce(sum(value) filter (where d >= ${s} and not ren), 0) as revenue_new,
+        count(*) filter (where d < ${s} and not ren) as purchases_prev,
+        coalesce(sum(value) filter (where d < ${s}), 0) as revenue_prev,
+        coalesce(sum(value) filter (where d < ${s} and not ren), 0) as revenue_new_prev
       from p where d >= ${ps} and d < ${e}`,
 		);
 
@@ -76,7 +87,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
         where l.event_name = 'InitiateCheckout' and l.created_at >= ${s} and l.created_at < ${e}
       ), buyers as (
         select distinct trck_user_id from purchases
-        where status in ${ACTIVE_SALE} and trck_user_id is not null
+        where status in ${ACTIVE_SALE} and not is_renewal and trck_user_id is not null
           and coalesce(occurred_at, created_at) >= ${s} and coalesce(occurred_at, created_at) < ${e}
       )
       select
@@ -84,7 +95,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
         (select count(*) from checkout) as checkout,
         (select count(*) from checkout c join buyers b using (trck_user_id)) as purchased,
         (select count(*) from purchases p
-          where p.status in ${ACTIVE_SALE}
+          where p.status in ${ACTIVE_SALE} and not p.is_renewal
             and coalesce(p.occurred_at, p.created_at) >= ${s} and coalesce(p.occurred_at, p.created_at) < ${e}
             and (p.trck_user_id is null or p.trck_user_id not in (select trck_user_id from checkout))) as outside`,
 		);
@@ -139,7 +150,10 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 				eventsPrev: num(ev.events_prev),
 				purchases,
 				purchasesPrev: num(pu.purchases_prev),
+				renewalRevenue: num(pu.renewal_revenue),
 				revenue: num(pu.revenue),
+				revenueNew: num(pu.revenue_new),
+				revenueNewPrev: num(pu.revenue_new_prev),
 				revenuePrev: num(pu.revenue_prev),
 				users: num(ev.users),
 				usersPrev: num(ev.users_prev),

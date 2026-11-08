@@ -109,14 +109,14 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 							value={formatInt(kpis.purchases)}
 							icon={ShoppingBagIcon}
 							tone="amber"
-							info="Vendas aprovadas (ou em mediação) pela data da venda."
+							info="Vendas novas aprovadas (ou em mediação) pela data da venda. Renovações não contam: entram só na Receita."
 							delta={cmp({ value: delta(kpis.purchases, kpis.purchasesPrev) })}
 						/>
 						<KpiCard
 							label="Conversão"
 							value={formatPct(conv)}
 							icon={PercentIcon}
-							info="Compras ÷ usuários únicos do período."
+							info="Compras (vendas novas) ÷ usuários únicos do período."
 							delta={cmp({
 								value: conv !== null && convPrev !== null ? delta(conv, convPrev) : null,
 							})}
@@ -130,7 +130,12 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 							value={formatMoney(kpis.revenue, currency)}
 							icon={BanknoteIcon}
 							tone="cyan"
-							info="Soma do valor bruto pago nas compras do período (o mesmo valor enviado à Meta e ao GA4)."
+							info="Soma do valor bruto pago no período: vendas novas e renovações (é todo o dinheiro que entrou)."
+							hint={
+								kpis.renewalRevenue > 0
+									? `Inclui ${formatMoney(kpis.renewalRevenue, currency)} de renovações`
+									: undefined
+							}
 							delta={cmp({ value: delta(kpis.revenue, kpis.revenuePrev) })}
 						/>
 						{/* Gasto vem da Meta: carrega à parte para nunca atrasar o resto da página. */}
@@ -139,8 +144,8 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 								period={d.period}
 								timeZone={d.timeZone}
 								currency={currency}
-								revenue={kpis.revenue}
-								revenuePrev={kpis.revenuePrev}
+								revenue={kpis.revenueNew}
+								revenuePrev={kpis.revenueNewPrev}
 							/>
 						</Suspense>
 					</section>
@@ -294,7 +299,7 @@ async function SpendCards({
 				label="ROAS"
 				value={formatRoas(r)}
 				icon={TrendingUpIcon}
-				info="Receita total ÷ gasto. Inclui vendas que não vieram de anúncio; o ROAS só das campanhas fica na aba Campanhas."
+				info="Receita das vendas novas ÷ gasto (renovações não entram). Inclui vendas novas que não vieram de anúncio; o ROAS só das campanhas fica na aba Campanhas."
 				delta={compare && r !== null && rPrev !== null ? { value: delta(r, rPrev) } : undefined}
 			/>
 		</>

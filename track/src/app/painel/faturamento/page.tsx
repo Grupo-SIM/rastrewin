@@ -1,4 +1,4 @@
-import { BanknoteIcon, ReceiptIcon, ShoppingBagIcon, Undo2Icon, WalletIcon } from "lucide-react";
+import { BanknoteIcon, ReceiptIcon, RepeatIcon, ShoppingBagIcon, Undo2Icon, WalletIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ChartCard } from "@/components/charts/chart-card";
@@ -69,13 +69,13 @@ async function RevenueContent({ searchParams }: { searchParams: Promise<SearchPa
 					<SearchFilter placeholder="Pedido, email ou produto" />
 				</FiltersBar>
 				<PendingArea className="flex flex-col gap-4">
-					<section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+					<section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
 						<KpiCard
 							label="Receita"
 							value={formatMoney(kpis.revenue, currency)}
 							icon={BanknoteIcon}
 							tone="cyan"
-							info="Valor bruto pago nas compras aprovadas (ou em mediação) do período."
+							info="Valor bruto pago nas compras aprovadas (ou em mediação) do período, renovações incluídas."
 							delta={cmp({ value: delta(kpis.revenue, kpis.revenuePrev) })}
 						/>
 						<KpiCard
@@ -96,17 +96,25 @@ async function RevenueContent({ searchParams }: { searchParams: Promise<SearchPa
 							label="Compras"
 							value={formatInt(kpis.purchases)}
 							icon={ShoppingBagIcon}
-							info="Vendas aprovadas (ou em mediação) pela data da venda."
+							info="Vendas aprovadas (ou em mediação) pela data da venda, renovações incluídas. Na Visão geral, Compras conta só as vendas novas."
 							delta={cmp({ value: delta(kpis.purchases, kpis.purchasesPrev) })}
 						/>
 						<KpiCard
-							className="col-span-2 lg:col-span-1"
 							label="Reembolsos"
 							value={formatInt(kpis.refunds)}
 							icon={Undo2Icon}
 							tone="amber"
 							info="Reembolsos e chargebacks registrados no período (pela data do reembolso)."
 							hint={`${formatMoney(kpis.refundsValue, currency)} devolvidos`}
+						/>
+						<KpiCard
+							label="Renovações"
+							value={formatInt(kpis.renewals)}
+							icon={RepeatIcon}
+							tone="cyan"
+							info="Recompras de quem já tinha pago, pela data da venda. Já estão somadas em Receita e Compras; não vão à Meta/GA4 nem entram em conversão e ROAS."
+							hint={`${formatMoney(kpis.renewalsValue, currency)} em renovações`}
+							delta={cmp({ value: delta(kpis.renewals, kpis.renewalsPrev) })}
 						/>
 					</section>
 
