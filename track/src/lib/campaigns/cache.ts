@@ -4,8 +4,8 @@ import { after } from "next/server";
 import { serviceDb } from "@/db";
 import { metaInsightsCache } from "@/db/schema";
 import { describeGraphError } from "@/lib/meta/graph";
-import { fetchAdInsights, fetchFirstSpendDay } from "@/lib/meta/insights";
-import type { InsightRow } from "./build";
+import { fetchAccountTotals, fetchAdInsights, fetchFirstSpendDay } from "@/lib/meta/insights";
+import type { AccountTotals, InsightRow, SpendSource } from "./build";
 import {
 	canCall,
 	type Decision,
@@ -25,6 +25,8 @@ import {
  * - Nunca mais de uma busca simultânea para a mesma chave.
  * - "Máximo" (withFirstDay): a mesma tarefa também acha o dia do gasto mais antigo da conta
  *   (2 chamadas pequenas a mais, contadas no limite) e guarda junto, em firstDay.
+ * - Detalhe cortado (mais linhas que o limite de páginas): a mesma tarefa busca os totais da CONTA
+ *   (1 chamada pequena, contada no limite) e guarda em accountTotals; os totais da tela usam eles.
  */
 
 export interface AdAccount {
@@ -43,6 +45,10 @@ export interface InsightsResult {
 	notice: string | null;
 	/** Só no "Máximo": dia do gasto mais antigo da conta (null = sem gasto ou não consultado). */
 	firstDay: string | null;
+	/** A Meta tinha mais linhas que o limite: rows está incompleto. */
+	truncated: boolean;
+	/** Totais da conta, buscados só quando truncated (null se não buscados ou se a chamada falhou). */
+	accountTotals: AccountTotals | null;
 }
 
 const FRESH_TODAY_MS = 60 * 60_000;
@@ -51,6 +57,8 @@ interface Cached {
 	rows: InsightRow[];
 	currency: string | null;
 	firstDay?: string | null;
+	truncated?: boolean;
+	accountTotals?: AccountTotals | null;
 }
 
 const g = globalThis as unknown as {
@@ -141,7 +149,21 @@ async function refresh(
 			if (first.ok) firstDay = first.day;
 		}
 
-		const data: Cached = { currency: res.currency, firstDay, rows: res.rows };
+		let accountTotals: AccountTotals | null = null;
+		if (res.truncated) {
+			// Falha aqui não derruba a consulta: a tela avisa que o detalhe está incompleto.
+			const totals = await fetchAccountTotals(acct.adAccountId, acct.token, since, until, daily);
+			limiter.set(acct.adAccountId, recordCall(limiter.get(acct.adAccountId)!, Date.now()));
+			if (totals.ok) accountTotals = totals.totals;
+		}
+
+		const data: Cached = {
+			accountTotals,
+			currency: res.currency,
+			firstDay,
+			rows: res.rows,
+			truncated: res.truncated,
+		};
 		await serviceDb()
 			.insert(metaInsightsCache)
 			.values({
@@ -174,6 +196,7 @@ function toResult(
 	const data = (cached?.data as Cached | undefined) ?? { currency: null, rows: [] };
 	const pct = (cached?.usage as { pct?: number } | null)?.pct;
 	return {
+		accountTotals: data.accountTotals ?? null,
 		adAccountId: acct.adAccountId,
 		currency: data.currency,
 		fetchedAt: cached?.fetchedAt.toISOString() ?? null,
@@ -182,6 +205,7 @@ function toResult(
 		notice,
 		rows: data.rows,
 		stale,
+		truncated: data.truncated === true,
 		usagePct: typeof pct === "number" ? pct : null,
 	};
 }
@@ -214,9 +238,11 @@ export async function peekInsights(
 	since: string,
 	until: string,
 	days: number,
-): Promise<InsightRow[] | null> {
+): Promise<SpendSource | null> {
 	const cached = await readCache(keyOf(acct.adAccountId, since, until, isDaily(days)));
-	return cached ? (cached.data as Cached).rows : null;
+	if (!cached) return null;
+	const data = cached.data as Cached;
+	return { accountTotals: data.accountTotals ?? null, rows: data.rows, truncated: data.truncated === true };
 }
 
 /** Botão "Atualizar agora": respeita o cooldown de 15 min por conta. */

@@ -17,9 +17,11 @@ import { decryptSecret } from "@/lib/secrets";
 import {
 	buildTree,
 	dailySeries,
+	effectiveSpend,
 	type InsightRow,
 	type Metrics,
 	type SalePurchase,
+	type SpendSummary,
 	type TreeNode,
 } from "./build";
 import { type AdAccount, getInsights, type InsightsResult, peekInsights } from "./cache";
@@ -43,7 +45,12 @@ export interface CampaignsView {
 	currency: string;
 	accounts: { adAccountId: string; label: string }[];
 	selected: string | null;
-	results: Omit<InsightsResult, "rows" | "firstDay">[];
+	results: Omit<InsightsResult, "rows" | "firstDay" | "truncated" | "accountTotals">[];
+	/**
+	 * A Meta tinha mais linhas (anúncio × dia) que o limite: a árvore está incompleta.
+	 * incomplete = além disso, os totais da conta não vieram, então o gasto mostrado é menor que o real.
+	 */
+	detail: { truncated: boolean; incomplete: boolean };
 	tree: TreeNode[];
 	totals: Metrics;
 	prevTotals: Metrics | null;
@@ -103,9 +110,21 @@ export interface AdSpend {
 	/** Gasto do período anterior, SÓ se já estiver em cache (null = sem comparação). */
 	prevSpend: number | null;
 	notice: string | null;
+	/** A Meta cortou o detalhe e os totais da conta não vieram: o gasto está abaixo do real. */
+	incomplete: boolean;
 }
 
-const sumSpend = (list: InsightRow[]) => list.reduce((acc, r) => acc + r.spend, 0);
+/** Com o detalhe cortado, gasto/impressões/cliques vêm dos totais da conta (exatos). */
+function withSpend(totals: Metrics, s: SpendSummary): Metrics {
+	if (!s.truncated) return totals;
+	return {
+		...totals,
+		clicks: s.clicks,
+		impressions: s.impressions,
+		linkClicks: s.linkClicks,
+		spend: s.spend,
+	};
+}
 
 /**
  * Gasto da Meta para a Visão geral. Mesmos argumentos de getInsights que a aba Campanhas usa:
@@ -113,7 +132,8 @@ const sumSpend = (list: InsightRow[]) => list.reduce((acc, r) => acc + r.spend, 
  */
 export async function getAdSpend(period: Period, timeZone: string): Promise<AdSpend> {
 	const accounts = await listAdAccounts();
-	if (!accounts.length) return { configured: false, notice: null, prevSpend: null, spend: null };
+	if (!accounts.length)
+		return { configured: false, incomplete: false, notice: null, prevSpend: null, spend: null };
 	// Mesma proteção de getCampaigns contra a pré-renderização.
 	await connection();
 	const includesToday = period.to >= localDate(new Date(), timeZone);
@@ -131,14 +151,16 @@ export async function getAdSpend(period: Period, timeZone: string): Promise<AdSp
 				peekInsights(a, addDays(period.from, -period.days), addDays(period.from, -1), period.days),
 			),
 		);
-		if (prev.every(r => r !== null)) prevSpend = sumSpend(prev.flat() as InsightRow[]);
+		if (prev.every(r => r !== null)) prevSpend = effectiveSpend(prev.filter(r => r !== null)).spend;
 	}
 
+	const now = effectiveSpend(withData);
 	return {
 		configured: true,
+		incomplete: now.incomplete,
 		notice,
 		prevSpend,
-		spend: withData.length ? sumSpend(withData.flatMap(r => r.rows)) : null,
+		spend: withData.length ? now.spend : null,
 	};
 }
 
@@ -177,27 +199,45 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 	// 3) árvore + atribuição
 	const built = buildTree(insightRows, sales);
 	const attributedSales = selected ? sales.filter(s => built.attributions.get(s.id)?.level) : sales;
-	const { tree, totals, unattributed, attributions } = selected
-		? buildTree(insightRows, attributedSales)
-		: built;
+	const {
+		tree,
+		totals: treeTotals,
+		unattributed,
+		attributions,
+	} = selected ? buildTree(insightRows, attributedSales) : built;
+	// Detalhe cortado pela Meta: os totais usam os da conta (a árvore segue com o que veio).
+	const spendNow = effectiveSpend(results);
+	const totals = withSpend(treeTotals, spendNow);
 
 	// 4) período anterior só se já estiver em cache (sem chamada extra à Meta)
 	const prevFrom = addDays(period.from, -period.days);
 	const prevTo = addDays(period.from, -1);
-	const prevRows = period.compare
+	const prevSources = period.compare
 		? await Promise.all(accounts.map(a => peekInsights(a, prevFrom, prevTo, period.days)))
 		: [];
+	const prevComplete = prevSources.filter(r => r !== null);
 	const prevTotals =
-		period.compare && prevRows.every(r => r !== null) && accounts.length
-			? buildTree(prevRows.flat() as InsightRow[], prevSales).totals
+		period.compare && prevComplete.length === prevSources.length && accounts.length
+			? withSpend(
+					buildTree(
+						prevComplete.flatMap(r => r.rows),
+						prevSales,
+					).totals,
+					effectiveSpend(prevComplete),
+				)
 			: null;
+
+	const daily = dailySeries(daysOf(period), insightRows, sales, attributions).map(d =>
+		spendNow.truncated ? { ...d, spend: spendNow.dailySpend.get(d.day) ?? 0 } : d,
+	);
 
 	return {
 		accounts: all.map(a => ({ adAccountId: a.adAccountId, label: a.label })),
 		campaignAccount,
 		currency: results.find(r => r.currency)?.currency ?? currency,
-		daily: dailySeries(daysOf(period), insightRows, sales, attributions),
-		dailyAvailable: insightRows.some(r => r.date !== null),
+		daily,
+		dailyAvailable: insightRows.some(r => r.date !== null) || spendNow.dailySpend.size > 0,
+		detail: { incomplete: spendNow.incomplete, truncated: spendNow.truncated },
 		period,
 		prevTotals,
 		results: results.map(r => ({

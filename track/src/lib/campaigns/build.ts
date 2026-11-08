@@ -225,6 +225,77 @@ export function buildTree(rows: InsightRow[], purchases: SalePurchase[]) {
 	return { attributions, totals, tree, unattributed };
 }
 
+/** Totais da CONTA na Meta (nível account): pequenos, nunca cortados pelo limite de páginas. */
+export interface AccountTotals {
+	spend: number;
+	impressions: number;
+	clicks: number;
+	linkClicks: number;
+	/** Gasto por dia (só em períodos diários, até 90 dias). */
+	daily: { date: string; spend: number }[];
+}
+
+/** Insights de UMA conta como vieram do cache. */
+export interface SpendSource {
+	rows: InsightRow[];
+	truncated?: boolean;
+	accountTotals?: AccountTotals | null;
+}
+
+export interface SpendSummary {
+	spend: number;
+	impressions: number;
+	clicks: number;
+	linkClicks: number;
+	/** Gasto por dia (YYYY-MM-DD → valor), somando as contas. */
+	dailySpend: Map<string, number>;
+	/** Alguma conta veio com o detalhe por anúncio cortado. */
+	truncated: boolean;
+	/** Cortada E sem os totais da conta: o gasto mostrado é menor que o real. */
+	incomplete: boolean;
+}
+
+/**
+ * Gasto efetivo das contas: soma das linhas por anúncio ou, quando a Meta cortou o detalhe,
+ * os totais da própria conta (sempre exatos). Nunca mistura as duas fontes numa mesma conta.
+ */
+export function effectiveSpend(sources: SpendSource[]): SpendSummary {
+	const out: SpendSummary = {
+		clicks: 0,
+		dailySpend: new Map(),
+		impressions: 0,
+		incomplete: false,
+		linkClicks: 0,
+		spend: 0,
+		truncated: false,
+	};
+	const addDay = (date: string, spend: number) =>
+		out.dailySpend.set(date, (out.dailySpend.get(date) ?? 0) + spend);
+	for (const src of sources) {
+		if (src.truncated) out.truncated = true;
+		const totals = src.truncated ? src.accountTotals : null;
+		if (totals) {
+			out.spend += totals.spend;
+			out.impressions += totals.impressions;
+			out.clicks += totals.clicks;
+			out.linkClicks += totals.linkClicks;
+			for (const d of totals.daily) addDay(d.date, d.spend);
+			continue;
+		}
+		if (src.truncated) out.incomplete = true;
+		for (const r of src.rows) {
+			out.spend += r.spend;
+			out.impressions += r.impressions;
+			out.clicks += r.clicks;
+			out.linkClicks += r.linkClicks;
+			if (r.date) addDay(r.date, r.spend);
+		}
+	}
+	out.spend = round2(out.spend);
+	for (const [k, v] of out.dailySpend) out.dailySpend.set(k, round2(v));
+	return out;
+}
+
 /** Série diária de gasto (Meta) e receita atribuída, preenchendo dias vazios. */
 export function dailySeries(
 	days: string[],

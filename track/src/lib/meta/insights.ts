@@ -1,5 +1,5 @@
 import "server-only";
-import { type InsightRow, metaPurchase } from "@/lib/campaigns/build";
+import { type AccountTotals, type InsightRow, metaPurchase } from "@/lib/campaigns/build";
 import { type GraphError, graphGet, graphGetUrl, type GraphUsage } from "./graph";
 
 /*
@@ -48,7 +48,15 @@ interface Page {
 }
 
 export type InsightsFetch =
-	| { ok: true; rows: InsightRow[]; currency: string | null; usage: GraphUsage; calls: number }
+	| {
+			ok: true;
+			rows: InsightRow[];
+			currency: string | null;
+			usage: GraphUsage;
+			calls: number;
+			/** Parou no limite de páginas com a Meta ainda indicando mais: o detalhe está incompleto. */
+			truncated: boolean;
+	  }
 	| { ok: false; status: number; error: GraphError; usage: GraphUsage; calls: number };
 
 export async function fetchAdInsights(
@@ -90,7 +98,8 @@ export async function fetchAdInsights(
 			});
 		}
 		const next = res.data.paging?.next;
-		if (!next || calls >= MAX_PAGES) return { calls, currency, ok: true, rows, usage: res.usage };
+		if (!next || calls >= MAX_PAGES)
+			return { calls, currency, ok: true, rows, truncated: !!next, usage: res.usage };
 		res = await graphGetUrl<Page>(next);
 		calls++;
 	}
@@ -144,4 +153,49 @@ export async function fetchFirstSpendDay(
 	const daily = await query(month, monthEnd < until ? monthEnd : until, "1");
 	if (!daily.ok) return { calls: 2, day: month, ok: true, usage: monthly.usage };
 	return { calls: 2, day: firstDay(daily.data.data) ?? month, ok: true, usage: daily.usage };
+}
+
+interface TotalsPage {
+	data?: {
+		spend?: string;
+		impressions?: string;
+		clicks?: string;
+		inline_link_clicks?: string;
+		date_start?: string;
+	}[];
+}
+
+export type AccountTotalsFetch =
+	| { ok: true; totals: AccountTotals; usage: GraphUsage; calls: number }
+	| { ok: false; status: number; error: GraphError; usage: GraphUsage; calls: number };
+
+/**
+ * Totais da CONTA no período (uma chamada pequena: até ~90 linhas diárias, nunca corta).
+ * Usado quando o detalhe por anúncio passou do limite de páginas: os totais continuam exatos.
+ */
+export async function fetchAccountTotals(
+	adAccountId: string,
+	token: string,
+	since: string,
+	until: string,
+	daily: boolean,
+): Promise<AccountTotalsFetch> {
+	const res = await graphGet<TotalsPage>(`act_${adAccountId}/insights`, token, {
+		fields: "spend,impressions,clicks,inline_link_clicks,date_start",
+		level: "account",
+		limit: "100",
+		time_increment: daily ? "1" : "all_days",
+		time_range: JSON.stringify({ since, until }),
+	});
+	if (!res.ok) return { calls: 1, error: res.error, ok: false, status: res.status, usage: res.usage };
+	const totals: AccountTotals = { clicks: 0, daily: [], impressions: 0, linkClicks: 0, spend: 0 };
+	for (const r of res.data.data ?? []) {
+		const spend = Number(r.spend ?? 0);
+		totals.spend += spend;
+		totals.impressions += Number(r.impressions ?? 0);
+		totals.clicks += Number(r.clicks ?? 0);
+		totals.linkClicks += Number(r.inline_link_clicks ?? 0);
+		if (daily && r.date_start) totals.daily.push({ date: r.date_start, spend });
+	}
+	return { calls: 1, ok: true, totals, usage: res.usage };
 }

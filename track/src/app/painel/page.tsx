@@ -261,6 +261,7 @@ async function SpendCards({
 		console.error("[visão geral] gasto da Meta:", safeErrorMessage(err));
 		ads = {
 			configured: true,
+			incomplete: false,
 			notice: "Não foi possível consultar a Meta agora.",
 			prevSpend: null,
 			spend: null,
@@ -271,7 +272,9 @@ async function SpendCards({
 		? "Cadastre a conta de anúncios em Configurações."
 		: spend === null
 			? (ads.notice ?? "Sem dados da Meta ainda.")
-			: undefined;
+			: ads.incomplete
+				? "Incompleto: a Meta cortou o detalhe. Veja a aba Campanhas."
+				: undefined;
 	const r = spend === null ? null : roas({ revenue, spend });
 	const rPrev = prevSpend === null ? null : roas({ revenue: revenuePrev, spend: prevSpend });
 	const compare = period.compare && spend !== null && prevSpend !== null;
