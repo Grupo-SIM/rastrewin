@@ -413,7 +413,7 @@ function RelatedCard({ j }: { j: Journey }) {
 // ---------------------------------------------------------------- linha do tempo
 
 function Timeline({ j }: { j: Journey }) {
-	// Agrupa por dia (no fuso do painel) e marca quando a origem (UTMs) muda de um item para o outro.
+	// Agrupa por dia (no fuso do painel) e marca quando a origem (UTMs) muda em relação ao item anterior no tempo.
 	const days: { label: string; items: { item: JourneyItem; newOrigin: boolean }[] }[] = [];
 	let lastUtm: Utm | null = null;
 	for (const item of j.items) {
@@ -426,6 +426,9 @@ function Timeline({ j }: { j: Journey }) {
 		if (days.at(-1)?.label !== label) days.push({ items: [], label });
 		days.at(-1)!.items.push({ item, newOrigin });
 	}
+	// Exibe do mais novo ao mais antigo; a "Nova origem" já foi calculada na ordem do tempo.
+	days.reverse();
+	for (const d of days) d.items.reverse();
 
 	return (
 		<GlassCard>
@@ -436,18 +439,11 @@ function Timeline({ j }: { j: Journey }) {
 				<CardDescription>
 					{j.hasMore
 						? `Mostrando os ${formatInt(j.shown)} registros mais recentes de ${formatInt(j.counts.total)}. `
-						: `${formatInt(j.counts.total)} registro(s), do mais antigo ao mais novo. `}
+						: `${formatInt(j.counts.total)} registro(s), do mais novo ao mais antigo. `}
 					Toque num item para ver página, UTMs, local, IP e aparelho daquele momento.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-5">
-				{j.hasMore && (
-					<Button asChild variant="outline" className="h-11 self-start">
-						<Link href={`?ver=${j.shown + JOURNEY_STEP}`} scroll={false}>
-							Carregar registros anteriores
-						</Link>
-					</Button>
-				)}
 				{days.length === 0 && <p className="text-muted-foreground text-sm">Nenhum registro.</p>}
 				{days.map(d => (
 					<section key={d.label} aria-label={d.label} className="flex flex-col gap-1">
@@ -467,6 +463,13 @@ function Timeline({ j }: { j: Journey }) {
 						</ol>
 					</section>
 				))}
+				{j.hasMore && (
+					<Button asChild variant="outline" className="h-11 self-start">
+						<Link href={`?ver=${j.shown + JOURNEY_STEP}`} scroll={false}>
+							Carregar registros anteriores
+						</Link>
+					</Button>
+				)}
 			</CardContent>
 		</GlassCard>
 	);
