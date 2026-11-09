@@ -458,7 +458,7 @@ function checkGit() {
 
 	// O Dockerfile usa a raiz do monorepo como contexto e o Next copia .env/.env.production para o standalone.
 	const ignore = existsSync(path.join(ROOT, ".dockerignore")) ? read(path.join(ROOT, ".dockerignore")) : "";
-	const ignoresEnv = /^\*\*\/\.env\*?\s*$/m.test(ignore) || /^\*\*\/\.env\s*$/m.test(ignore);
+	const ignoresEnv = /^\*\*\/\.env\s*$/m.test(ignore) && /^\*\*\/\.env\.\*\s*$/m.test(ignore);
 	record(
 		area,
 		".dockerignore exclui **/.env* (o Next copia o .env para a imagem standalone)",
