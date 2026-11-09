@@ -709,6 +709,12 @@ function parseArgs(argv: string[]) {
 
 async function main() {
 	const { url, active } = parseArgs(process.argv.slice(2));
+	// Valida os argumentos ANTES de qualquer acesso à rede.
+	if (url && !/^https?:\/\//.test(url)) throw new Error(`--url inválida: ${url}`);
+	if (active && !["localhost", "127.0.0.1", "[::1]"].includes(url ? new URL(url).hostname : ""))
+		throw new Error(
+			"--ativo só roda com --url em localhost/127.0.0.1 (envia POSTs e bloqueia o login por 1 min)",
+		);
 
 	checkServerActions();
 	checkRoutes();
@@ -720,18 +726,8 @@ async function main() {
 	checkConfig();
 	checkGit();
 
-	if (url) {
-		if (!/^https?:\/\//.test(url)) throw new Error(`--url inválida: ${url}`);
-		await checkExternal(url);
-	}
-	if (active) {
-		const host = url ? new URL(url).hostname : "";
-		if (!["localhost", "127.0.0.1", "::1"].includes(host))
-			throw new Error(
-				"--ativo só roda contra localhost/127.0.0.1 (envia POSTs e bloqueia o login por 1 min)",
-			);
-		await checkActive(url!);
-	}
+	if (url) await checkExternal(url);
+	if (active && url) await checkActive(url);
 
 	const icon: Record<Level, string> = { atencao: "! ATENÇÃO", falha: "✗ FALHA  ", ok: "✓ OK     " };
 	let area = "";
