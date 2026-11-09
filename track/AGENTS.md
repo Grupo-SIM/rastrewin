@@ -169,6 +169,7 @@ bun run db:migrate               # aplica migrations (papéis, RLS)
 bun run create-admin -- --email voce@empresa.com --name "Seu Nome"   # pede a senha sem mostrar
 bun run delete-user -- --email voce@empresa.com                      # apaga usuário (e sessões)
 bun run test:rls                 # 30 verificações de segurança do banco
+bun run security:check           # regras de segurança no código (--url <site>: de fora, só leitura); ver SECURITY.md
 bun run test:retention           # limpeza diária — procedure + executor do app, de verdade
 bun run geo:download             # base de geolocalização (uma vez; ~127 MB em data/geo)
 bun run test                         # testes unitários (normalização/hash, IP, rate limit, CAPI, validação)
