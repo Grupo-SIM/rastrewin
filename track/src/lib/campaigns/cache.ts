@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { after } from "next/server";
 import { serviceDb } from "@/db";
 import { metaInsightsCache } from "@/db/schema";
+import { safeErrorMessage } from "@/lib/errors";
 import { describeGraphError } from "@/lib/meta/graph";
 import {
 	fetchAccountTotals,
@@ -242,7 +243,7 @@ async function updateStructure(acct: AdAccount, force: boolean): Promise<void> {
 		if (!force && cached && Date.now() - cached.fetchedAt.getTime() < STRUCTURE_FRESH_MS) return;
 		await fetchAndStoreStructure(acct);
 	} catch (error) {
-		console.error("[campanhas] estrutura:", error instanceof Error ? error.message : error);
+		console.error("[campanhas] estrutura:", safeErrorMessage(error));
 	}
 }
 

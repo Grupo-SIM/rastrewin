@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { env } from "@/lib/env";
+import { safeErrorMessage } from "@/lib/errors";
 import * as schema from "./schema";
 
 /*
@@ -34,7 +35,7 @@ function connect(role: Role, max: number): Database {
 		max,
 		options: `-c role=${role}`,
 	});
-	pool.on("error", error => console.error(`[db] erro no pool ${role}`, error));
+	pool.on("error", error => console.error(`[db] erro no pool ${role}:`, safeErrorMessage(error)));
 
 	const db = drizzle(pool, { schema });
 	cache[role] = db;
