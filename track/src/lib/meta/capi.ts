@@ -61,6 +61,15 @@ export interface CapiEvent {
 
 const arr = (v: string | null) => (v ? [v] : undefined);
 
+/**
+ * fbc montado a partir do fbclid quando não há o cookie _fbc (doc da Meta, "fbp and fbc"):
+ * fb.1.<ms em que o fbclid foi visto>.<fbclid>, com o fbclid exatamente como veio (sensível a maiúsculas).
+ */
+export function fbcFromFbclid(fbclid: string | null | undefined, seenAt: Date): string | null {
+	const v = fbclid?.trim();
+	return v && /^[\w-]{8,500}$/.test(v) ? `fb.1.${seenAt.getTime()}.${v}` : null;
+}
+
 export function buildUserData(p: CapiPerson): Record<string, string | string[]> {
 	const out: Record<string, string | string[] | undefined> = {
 		client_ip_address: p.ip ?? undefined,

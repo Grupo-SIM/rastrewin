@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { serviceDb } from "@/db";
 import { purchases, visitors } from "@/db/schema";
 import { buildMpBody, type MpItem, sendMp } from "@/lib/ga4/mp";
-import { buildEvent, type CapiCustomData, sendToPixels } from "@/lib/meta/capi";
+import { buildEvent, type CapiCustomData, fbcFromFbclid, sendToPixels } from "@/lib/meta/capi";
 import { getRuntimeConfig } from "@/lib/tracking/runtime-config";
 import { isRefunded, isSaleActive, type PurchaseItem } from "./simintpay";
 
@@ -14,6 +14,8 @@ import { isRefunded, isSaleActive, type PurchaseItem } from "./simintpay";
  */
 
 const META_MAX_AGE_MS = 7 * 24 * 3600 * 1000; // a Meta aceita event_time de até 7 dias
+/** A Meta pede country sempre; o SimIntPay só vende no Brasil, então é o padrão sem geo do visitante. */
+const DEFAULT_COUNTRY = "br";
 export const MAX_ATTEMPTS = 5;
 
 interface DeliveryReport {
@@ -81,7 +83,6 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 				content_type: "product",
 				contents: items.map(i => ({ id: i.id, item_price: i.price, quantity: 1 })),
 				currency: p.currency,
-				num_items: items.length,
 				order_id: p.transactionId,
 				value,
 			};
@@ -94,17 +95,18 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 				eventSourceUrl:
 					visitor?.landingUrl ?? (config.allowedOrigins[0] ? `${config.allowedOrigins[0]}/` : null),
 				eventTime: occurredAt,
+				// O que o webhook não trouxer (ex.: telefone) vem do visitante ligado à venda.
 				person: {
 					city: p.geoCity,
-					country: p.geoCountry,
-					emHash: p.emHash,
+					country: p.geoCountry ?? DEFAULT_COUNTRY,
+					emHash: p.emHash ?? visitor?.emHash ?? null,
 					externalId: p.trckUserId,
-					fbc: p.fbc,
+					fbc: p.fbc ?? fbcFromFbclid(p.fbclid, occurredAt),
 					fbp: p.fbp,
-					fnHash: p.fnHash,
+					fnHash: p.fnHash ?? visitor?.fnHash ?? null,
 					ip: visitor?.ip ?? null,
-					lnHash: p.lnHash,
-					phHash: p.phHash,
+					lnHash: p.lnHash ?? visitor?.lnHash ?? null,
+					phHash: p.phHash ?? visitor?.phHash ?? null,
 					region: p.geoRegion,
 					userAgent,
 				},

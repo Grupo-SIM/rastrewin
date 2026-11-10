@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { sha256 } from "@/lib/tracking/normalize";
-import { buildEvent, buildUserData } from "./capi";
+import { buildEvent, buildUserData, fbcFromFbclid } from "./capi";
 
 test("user_data: hash nos dados pessoais, SEM hash em fbp/fbc/IP/UA", () => {
 	const ud = buildUserData({
@@ -53,4 +53,11 @@ test("evento: action_source website, event_time em segundos, event_id e URL", ()
 	assert.equal(e.event_id, "evt-12345678");
 	assert.equal(e.event_source_url, "https://meusite.com.br/");
 	assert.deepEqual(e.custom_data, { currency: "BRL", value: 10 });
+});
+
+test("fbc a partir do fbclid: formato da Meta, maiúsculas preservadas, inválido = null", () => {
+	const at = new Date("2026-11-02T12:00:00.123Z");
+	assert.equal(fbcFromFbclid("IwAR2xYz_Ab-Cd", at), `fb.1.${at.getTime()}.IwAR2xYz_Ab-Cd`);
+	assert.equal(fbcFromFbclid(null, at), null);
+	assert.equal(fbcFromFbclid("com espaço", at), null);
 });
