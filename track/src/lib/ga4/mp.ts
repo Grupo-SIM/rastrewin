@@ -17,6 +17,7 @@ export interface MpItem {
 export interface MpBody {
 	client_id: string;
 	timestamp_micros?: number;
+	consent: { ad_user_data: "GRANTED"; ad_personalization: "GRANTED" };
 	user_location?: { city?: string; region_id?: string; country_id: string };
 	ip_override?: string;
 	device?: { category: "mobile" | "tablet" | "desktop" };
@@ -103,6 +104,8 @@ export function buildMpBody(input: {
 		client_id: input.clientId ?? syntheticClientId(input.transactionId),
 		...(ts ? { timestamp_micros: ts.getTime() * 1000 } : {}),
 		...visitContext(input.visit),
+		// LGPD: o MP só é chamado para quem aceitou marketing no banner (ver deliver.ts).
+		consent: { ad_personalization: "GRANTED", ad_user_data: "GRANTED" },
 		events: [{ name: input.name, params }],
 	};
 }

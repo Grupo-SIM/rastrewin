@@ -81,7 +81,8 @@ export async function POST(request: Request) {
 
 		after(async () => {
 			// Visitante ligado pelo trck_user_id ganha os dados do comprador (melhora as próximas correspondências).
-			if (result.match.by === "trck_user_id" && result.visitor) {
+			// LGPD: só se ele aceitou marketing; sem aceite, o visitante não recebe dados pessoais.
+			if (result.match.by === "trck_user_id" && result.visitor?.consentMarketing === true) {
 				const [firstName, ...rest] = (event.customerName ?? "").trim().split(/\s+/);
 				await upsertVisitor({
 					email: event.customerEmail,

@@ -68,6 +68,9 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 	if (!p) return {};
 	// Renovação/recompra: o anúncio gerou a 1ª compra; esta fica só no Faturamento.
 	if (p.isRenewal) return {};
+	// LGPD: sem aceite de marketing do visitante ligado à venda, a compra não vai à Meta nem ao GA4.
+	// (O refund só sai para compra já enviada ao GA4, então segue a mesma regra.)
+	const consented = p.marketingConsent === true;
 	const config = await getRuntimeConfig();
 	const [visitor] = p.trckUserId
 		? await db.select().from(visitors).where(eq(visitors.trckUserId, p.trckUserId)).limit(1)
@@ -85,7 +88,13 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 	};
 
 	// ------------------------------------------------------------ Purchase → Meta (CAPI)
-	if (isSaleActive(p.status) && !p.metaSentAt && config.pixels.length && p.metaAttempts < MAX_ATTEMPTS) {
+	if (
+		consented &&
+		isSaleActive(p.status) &&
+		!p.metaSentAt &&
+		config.pixels.length &&
+		p.metaAttempts < MAX_ATTEMPTS
+	) {
 		if (Date.now() - occurredAt.getTime() > META_MAX_AGE_MS) {
 			await db
 				.update(purchases)
@@ -159,7 +168,13 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 		quantity: 1,
 		...(i.type ? { item_category: i.type } : {}),
 	}));
-	if (isSaleActive(p.status) && !p.ga4SentAt && config.ga4.length && p.ga4Attempts < MAX_ATTEMPTS) {
+	if (
+		consented &&
+		isSaleActive(p.status) &&
+		!p.ga4SentAt &&
+		config.ga4.length &&
+		p.ga4Attempts < MAX_ATTEMPTS
+	) {
 		const body = buildMpBody({
 			clientId: p.gaClientId,
 			currency: p.currency,
@@ -223,7 +238,7 @@ export async function pendingPurchaseIds(limit = 50): Promise<number[]> {
 	const rows = await serviceDb().execute<{ id: number }>(sql`
     select id from purchases
     where not is_renewal and (
-      status in ('approved', 'refund_requested')
+      marketing_consent is true and status in ('approved', 'refund_requested')
       and (meta_sent_at is null and meta_attempts < ${MAX_ATTEMPTS} or ga4_sent_at is null and ga4_attempts < ${MAX_ATTEMPTS})
       and coalesce(occurred_at, created_at) > now() - interval '7 days'
     ) or (

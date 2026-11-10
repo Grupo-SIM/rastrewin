@@ -13,6 +13,9 @@ import { JourneyLink } from "./back-button";
 import { JsonBlock } from "./json-block";
 import { DeliveryStatus, PurchaseStatus } from "./status-badge";
 
+/** LGPD: a venda não está ligada a um visitante que aceitou marketing no banner. */
+const NO_CONSENT = "Não enviado: o comprador não aceitou marketing no banner (LGPD)";
+
 const MATCH_LABEL: Record<string, string> = {
 	email: "Email",
 	phone: "Telefone",
@@ -262,13 +265,17 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 									<dd>
 										{detail.metaSentAt
 											? `Enviado em ${formatDateTime(detail.metaSentAt, timeZone)}`
-											: `Não enviado (${detail.metaAttempts} tentativa(s))`}
+											: detail.marketingConsent !== true
+												? NO_CONSENT
+												: `Não enviado (${detail.metaAttempts} tentativa(s))`}
 									</dd>
 									<dt className="text-muted-foreground">GA4</dt>
 									<dd>
 										{detail.ga4SentAt
 											? `Enviado em ${formatDateTime(detail.ga4SentAt, timeZone)}`
-											: `Não enviado (${detail.ga4Attempts} tentativa(s))`}
+											: detail.marketingConsent !== true
+												? NO_CONSENT
+												: `Não enviado (${detail.ga4Attempts} tentativa(s))`}
 										{detail.refundSentAt &&
 											` · refund em ${formatDateTime(detail.refundSentAt, timeZone)}`}
 									</dd>

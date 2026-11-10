@@ -99,6 +99,8 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 			fnHash: hashed(names.fn ? normName(names.fn) : null),
 			items: f.items,
 			lnHash: hashed(names.ln ? normName(names.ln) : null),
+			// LGPD: só vai à Meta/GA4 se o visitante ligado à venda aceitou marketing no banner.
+			marketingConsent: visitor?.consentMarketing === true,
 			netValue: f.netValue,
 			paymentMethod: f.paymentMethod,
 			phHash,

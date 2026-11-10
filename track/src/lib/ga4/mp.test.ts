@@ -24,6 +24,8 @@ test("purchase com client_id/session_id da visita e timestamp da venda", () => {
 	assert.equal(params.session_id, "1793600000");
 	assert.equal(params.currency, "BRL");
 	assert.equal(params.debug_mode, undefined);
+	// Só sai para quem aceitou marketing no banner: o consentimento vai junto.
+	assert.deepEqual(body.consent, { ad_personalization: "GRANTED", ad_user_data: "GRANTED" });
 });
 
 test("sem visitante: client_id sintético e estável; venda antiga sem timestamp", () => {

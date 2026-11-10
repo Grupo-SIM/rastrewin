@@ -38,6 +38,7 @@ export async function getPurchaseDetail(id: number) {
 				ga4SentAt: purchases.ga4SentAt,
 				id: purchases.id,
 				lastDeliveryError: purchases.lastDeliveryError,
+				marketingConsent: purchases.marketingConsent,
 				match: purchases.match,
 				metaAttempts: purchases.metaAttempts,
 				metaSentAt: purchases.metaSentAt,
