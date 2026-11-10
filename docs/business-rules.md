@@ -20,6 +20,14 @@ Source of truth for product and domain rules. Keep engineering workflow and agen
 - Once a sale is approved, its value, product, UTMs and visitor link are fixed. Later events for the same order (refund requested, refund, chargeback) change only the status and the refund date, so the amount they carry never rewrites revenue and the tracking the backend attaches to them never moves the sale to another campaign. Only a new approval of the same order can update those fields. Each raw event stays in `webhook_events`.
 - Every track event carries the same UTMs as `identify`, so an event that reaches the server before `identify` (the first PageView) still records its origin.
 
+## Privacy (LGPD)
+
+Owner-facing guide (what was built and what to customize): [track/docs/lgpd.md](../track/docs/lgpd.md).
+
+- **Consent first:** `t.js` shows a consent banner (categories: necessary and "marketing and measurement"; reject is as prominent as accept). Nothing of marketing or measurement runs before the visitor accepts: no visitor id, no UTMs stored, no `_fbp`/`_fbc`, no Pixel, no GA4, no events, no video progress. Commands called before acceptance are dropped, not queued.
+- The choice is stored in the `_trck_consent` cookie (1 year) and recorded in the track (`consent_records`: random choice id, action, text version, site and page path; no IP, no browser). Changing the text version in the panel asks everybody again. The footer of each site has "Preferências de cookies"; declining after accepting revokes: the browser's marketing cookies are deleted and the visitor's Meta/Google ids are erased in the track.
+- **Sales of people who did not accept** are stored and counted in the panel (Faturamento, revenue), but are **not** sent to Meta or GA4. The panel labels them "Sem consentimento". Visitors from before the banner count as not accepted until they accept.
+
 ## Panel analytics (track)
 
 - **Periods and comparison** (panel time zone): the presets follow Meta Ads Manager. "Últimos N dias" are the N full days before today (they end yesterday, like Ads Manager, so the same filter shows the same spend in both places); "Hoje", "Esta semana" and "Este mês" include today. Comparison ("vs anterior"): "Este mês" compares with the same days of the previous month (1–8 Nov × 1–8 Oct; if the previous month is shorter, it stops at its last day); "Mês passado" compares with the whole month before it; every other preset and custom ranges compare with the same number of days right before; "Máximo" does not compare. A KPI shows "novo" only when the previous value was zero and the current one is not, and "sem comparação" when either side does not exist (e.g. conversion without visitors, average ticket without sales, which then shows "—").

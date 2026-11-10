@@ -88,7 +88,8 @@
     - Na gtag, o evento sempre leva `items` quando há produto (o GA4 exige em begin_checkout/view_item/add_to_cart): com `content_ids`, um item por id; sem eles, `{ item_name: content_name }`.
     - O Pixel só recebe `external_id` (no `fbq('init')`). Email/telefone do `identify` vão só pela CAPI: o `fbevents.js` ignora um 2º `fbq('init')` com dados quando o 1º já tinha `external_id`, e `fbq('set', 'userData')` só vale para pixels do Shopify.
     - Dados do `identify` vão junto nos eventos seguintes da página (evita corrida).
-- **Endpoints públicos** (`src/app/api/identify`, `src/app/api/event`, `src/app/api/video`, `src/app/api/config/public`): origem (CORS via `allowed_origins`) → rate limit → limite de corpo → Zod (`src/lib/tracking/schemas.ts`). IP/UA/geo sempre do servidor.
+- **Consentimento (LGPD), antes de tudo:** o `t.js` só rastreia depois do aceite de "Marketing e medição" no banner (`src/tracker/consent-banner.ts`, Shadow DOM). Detalhes na seção "Privacidade e LGPD".
+- **Endpoints públicos** (`src/app/api/identify`, `src/app/api/event`, `src/app/api/video`, `src/app/api/consent`, `src/app/api/config/public`): origem (CORS via `allowed_origins`) → rate limit → limite de corpo → Zod (`src/lib/tracking/schemas.ts`). IP/UA/geo sempre do servidor.
     - Limites: identify 30/min (burst 15), event 120/min (burst 40), por IP. Corpo: 8 KB / 16 KB.
     - `/api/event` responde 202 e envia à Meta em `after()`; dedup por `event_id` (repetido → `duplicate: true`, sem reenvio).
     - **Vídeo:** `trck('video', {...})` no `t.js` vai direto para `/api/video` (30/min, burst 10, corpo de 2 KB), que grava um resumo por play em `video_views` (`src/lib/tracking/videos.ts`). **Não é evento:** não chama Pixel/gtag, não vai à CAPI nem ao `events_log`. Cada envio só aumenta o progresso (`greatest`), e um `view_id` de outro visitante não é sobrescrito.
@@ -159,6 +160,17 @@
 - Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. `ln` = só o ÚLTIMO nome (`normLastName`: "da Silva" → "silva"), igual ao que sai do nome completo do webhook. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.
 - GA4: eventos web via **gtag no navegador** (measurement_id vindo da config). Measurement Protocol **só** para a compra do webhook, com o mesmo `client_id`/`session_id`. Nunca duplicar no MP o que a gtag já enviou.
 - Eventos vão para **todos** os destinos ativos; a resposta de cada destino fica no log.
+- **Sem aceite de marketing, nada vai à Meta nem ao GA4** (nem a compra). Ver "Privacidade e LGPD".
+
+## Privacidade e LGPD
+
+Guia para o dono do produto (o que foi feito e o que personalizar): [docs/lgpd.md](docs/lgpd.md).
+
+- **Banner** (`src/tracker/consent-banner.ts`, montado pelo `t.js`): Shadow DOM, não bloqueia a página, "Recusar" com o MESMO destaque de "Aceitar todos". Categorias: Necessários (só o cookie da escolha) e Marketing e medição (tudo o resto). Textos, versão e link da política vêm do painel (Configurações › Privacidade → `settings.consent_texts/consent_version/privacy_policy_url`), com padrão em `src/lib/privacy/consent-texts.ts`.
+- **Antes do aceite o `t.js` não faz nada:** sem `_trck`/`_fbp`/`_fbc`, sem UTMs no localStorage, sem Pixel/gtag, sem identify/event/video. `trck(...)` antes do aceite é DESCARTADO (não fica em fila). Escolha no cookie `_trck_consent` (`{ id, v, m }`, 365 dias, `CONSENT_DAYS`); versão diferente da atual = pergunta de novo.
+- **Aceite:** `start()` cria o visitante, carrega Pixel e gtag (Consent Mode `granted`), identify + PageView. **Recusa** de quem já tinha visitante (aceite anterior ou de antes do banner) vira **revogação**: `revoke` no servidor, `gtag consent denied`, `fbq consent revoke`, apaga `_trck`, `_fbp`, `_fbc`, `_ga*`, `_gid`, `_gcl_au`, `_trck_utm` e recarrega. `trck('consent', 'open')` reabre as preferências (link no rodapé dos sites); `data-no-banner` + `trck('consent', { marketing })` para banner próprio.
+- **Servidor:** `POST /api/consent` (`src/lib/privacy/consent.ts`) grava `consent_records` (id aleatório da escolha, ação, versão, origem, página SEM query; **sem IP nem navegador**) e aplica em `visitors.consent_marketing`/`consent_at`; na recusa/revogação zera fbc, fbp e ids do GA do visitante. `identify`, `event` e `video` exigem o campo `consent` (versão) no corpo: sem ele respondem `ignored` (t.js antigo em cache não grava nada).
+- **Compra:** `purchases.marketing_consent` = o visitante ligado à venda aceitou (`process.ts`). Sem `true`, `deliver.ts` não envia Purchase à Meta nem ao GA4 e o reenvio ignora a venda; o Faturamento mostra "Sem consentimento (não enviada)". O refund só sai para compra já enviada ao GA4. O webhook só enriquece o visitante (email/telefone) se ele aceitou. O MP leva `consent: { ad_user_data, ad_personalization: GRANTED }`.
 
 ## Banco e migrations
 
