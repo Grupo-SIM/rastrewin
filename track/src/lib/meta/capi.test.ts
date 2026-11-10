@@ -61,3 +61,41 @@ test("fbc a partir do fbclid: formato da Meta, maiúsculas preservadas, inválid
 	assert.equal(fbcFromFbclid(null, at), null);
 	assert.equal(fbcFromFbclid("com espaço", at), null);
 });
+
+test("LGPD: o evento da CAPI nunca leva email, telefone, nome, cidade ou estado em claro", () => {
+	const raw = {
+		city: "São Paulo",
+		email: "ana.souza@exemplo.com",
+		firstName: "Ana",
+		lastName: "Souza",
+		phone: "(11) 98888-7777",
+		region: "SP",
+	};
+	const e = buildEvent({
+		customData: { currency: "BRL", value: 150 },
+		eventId: "purchase_x",
+		eventName: "Purchase",
+		person: {
+			...raw,
+			country: "BR",
+			externalId: "abc123def456ghi7",
+			ip: "177.71.207.1",
+			userAgent: "Mozilla",
+		},
+	});
+	const json = JSON.stringify(e).toLowerCase();
+	for (const value of [
+		"ana.souza@exemplo.com",
+		"98888",
+		"souza",
+		"são paulo",
+		"saopaulo",
+		"abc123def456ghi7",
+	]) {
+		assert.equal(json.includes(value), false, `vazou em claro: ${value}`);
+	}
+	// Tudo o que é pessoal vai como SHA-256 (64 hex).
+	for (const key of ["em", "ph", "fn", "ln", "ct", "st", "country", "external_id"]) {
+		assert.match(String(e.user_data[key]), /^[a-f0-9]{64}$/, key);
+	}
+});

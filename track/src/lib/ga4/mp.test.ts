@@ -93,3 +93,27 @@ test("visita sem geo usa ip_override; sem visita, nada", () => {
 	assert.equal(deviceCategory("Mozilla/5.0 (Linux; Android 14; SM-X200) Safari/537.36"), "tablet");
 	assert.equal(deviceCategory("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130"), "desktop");
 });
+
+test("LGPD: o corpo do Measurement Protocol não leva dados pessoais (só ids do GA, compra e local aproximado)", () => {
+	const body = buildMpBody({
+		clientId: "123.456",
+		currency: "BRL",
+		items: [{ item_id: "plano-basico", item_name: "Plano Básico", price: 150, quantity: 1 }],
+		name: "purchase",
+		now,
+		transactionId: "tx_9",
+		value: 150,
+		visit: {
+			city: "São Paulo",
+			country: "BR",
+			ip: "177.71.207.1",
+			region: "SP",
+			userAgent: "Mozilla/5.0 (iPhone)",
+		},
+	});
+	const json = JSON.stringify(body);
+	// ("ad_user_data" é o campo de consentimento do Google, não dado da pessoa.)
+	assert.equal(/@|"user_data"|sha256_|"email|"phone/i.test(json), false, json);
+	// Com local conhecido, o IP nem vai (user_location tem precedência).
+	assert.equal(json.includes("177.71.207.1"), false);
+});
