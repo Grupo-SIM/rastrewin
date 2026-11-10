@@ -124,8 +124,8 @@ export default function Landing() {
 		// abre a aba já no clique (gesto do usuário), senão o navegador bloqueia o popup
 		// depois que a resposta da API chegar.
 		const checkoutTab = window.open("", "_blank");
-		// Rastreamento: identifica o lead já no envio (o t.js manda ao track). O InitiateCheckout
-		// só sai depois que o cadastro for aceito, para tentativa que falhou não contar como checkout.
+		// Rastreamento: identifica o lead já no envio (o t.js manda ao track). Lead e InitiateCheckout
+		// só saem depois que o cadastro for aceito, para tentativa que falhou não contar.
 		const plan = PLANS.find(p => p.id === f.plan);
 		const [firstName, ...rest] = f.name.trim().split(/\s+/);
 		trck("identify", {
@@ -139,11 +139,15 @@ export default function Landing() {
 				body: JSON.stringify({ ...f, tracking: readTracking() }),
 				method: "POST",
 			});
-			trck("track", "InitiateCheckout", {
+			// Cadastro aceito = lead; em seguida vai ao checkout.
+			const planData = {
+				content_ids: plan ? [plan.id] : undefined,
 				content_name: plan?.name,
 				currency: "BRL",
 				value: plan?.value,
-			});
+			};
+			trck("track", "Lead", planData);
+			trck("track", "InitiateCheckout", planData);
 			localStorage.setItem("userId", user.id);
 			const checkoutUrl = withTracking(user.checkoutUrl);
 			if (checkoutTab) checkoutTab.location.href = checkoutUrl;
