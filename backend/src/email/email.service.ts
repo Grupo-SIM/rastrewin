@@ -132,4 +132,52 @@ export class EmailService {
 			this.logger.error(`Falha ao enviar código de redefinição para ${to}: ${(err as Error).message}`);
 		}
 	}
+
+	/**
+	 * Link para confirmar um pedido de privacidade (LGPD): ver os dados ou excluí-los. Mandado para
+	 * qualquer email informado no formulário: só quem lê a caixa de entrada consegue confirmar.
+	 */
+	async sendPrivacyConfirmation(to: string, type: "ACCESS" | "DELETE", link: string) {
+		const safeLink = escapeHtml(link);
+		const isDelete = type === "DELETE";
+		const badge = isDelete ? "Exclusão de dados" : "Acesso aos seus dados";
+		const intro = isDelete
+			? "Recebemos um pedido para excluir os dados ligados a este e-mail na Rastrewin. Isso apaga o seu cadastro e o histórico de navegação e encerra o acesso à plataforma, se houver. Pedido, valor e data das compras ficam guardados sem identificar você, por obrigação fiscal."
+			: "Recebemos um pedido para ver os dados ligados a este e-mail na Rastrewin: cadastro, navegação, compras e escolhas de cookies.";
+		const gradient =
+			"linear-gradient(90deg,#26c0ff,#e600c2 20%,#ff4940 40%,#ffa130 60%,#ffc837 80%,#00cc3d)";
+		try {
+			await this.transport.sendMail({
+				from: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER,
+				html: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;background:#fafbfc;-webkit-font-smoothing:antialiased">
+<div style="background:#fafbfc;padding:40px 16px;font-family:Manrope,system-ui,Arial,sans-serif;color:#08304c">
+  <div style="max-width:600px;margin:0 auto">
+    <div style="padding:0 8px;margin-bottom:20px;font:600 22px 'Plus Jakarta Sans',system-ui,Arial,sans-serif;letter-spacing:-.03em;color:#08304c">Rastrewin</div>
+    <div style="background:#fff;border:1px solid #eeeeee;border-radius:32px;overflow:hidden">
+      <div style="height:6px;line-height:6px;font-size:0;background:${gradient}">&nbsp;</div>
+      <div style="padding:40px 36px">
+        <div style="margin-bottom:14px"><span style="display:inline-block;background:#e6f4fb;color:#084e72;font:700 13px Manrope,Arial,sans-serif;padding:7px 14px;border-radius:999px">${badge}</span></div>
+        <p style="margin:0 0 24px;font:500 17px/1.55 Manrope,Arial,sans-serif;color:#353535">${intro}</p>
+        <p style="margin:0 0 24px;font:500 17px/1.55 Manrope,Arial,sans-serif;color:#353535">Para confirmar que foi você, abra o link abaixo e confirme na página. Ele vale por 30 minutos e só pode ser usado uma vez.</p>
+        <div style="margin-bottom:28px">
+          <a href="${safeLink}" style="display:inline-block;background:#2c2c2c;color:#fff;border-radius:999px;padding:18px 34px;font:600 17px Manrope,Arial,sans-serif;text-decoration:none">${isDelete ? "Revisar e confirmar a exclusão" : "Ver meus dados"}</a>
+          <div style="margin-top:14px;font:500 13px/1.5 Manrope,Arial,sans-serif;color:#797979;word-break:break-all">Ou acesse: <a href="${safeLink}" style="color:#084e72">${safeLink}</a></div>
+        </div>
+        <div style="border-top:1px solid #eeeeee;padding-top:22px;font:500 14px/1.55 Manrope,Arial,sans-serif;color:#585858">Se você não fez esse pedido, ignore este e-mail: nada acontece sem a confirmação.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>`,
+				subject: isDelete ? "Confirme a exclusão dos seus dados" : "Confirme o acesso aos seus dados",
+				to,
+			});
+		} catch (err) {
+			this.logger.error(`Falha ao enviar e-mail de privacidade: ${(err as Error).message}`);
+		}
+	}
 }

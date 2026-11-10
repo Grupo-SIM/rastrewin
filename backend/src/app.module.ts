@@ -4,6 +4,7 @@ import { AdminModule } from "./admin/admin.module";
 import { AuthModule } from "./auth/auth.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { PrismaModule } from "./prisma/prisma.service";
+import { PrivacyModule } from "./privacy/privacy.module";
 import { RafflesModule } from "./raffles/raffles.module";
 import { UsersModule } from "./users/users.module";
 import { WhatsappModule } from "./whatsapp/whatsapp.module";
@@ -16,6 +17,7 @@ import { WhatsappModule } from "./whatsapp/whatsapp.module";
 		RafflesModule,
 		AdminModule,
 		PaymentsModule,
+		PrivacyModule,
 		AuthModule,
 		WhatsappModule,
 	],

@@ -8,29 +8,29 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  cpf           String
-  phone         String
-  city          String
-  pix           String?
-  plan          String
-  pendingPlan   String?   // plano escolhido por quem já tem plano ATIVO; vira o plano quando o pagamento for aprovado
-  role          String    @default("USER") // USER | ADMIN
-  password      String?   // hash bcrypt; definido quando o pagamento é confirmado (envia por e-mail)
-  status        String    @default("PENDING") // PENDING | ACTIVE | EXPIRED
-  paidAt        DateTime?
-  expiresAt     DateTime? // paidAt + 1 ano; vencido sem renovar = volta pra tela de assinatura expirada
-  simpayOrderId String?   @unique // orderId da última cobrança aprovada (idempotência por renovação)
-  tracking      Json?     // origem do visitante no cadastro (src = trck_user_id, utm_*, fbc, fbp), repassada ao track com a venda
-  phoneVerified Boolean   @default(false) // validado por OTP reverso via WhatsApp
-  otpCode       String?   // código que o usuário precisa mandar pro WhatsApp do rastrewin
-  resetCodeHash      String?   // HMAC do código de 6 dígitos enviado por e-mail na recuperação de senha
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
+  cpf                String
+  phone              String
+  city               String
+  pix                String?
+  plan               String
+  pendingPlan        String? // plano escolhido por quem já tem plano ATIVO; vira o plano quando o pagamento for aprovado
+  role               String    @default("USER") // USER | ADMIN
+  password           String? // hash bcrypt; definido quando o pagamento é confirmado (envia por e-mail)
+  status             String    @default("PENDING") // PENDING | ACTIVE | EXPIRED
+  paidAt             DateTime?
+  expiresAt          DateTime? // paidAt + 1 ano; vencido sem renovar = volta pra tela de assinatura expirada
+  simpayOrderId      String?   @unique // orderId da última cobrança aprovada (idempotência por renovação)
+  tracking           Json? // origem do visitante no cadastro (src = trck_user_id, utm_*, fbc, fbp), repassada ao track com a venda
+  phoneVerified      Boolean   @default(false) // validado por OTP reverso via WhatsApp
+  otpCode            String? // código que o usuário precisa mandar pro WhatsApp do rastrewin
+  resetCodeHash      String? // HMAC do código de 6 dígitos enviado por e-mail na recuperação de senha
   resetCodeExpiresAt DateTime?
   resetAttempts      Int       @default(0)
-  createdAt     DateTime  @default(now())
-  entries       Entry[]
+  createdAt          DateTime  @default(now())
+  entries            Entry[]
 }
 
 model Setting {
@@ -39,24 +39,24 @@ model Setting {
 }
 
 model Raffle {
-  id           String   @id @default(cuid())
-  title        String
-  prize        String
-  site         String
-  siteColor    String
-  siteEmoji    String
-  seed         Int
-  baseCount    Int
-  endsAt       DateTime
-  winnerName   String?
-  winnerUserId String?
+  id               String   @id @default(cuid())
+  title            String
+  prize            String
+  site             String
+  siteColor        String
+  siteEmoji        String
+  seed             Int
+  baseCount        Int
+  endsAt           DateTime
+  winnerName       String?
+  winnerUserId     String?
   // sem uso: eram da aba "inelegíveis" (removida). Mantidas para o `db push` não tentar apagar colunas que já existem em prod.
-  winnerIneligible Boolean @default(false)
+  winnerIneligible Boolean  @default(false)
   ineligibleReason String?
-  createdAt    DateTime @default(now())
-  entries      Entry[]
-  slot         Int?     // posição na agenda de sorteios (ver src/schedule.ts); nula nos criados antes dela. Sem @unique de propósito: o `db push` do deploy recusa constraint nova sem --accept-data-loss
-  bucket       Int      @default(0) // 0..4999: o plano enxerga o sorteio se bucket < limite diário do plano
+  createdAt        DateTime @default(now())
+  entries          Entry[]
+  slot             Int? // posição na agenda de sorteios (ver src/schedule.ts); nula nos criados antes dela. Sem @unique de propósito: o `db push` do deploy recusa constraint nova sem --accept-data-loss
+  bucket           Int      @default(0) // 0..4999: o plano enxerga o sorteio se bucket < limite diário do plano
 
   @@index([endsAt])
   @@index([createdAt])
@@ -92,4 +92,20 @@ model TrackRelay {
   createdAt     DateTime  @default(now())
 
   @@index([nextAttemptAt])
+}
+
+// Pedido do titular (LGPD art. 18): ACCESS (ver os dados) ou DELETE (exclusão). Só é executado depois
+// que a pessoa abre o link enviado ao email e confirma (token de uso único, guardado só como HMAC, 30 min).
+model PrivacyRequest {
+  id          String    @id @default(cuid())
+  type        String // ACCESS | DELETE
+  email       String
+  phone       String? // informado no formulário; só é usado se for o telefone do cadastro desse email
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  completedAt DateTime?
+  summary     Json? // contagens do que foi apagado (DELETE); nunca os dados em si
+  createdAt   DateTime  @default(now())
+
+  @@index([email, createdAt])
 }
