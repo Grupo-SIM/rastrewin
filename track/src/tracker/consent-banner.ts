@@ -119,7 +119,13 @@ export function showConsentBanner(o: BannerOptions): () => void {
 	});
 	root.appendChild(box);
 
-	const close = () => host.remove();
+	let closed = false;
+	let guard: ReturnType<typeof setInterval> | undefined;
+	const close = () => {
+		closed = true;
+		clearInterval(guard);
+		host.remove();
+	};
 	const choose = (marketing: boolean, action: BannerAction) => {
 		close();
 		o.onChoice({ action, marketing });
@@ -190,7 +196,19 @@ export function showConsentBanner(o: BannerOptions): () => void {
 
 	if (o.preferences) prefs();
 	else intro();
+
+	// Sites em React/Next: um nó extra no <body> antes da hidratação causa erro e o React pode
+	// recriar o documento (o banner some). Então o banner só entra depois do "load", e volta se
+	// algo o remover enquanto a pessoa ainda não escolheu.
 	// No início do <body>: fica cedo na ordem do Tab (teclado) sem roubar o foco da página.
-	document.body.prepend(host);
+	const mount = () => {
+		if (closed) return;
+		document.body.prepend(host);
+		guard = setInterval(() => {
+			if (!closed && !host.isConnected) document.body.prepend(host);
+		}, 500);
+	};
+	if (o.preferences || document.readyState === "complete") mount();
+	else window.addEventListener("load", () => setTimeout(mount, 0), { once: true });
 	return close;
 }
