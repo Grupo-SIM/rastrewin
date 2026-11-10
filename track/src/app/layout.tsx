@@ -1,19 +1,21 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Manrope } from "next/font/google";
+import localFont from "next/font/local";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
-const manrope = Manrope({
+// Fontes servidas pelo próprio domínio (subconjunto latin do Google Fonts, licença OFL em ./fonts).
+// Ficam no repositório para o build não depender do Google Fonts, que às vezes falha.
+const manrope = localFont({
 	display: "swap",
-	subsets: ["latin"],
+	src: [{ path: "./fonts/manrope-latin.woff2", style: "normal", weight: "200 800" }],
 	variable: "--font-manrope",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
 	display: "swap",
-	subsets: ["latin"],
+	src: [{ path: "./fonts/jetbrains-mono-latin.woff2", style: "normal", weight: "100 800" }],
 	variable: "--font-jetbrains-mono",
 });
 
