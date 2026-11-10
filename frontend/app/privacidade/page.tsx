@@ -15,7 +15,11 @@ export const metadata: Metadata = { title: "Política de Privacidade | Rastrewin
 const CONTACT_EMAIL = "contatosimintermediacoes@gmail.com";
 const ENCARREGADO = "";
 // PERSONALIZAR: razão social, CNPJ e endereço do controlador (aparecem na seção 1 quando preenchidos).
-const CONTROLADOR = { cnpj: "", endereco: "", razaoSocial: "" };
+const CONTROLADOR = {
+	cnpj: "38.486.051/0001-48",
+	endereco: "Beco Neutel Maia, 21, Bosque, Rio Branco/AC, CEP 69900-618",
+	razaoSocial: "SIM INTERMEDIACOES LTDA",
+};
 // PERSONALIZAR: mantenha igual à "Versão do texto" do banner (painel do track › Configurações › Privacidade).
 const POLICY_VERSION = "1";
 const UPDATED_AT = "10 de novembro de 2026";
@@ -36,18 +40,21 @@ const link = (href: string, label: string) => (
 	</a>
 );
 
-const controllerId = [
-	CONTROLADOR.razaoSocial,
-	CONTROLADOR.cnpj && `CNPJ ${CONTROLADOR.cnpj}`,
-	CONTROLADOR.endereco,
-]
-	.filter(Boolean)
-	.join(", ");
+// Quem responde pelos dados é a empresa; sem razão social, o texto fala só da Rastrewin.
+const controllerName = CONTROLADOR.razaoSocial
+	? `${[
+			`A Rastrewin é um serviço da ${CONTROLADOR.razaoSocial}`,
+			CONTROLADOR.cnpj && `inscrita no CNPJ ${CONTROLADOR.cnpj}`,
+			CONTROLADOR.endereco && `com sede em ${CONTROLADOR.endereco}`,
+		]
+			.filter(Boolean)
+			.join(", ")}, que é a controladora`
+	: "A Rastrewin é a controladora";
 
 const SECTIONS: Section[] = [
 	{
 		body: [
-			`A Rastrewin${controllerId ? ` (${controllerId})` : ""} é a controladora dos dados pessoais tratados por meio do site https://rastrewin.com/, da página de apresentação em https://vsl.rastrewin.com/ e dos serviços digitais associados, nos termos da Lei Geral de Proteção de Dados (Lei nº 13.709/2018, "LGPD").`,
+			`${controllerName} dos dados pessoais tratados por meio do site https://rastrewin.com/, da página de apresentação em https://vsl.rastrewin.com/ e dos serviços digitais associados, nos termos da Lei Geral de Proteção de Dados (Lei nº 13.709/2018, "LGPD").`,
 			<>
 				{ENCARREGADO
 					? `O encarregado pelo tratamento de dados pessoais é ${ENCARREGADO}, `
