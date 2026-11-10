@@ -388,11 +388,15 @@ type TrckWindow = Window & {
 		w.fbq?.(STANDARD.has(name) ? "track" : "trackCustom", name, custom, { eventID: eventId });
 		if (name !== "PageView" && w.gtag && cfg?.ga4.length) {
 			const ids = (custom.content_ids as string[] | undefined) ?? [];
+			// O GA4 exige items em begin_checkout/view_item/add_to_cart: sem ids, vai o nome.
+			const items = ids.length
+				? ids.map(item_id => ({ item_id, item_name: custom.content_name }))
+				: custom.content_name
+					? [{ item_name: custom.content_name }]
+					: [];
 			w.gtag("event", gaName(name), {
 				...(custom.value !== undefined ? { currency: custom.currency, value: custom.value } : {}),
-				...(ids.length
-					? { items: ids.map(item_id => ({ item_id, item_name: custom.content_name })) }
-					: {}),
+				...(items.length ? { items } : {}),
 			});
 		}
 
