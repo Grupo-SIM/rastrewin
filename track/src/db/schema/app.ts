@@ -148,6 +148,8 @@ export const visitors = pgTable(
 		index("visitors_em_hash_idx").on(t.emHash),
 		index("visitors_ph_hash_idx").on(t.phHash),
 		index("visitors_created_at_idx").on(t.createdAt),
+		// Retenção (LGPD): visitante sem atividade há 13 meses é apagado.
+		index("visitors_updated_at_idx").on(t.updatedAt),
 	],
 );
 
@@ -179,6 +181,10 @@ export const eventsLog = pgTable(
 		index("events_log_event_name_created_at_idx").on(t.eventName, t.createdAt),
 		// Jornada do visitante: todos os eventos de uma pessoa, em ordem.
 		index("events_log_trck_user_id_created_at_idx").on(t.trckUserId, t.createdAt),
+		// Retenção (LGPD): só linhas que ainda têm IP ou navegador.
+		index("events_log_client_retention_idx")
+			.on(t.createdAt)
+			.where(sql`${t.ip} is not null or ${t.userAgent} is not null`),
 		// Retenção: só linhas que ainda têm payload (o job diário não relê o que já limpou).
 		index("events_log_retention_idx")
 			.on(t.createdAt)
@@ -405,6 +411,8 @@ export const metaInsightsCache = pgTable(
 export const maintenanceRuns = pgTable(
 	"maintenance_runs",
 	{
+		/** Contagens das etapas de retenção LGPD (IPs zerados, visitantes apagados, vendas anonimizadas...). */
+		details: jsonb("details"),
 		error: text("error"),
 		finishedAt: timestamp("finished_at", { withTimezone: true }),
 		id: bigserial("id", { mode: "number" }).primaryKey(),

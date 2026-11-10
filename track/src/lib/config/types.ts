@@ -46,9 +46,15 @@ export interface MaintenanceView {
 		rowsSessions: number;
 		rowsCache: number;
 		error: string | null;
+		/** Contagens das etapas LGPD (ip_eventos, visitantes_apagados, vendas_anonimizadas...). */
+		details: Record<string, number> | null;
 	} | null;
 	nextRunAt: string;
-	retentionDays: number;
+	/** Prazos de retenção em dias (RETENTION_DAYS de src/lib/maintenance/retention.ts). */
+	retention: Record<
+		"payloads" | "client" | "webhookRaw" | "visitor" | "salePii" | "consent" | "erasureHash",
+		number
+	>;
 	/** IP desta requisição como o servidor o enxerga, e de qual cabeçalho veio. */
 	ip: string | null;
 	ipSource: "x-real-ip" | "x-forwarded-for" | null;

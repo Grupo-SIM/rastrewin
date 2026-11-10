@@ -16,6 +16,28 @@ import { safeErrorMessage } from "../errors";
  * Só recebe um Pool já aberto como app_service; não lê env nem segredo.
  */
 
+/**
+ * Prazos de retenção (LGPD), em dias — ÚNICO lugar para mudar. O app passa estes valores para a
+ * procedure app_private.run_retention (drizzle/0012_retention_lgpd.sql, que tem os mesmos padrões).
+ * PERSONALIZAR: ajuste ao seu produto e documente na política de privacidade (track/docs/lgpd.md).
+ */
+export const RETENTION_DAYS = {
+	/** IP e navegador (user agent) dos eventos e visitantes: a CAPI aceita compras de até 7 dias. */
+	client: 90,
+	/** Prova de cada escolha no banner de consentimento. */
+	consent: 1825,
+	/** Hashes de quem pediu exclusão (só para anonimizar vendas que ainda estavam a caminho). */
+	erasureHash: 30,
+	/** Conteúdo enviado/recebido de Meta e GA4 em cada evento (só para depurar envios). */
+	payloads: 14,
+	/** Dados pessoais nas vendas (email, hashes, ids de marketing): o valor e a data ficam. */
+	salePii: 1825,
+	/** Visitante sem nenhuma atividade (email, hashes, fbc/fbp, ids do GA): ~13 meses. */
+	visitor: 395,
+	/** Corpo bruto do webhook de vendas (auditoria de integração). */
+	webhookRaw: 90,
+} as const;
+
 /** Horário da limpeza em UTC (03:15 em Brasília, que não tem horário de verão desde 2019). */
 export const RETENTION_SLOT_UTC = { hour: 6, minute: 15 } as const;
 /** Chave fixa da trava (pg_advisory_lock). */
@@ -99,7 +121,11 @@ export async function runRetentionIfDue(
 			const started = Date.now();
 			try {
 				// Fora de transação: a procedure dá COMMIT entre os lotes.
-				await client.query("CALL app_private.run_retention()");
+				const d = RETENTION_DAYS;
+				await client.query(
+					"CALL app_private.run_retention(p_days => $1, p_client_days => $2, p_raw_days => $3, p_visitor_days => $4, p_sale_pii_days => $5, p_consent_days => $6, p_erasure_hash_days => $7)",
+					[d.payloads, d.client, d.webhookRaw, d.visitor, d.salePii, d.consent, d.erasureHash],
+				);
 			} catch (error) {
 				// Com a trava na mão, qualquer execução "running" é esta: marca a falha já (o painel mostra).
 				await client

@@ -84,6 +84,13 @@
 			"tag": "0011_privacy_erasures",
 			"version": "7",
 			"when": 1794324649830
+		},
+		{
+			"breakpoints": true,
+			"idx": 12,
+			"tag": "0012_retention_lgpd",
+			"version": "7",
+			"when": 1794326259612
 		}
 	],
 	"version": "7"

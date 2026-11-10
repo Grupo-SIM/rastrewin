@@ -105,10 +105,149 @@ async function main() {
 		} catch {
 			record("parâmetro inválido (0 dias) é recusado", true);
 		}
+		try {
+			await db.query("CALL app_private.run_retention(p_client_days => 3)");
+			record("IP com menos de 8 dias é recusado (a CAPI aceita compras de até 7 dias)", false);
+		} catch {
+			record("IP com menos de 8 dias é recusado (a CAPI aceita compras de até 7 dias)", true);
+		}
+
+		// ---------------------------------------------------------------- retenção LGPD (prazos de RETENTION_DAYS)
+		const T = `${PREFIX}lgpd-`;
+		await db.query(
+			`insert into events_log (trck_user_id, event_name, event_id, ip, user_agent, created_at) values
+         ($1 || 'v-old', 'PageView', $1 || 'ip-old', '177.71.207.1', 'Mozilla', now() - interval '100 days'),
+         ($1 || 'v-new', 'PageView', $1 || 'ip-new', '177.71.207.2', 'Mozilla', now() - interval '10 days')`,
+			[T],
+		);
+		await db.query(
+			`insert into visitors (trck_user_id, email, ip, user_agent, created_at, updated_at) values
+         ($1 || 'gone',  'velho@x.com', '177.71.207.3', 'Mozilla', now() - interval '500 days', now() - interval '400 days'),
+         ($1 || 'quiet', 'meio@x.com',  '177.71.207.4', 'Mozilla', now() - interval '200 days', now() - interval '100 days'),
+         ($1 || 'fresh', 'novo@x.com',  '177.71.207.5', 'Mozilla', now() - interval '5 days',   now() - interval '1 day')`,
+			[T],
+		);
+		await db.query(
+			`insert into webhook_events (event_id, event_type, order_id, payload, signature_valid, received_at) values
+         ($1 || 'wh-old', 'purchase_approved', $1 || 'o-old', '{"customerEmail": "a@b.com"}', true, now() - interval '100 days'),
+         ($1 || 'wh-new', 'purchase_approved', $1 || 'o-new', '{"customerEmail": "a@b.com"}', true, now() - interval '10 days')`,
+			[T],
+		);
+		await db.query(
+			`insert into purchases (transaction_id, currency, value, status, email, em_hash, trck_user_id, webhook_raw, occurred_at, created_at, updated_at) values
+         ($1 || 'sale-old', 'BRL', 150, 'approved', 'velho@x.com', 'h1', $1 || 'gone', '{"x":1}', now() - interval '6 years', now() - interval '6 years', now() - interval '6 years'),
+         ($1 || 'sale-new', 'BRL', 500, 'approved', 'novo@x.com',  'h2', $1 || 'fresh', '{"x":1}', now() - interval '2 days', now() - interval '2 days', now() - interval '2 days')`,
+			[T],
+		);
+		await db.query(
+			`insert into consent_records (consent_id, action, marketing, version, created_at) values
+         ($1 || 'c-old', 'accept_all', true, '1', now() - interval '6 years'),
+         ($1 || 'c-new', 'accept_all', true, '1', now() - interval '10 days')`,
+			[T],
+		);
+		const erasures = (
+			await db.query(
+				`insert into privacy_erasures (em_hash, ph_hash, counts, created_at) values
+           ($1 || 'h-old', null, '{}', now() - interval '40 days'),
+           ($1 || 'h-new', null, '{}', now() - interval '5 days') returning id`,
+				[T],
+			)
+		).rows.map(r => Number(r.id));
+
+		const beforeLgpd = Number(
+			(await db.query("select coalesce(max(id), 0) as id from maintenance_runs")).rows[0].id,
+		);
+		await db.query("CALL app_private.run_retention(p_batch => 1)");
+
+		const q = async (sql: string, params: unknown[] = [T]) => (await db.query(sql, params)).rows;
+		const ev = Object.fromEntries(
+			(
+				await q(
+					"select event_id, ip is null and user_agent is null as cleared from events_log where event_id like $1 || 'ip-%'",
+				)
+			).map(r => [r.event_id.slice(T.length), r.cleared]),
+		);
+		record("evento de 100 dias: IP e navegador zerados (a linha fica)", ev["ip-old"] === true);
+		record("evento de 10 dias: IP e navegador intactos", ev["ip-new"] === false);
+
+		const vis = Object.fromEntries(
+			(
+				await q(
+					"select trck_user_id, ip is null as no_ip from visitors where trck_user_id like $1 || '%'",
+				)
+			).map(r => [r.trck_user_id.slice(T.length), r.no_ip]),
+		);
+		record("visitante sem atividade há 400 dias: apagado", !("gone" in vis));
+		record("visitante parado há 100 dias: fica, sem IP", vis.quiet === true);
+		record("visitante ativo: fica com IP", vis.fresh === false);
+
+		const wh = Object.fromEntries(
+			(await q("select event_id, payload from webhook_events where event_id like $1 || 'wh-%'")).map(
+				r => [r.event_id.slice(T.length), r.payload],
+			),
+		);
+		record("webhook de 100 dias: corpo bruto trocado por redacted", wh["wh-old"]?.redacted === true);
+		record("webhook de 10 dias: corpo intacto", wh["wh-new"]?.customerEmail === "a@b.com");
+
+		const sales = Object.fromEntries(
+			(
+				await q(
+					"select transaction_id, email, em_hash, trck_user_id, value::float as value, status from purchases where transaction_id like $1 || 'sale-%'",
+				)
+			).map(r => [r.transaction_id.slice(T.length), r]),
+		);
+		record(
+			"venda de 6 anos: dados pessoais anonimizados, valor e status ficam",
+			sales["sale-old"]?.email === null &&
+				sales["sale-old"]?.em_hash === null &&
+				sales["sale-old"]?.trck_user_id === null &&
+				sales["sale-old"]?.value === 150 &&
+				sales["sale-old"]?.status === "approved",
+			JSON.stringify(sales["sale-old"]),
+		);
+		record(
+			"venda recente: intacta",
+			sales["sale-new"]?.email === "novo@x.com",
+			JSON.stringify(sales["sale-new"]),
+		);
+
+		const consents = (
+			await q("select consent_id from consent_records where consent_id like $1 || 'c-%'")
+		).map(r => r.consent_id.slice(T.length));
+		record("consentimento de 6 anos apagado; recente fica", consents.join() === "c-new", consents.join());
+
+		const er = (
+			await db.query(
+				"select id, em_hash from privacy_erasures where id = any($1::bigint[]) order by id",
+				[erasures],
+			)
+		).rows;
+		record(
+			"exclusão de 40 dias perde o hash; a de 5 dias mantém",
+			er[0]?.em_hash === null && er[1]?.em_hash === `${T}h-new`,
+			JSON.stringify(er),
+		);
+
+		const details = (
+			await db.query("select details from maintenance_runs where id > $1 order by id desc limit 1", [
+				beforeLgpd,
+			])
+		).rows[0]?.details as Record<string, number> | undefined;
+		record(
+			"contagens LGPD registradas em maintenance_runs.details",
+			!!details &&
+				details.visitantes_apagados >= 1 &&
+				details.vendas_anonimizadas >= 1 &&
+				details.ip_eventos >= 1,
+			JSON.stringify(details),
+		);
+		await db.query("delete from privacy_erasures where id = any($1::bigint[])", [erasures]);
+		// Os dados deste bloco não podem entrar nas checagens do executor abaixo.
+		await db.query("delete from events_log where event_id like $1", [`${T}%`]);
 
 		const exec = (
 			await db.query(
-				`select r.rolname, has_function_privilege(r.rolname, 'app_private.run_retention(integer,integer,integer)', 'EXECUTE') as can
+				`select r.rolname, has_function_privilege(r.rolname, 'app_private.run_retention(integer,integer,integer,integer,integer,integer,integer,integer,integer)', 'EXECUTE') as can
            from pg_roles r where r.rolname in ('app_login', 'app_service', 'app_reader')`,
 			)
 		).rows as { rolname: string; can: boolean }[];
@@ -184,6 +323,10 @@ async function main() {
 		record("a trava é sempre liberada no fim", free === true);
 	} finally {
 		await db.query("delete from events_log where event_id like $1", [`${PREFIX}%`]);
+		await db.query("delete from visitors where trck_user_id like $1", [`${PREFIX}%`]);
+		await db.query("delete from webhook_events where event_id like $1", [`${PREFIX}%`]);
+		await db.query("delete from purchases where transaction_id like $1", [`${PREFIX}%`]);
+		await db.query("delete from consent_records where consent_id like $1", [`${PREFIX}%`]);
 		await db.end();
 		await app.end();
 	}
