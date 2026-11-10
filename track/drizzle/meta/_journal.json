@@ -70,6 +70,13 @@
 			"tag": "0009_events_log_journey_idx",
 			"version": "7",
 			"when": 1794102553779
+		},
+		{
+			"breakpoints": true,
+			"idx": 10,
+			"tag": "0010_consent",
+			"version": "7",
+			"when": 1794322440720
 		}
 	],
 	"version": "7"

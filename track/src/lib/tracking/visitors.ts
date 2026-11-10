@@ -7,6 +7,8 @@ import { hashed, normEmail, normLastName, normName, normPhone } from "./normaliz
 
 export interface VisitorInput {
 	trckUserId: string;
+	/** true quando a requisição veio com o aceite de marketing (t.js depois do banner). */
+	consentMarketing?: boolean;
 	email?: string | null;
 	phone?: string | null;
 	firstName?: string | null;
@@ -44,6 +46,8 @@ export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
 	);
 
 	const values = {
+		consentAt: input.consentMarketing ? sql`now()` : null,
+		consentMarketing: input.consentMarketing ? true : null,
 		email,
 		emHash: hashed(email),
 		fbc: input.fbc ?? null,
@@ -80,6 +84,15 @@ export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
 		.values(values)
 		.onConflictDoUpdate({
 			set: {
+				// Aceite: liga (e marca a data só quando muda). Sem o campo, mantém o que estava.
+				consentAt: input.consentMarketing
+					? sql.raw(
+							"case when visitors.consent_marketing is true then visitors.consent_at else now() end",
+						)
+					: sql.raw("visitors.consent_at"),
+				consentMarketing: input.consentMarketing
+					? sql.raw("true")
+					: sql.raw("visitors.consent_marketing"),
 				email: keepOld("email"),
 				emHash: keepOld("em_hash"),
 				fbc: keepOld("fbc"),

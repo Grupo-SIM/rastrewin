@@ -57,6 +57,8 @@ export async function POST(request: Request) {
 		countIgnoredVisit("automacao");
 		return json({ ignored: true, ok: true }, 200, cors);
 	}
+	// LGPD: sem o aceite de marketing (campo consent), nada é gravado nem enviado.
+	if (!d.consent) return json({ ignored: true, ok: true, reason: "sem consentimento" }, 200, cors);
 
 	const ip = clientIp(request.headers);
 	const userAgent = request.headers.get("user-agent")?.slice(0, 512) ?? null;
@@ -66,6 +68,7 @@ export async function POST(request: Request) {
 	const referrer = cleanReferrer(d.referrer, ownHostsOf(config.allowedOrigins, config.checkoutDomains));
 
 	await upsertVisitor({
+		consentMarketing: true,
 		email: d.email,
 		fbc: d.fbc,
 		fbp: d.fbp,

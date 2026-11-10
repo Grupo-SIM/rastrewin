@@ -49,6 +49,9 @@ export async function POST(request: Request) {
 		);
 
 	if (parsed.data.wd) return json({ ignored: true, ok: true }, 200, cors);
+	// LGPD: progresso de vídeo é medição; sem o aceite de marketing, não é gravado.
+	if (!parsed.data.consent)
+		return json({ ignored: true, ok: true, reason: "sem consentimento" }, 200, cors);
 
 	try {
 		await recordVideoView(parsed.data, lookupGeo(ip));

@@ -39,10 +39,19 @@ export const settings = pgTable(
 			.array()
 			.notNull()
 			.default(sql`'{}'::text[]`),
+		/**
+		 * Textos do banner de consentimento (LGPD). Nulo = textos padrão do código
+		 * (src/lib/privacy/consent-texts.ts). Campos ausentes também caem no padrão.
+		 */
+		consentTexts: jsonb("consent_texts"),
+		/** Versão do texto do consentimento. Mudar pede o consentimento de novo a todos os visitantes. */
+		consentVersion: text("consent_version").notNull().default("1"),
 		currency: text("currency").notNull().default("BRL"),
 		/** Modo debug do GA4: valida no /debug/mp/collect e envia com debug_mode (aparece no DebugView). */
 		ga4Debug: boolean("ga4_debug").notNull().default(false),
 		id: smallint("id").primaryKey().default(1),
+		/** Link da política de privacidade mostrado no banner. */
+		privacyPolicyUrl: text("privacy_policy_url"),
 		testEventCode: text("test_event_code"),
 		/** Fuso horário do painel (IANA). Use o MESMO da conta de anúncios para os relatórios por dia baterem. */
 		timezone: text("timezone").notNull().default("America/Sao_Paulo"),
@@ -108,6 +117,13 @@ export const metaAdAccounts = pgTable(
 export const visitors = pgTable(
 	"visitors",
 	{
+		/** Quando a escolha de marketing abaixo foi registrada. */
+		consentAt: timestamp("consent_at", { withTimezone: true }),
+		/**
+		 * Consentimento de marketing e medição (banner do t.js). Nulo = visitante de antes do banner.
+		 * Só com true os eventos e a compra vão à Meta e ao GA4.
+		 */
+		consentMarketing: boolean("consent_marketing"),
 		email: text("email"),
 		/** SHA-256 (normalizado) — formato exigido pela Meta CAPI. */
 		emHash: text("em_hash"),
@@ -227,6 +243,8 @@ export const purchases = pgTable(
 		id: bigserial("id", { mode: "number" }).primaryKey(),
 		items: jsonb("items"),
 		lnHash: text("ln_hash"),
+		/** Visitante ligado à venda tinha aceitado marketing (foto no momento da venda). Sem true, não vai à Meta/GA4. */
+		marketingConsent: boolean("marketing_consent"),
 		netValue: numeric("net_value", { precision: 14, scale: 2 }),
 		paymentMethod: text("payment_method"),
 		phHash: text("ph_hash"),
@@ -274,6 +292,41 @@ export const purchases = pgTable(
 		index("purchases_status_idx").on(t.status),
 		index("purchases_created_at_idx").on(t.createdAt),
 		index("purchases_utm_campaign_idx").on(t.utmCampaign),
+	],
+);
+
+// ---------------------------------------------------------------- privacidade (LGPD)
+
+/**
+ * Registro de cada escolha feita no banner (prova do consentimento, LGPD art. 8º).
+ * Sem IP nem navegador: só o id aleatório da escolha, o visitante (se aceitou), a versão do texto e onde.
+ */
+export const consentRecords = pgTable(
+	"consent_records",
+	{
+		/** accept_all | reject_all | custom | revoke */
+		action: text("action").notNull(),
+		/** Id aleatório gerado pelo t.js e guardado no cookie _trck_consent. */
+		consentId: text("consent_id").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		id: bigserial("id", { mode: "number" }).primaryKey(),
+		marketing: boolean("marketing").notNull(),
+		/** Site (origem) onde a escolha foi feita. */
+		origin: text("origin"),
+		/** Página, sem query nem #. */
+		pagePath: text("page_path"),
+		/** Só quando a pessoa aceitou (na recusa não existe visitante). */
+		trckUserId: text("trck_user_id"),
+		version: text("version").notNull(),
+	},
+	t => [
+		index("consent_records_consent_id_idx").on(t.consentId),
+		index("consent_records_trck_user_id_idx").on(t.trckUserId),
+		index("consent_records_created_at_idx").on(t.createdAt),
+		check(
+			"consent_records_action_check",
+			sql`${t.action} in ('accept_all', 'reject_all', 'custom', 'revoke')`,
+		),
 	],
 );
 

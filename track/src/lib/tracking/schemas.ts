@@ -39,6 +39,34 @@ const url = optStr(2048).refine(v => v === null || /^https?:\/\//i.test(v), "URL
 /** O t.js avisa quando o navegador é controlado por programa (navigator.webdriver): é robô. */
 const webdriver = { wd: z.boolean().optional() };
 
+/**
+ * Versão do consentimento de marketing aceita pela pessoa (LGPD). O t.js só manda identify, event e
+ * video depois do aceite e sempre com este campo; sem ele (t.js antigo em cache) o servidor ignora.
+ */
+const CONSENT_VERSION = z.string().trim().min(1).max(20);
+const consent = { consent: CONSENT_VERSION.optional() };
+
+/** POST /api/consent — escolha feita no banner. */
+export const consentSchema = z
+	.object({
+		action: z.enum(["accept_all", "reject_all", "custom", "revoke"]),
+		consent_id: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
+		marketing: z.boolean(),
+		page_url: url,
+		trck_user_id: z.string().regex(TRCK_ID).optional().nullable(),
+		version: CONSENT_VERSION,
+		...webdriver,
+	})
+	.refine(
+		d =>
+			(d.action !== "accept_all" || d.marketing) &&
+			(d.action !== "reject_all" && d.action !== "revoke" ? true : !d.marketing),
+		"escolha incoerente",
+	)
+	// Na recusa não existe visitante: o id do visitante só vai junto quando a pessoa aceita ou revoga.
+	.refine(d => d.marketing || d.action === "revoke" || !d.trck_user_id, "recusa não leva visitante");
+export type ConsentInput = z.infer<typeof consentSchema>;
+
 export const identifySchema = z.object({
 	fbc: fbCookie,
 	fbp: fbCookie,
@@ -51,6 +79,7 @@ export const identifySchema = z.object({
 	...utm,
 	...userData,
 	...webdriver,
+	...consent,
 });
 export type IdentifyInput = z.infer<typeof identifySchema>;
 
@@ -84,6 +113,7 @@ export const eventSchema = z.object({
 	// Mesmas UTMs do identify: o evento pode chegar antes dele (os dois saem juntos no PageView).
 	...utm,
 	...webdriver,
+	...consent,
 });
 export type EventInput = z.infer<typeof eventSchema>;
 
@@ -104,5 +134,6 @@ export const videoSchema = z.object({
 	view_id: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
 	watched: videoSeconds,
 	...webdriver,
+	...consent,
 });
 export type VideoInput = z.infer<typeof videoSchema>;

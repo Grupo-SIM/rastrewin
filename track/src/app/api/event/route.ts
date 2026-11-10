@@ -53,6 +53,8 @@ export async function POST(request: Request) {
 		);
 	const d = parsed.data;
 	if (d.wd) return json({ ignored: true, ok: true }, 200, cors);
+	// LGPD: sem o aceite de marketing (campo consent), nada é gravado nem enviado.
+	if (!d.consent) return json({ ignored: true, ok: true, reason: "sem consentimento" }, 200, cors);
 
 	const config = await getRuntimeConfig();
 	const ip = clientIp(request.headers);
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
 
 	// Garante o visitante (caso o identify ainda não tenha chegado) e pega os dados para enriquecer.
 	const visitor = await upsertVisitor({
+		consentMarketing: true,
 		email: d.user_data?.email,
 		fbc: d.fbc,
 		fbp: d.fbp,
