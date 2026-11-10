@@ -65,6 +65,28 @@ Revisão do que entrou depois da Fase 8 (vídeos, aba Saúde e repasse do backen
 
 **Fora do track:** o `frontend` usa o Next 14.2.35, com alertas críticos que só têm correção a partir da 15.5.24. Fica para uma tarefa própria do frontend.
 
+## Auditoria de novembro (3ª, 10/11/2026) — LGPD e entrada pelo backend
+
+Revisão do que entrou depois da 2ª auditoria (consentimento, direitos do titular, prazos de retenção) e da porta de entrada das vendas no backend (`api.rastrewin.com/payments/webhook`) e do formulário de privacidade.
+
+**Achados e correções:**
+
+1. **O `security:check` acusava falha em `/api/privacy/export` e `/erase`, que estavam protegidas.** As proteções ficam no auxiliar `readSignedPrivacyRequest` (`src/lib/privacy/signed-request.ts`), e o verificador só lia o arquivo da rota. Agora ele analisa os auxiliares de `ROUTE_GUARDS` junto com a rota e exige assinatura também em `api/privacy/`. Teste negativo: sem a assinatura no auxiliar, as duas rotas dão FALHA.
+2. **O `security-check.sql` esperava 10 migrations (são 13)** e daria FALHA em produção. Corrigido.
+3. **Backend: o limite do formulário de privacidade podia ser burlado** com um `X-Real-IP` inventado a cada pedido (o Caddy do backend não sobrescreve esse cabeçalho). Agora vale o último IP do `X-Forwarded-For` (`backend/src/http/client-ip.ts`). Teste: 6 pedidos com IPs forjados diferentes → o 6º recebe 429.
+4. **Backend: o webhook de vendas não tinha limite.** Agora 120/min por IP, antes da assinatura. Teste: rajada de 125 → os excedentes recebem 429; outro IP segue passando; venda assinada → 200; sem assinatura → 401.
+5. **Backend: o hash do token de privacidade usava `JWT_SECRET ?? ""`.** Agora falha sem o segredo, como o `jwt.util.ts`.
+
+**Verificado sem achado:**
+
+- RLS ligada e forçada em todas as tabelas, inclusive `consent_records` e `privacy_erasures`; as colunas novas das migrations 0010–0012 passaram por `secure_table`;
+- as 13 Server Actions (inclui `savePrivacy` e `markErasureGaDone`) têm sessão e Zod; as 10 rotas de `/api` têm as proteções esperadas;
+- histórico do git do repositório inteiro sem token, chave privada ou senha real (um `.env.local` antigo do frontend só tinha a URL pública da API);
+- a `ENCRYPTION_KEY` só é lida em módulos `server-only`; `NEXT_PUBLIC_` só com as URLs públicas da API e do track;
+- de fora, em `track.rastrewin.com`: 11 OK (https, CSP, `/painel` sem login → `/login`, sessão vazia, CORS, webhook sem GET, arquivos internos não servidos, `t.js` sem segredo).
+
+**Fora do escopo, pendente:** o login do backend (`POST /auth/login`, clientes e admins do rastrewin.com) não tem limite de tentativas.
+
 ## Riscos aceitos
 
 - **CSP com `script-src 'unsafe-inline'`:** um nonce exigiria renderização dinâmica e é incompatível com Cache Components/PPR (guia do Next). Mitigação: sem HTML vindo do usuário, o React escapa tudo e as outras diretivas fecham o resto.
@@ -91,6 +113,7 @@ Refaça a cada deploy com migration e uma vez por mês.
 - [ ] Backup diário do banco funcionando, com uma restauração testada uma vez.
 - [ ] A limpeza diária aparece como "Funcionando" em Configurações › Geral.
 - [ ] O token do GHCR tem só `read:packages`, e a data de renovação está anotada.
+- [ ] Backend: a porta 3011 não é publicada (só o Caddy chega nele), condição para o IP do `X-Forwarded-For` valer nos limites.
 
 ## Comandos de verificação
 
