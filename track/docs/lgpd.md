@@ -47,3 +47,49 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
 - Visitantes de **antes do banner** contam como "sem consentimento" até aceitarem: compras deles não vão à Meta/GA4. Os dados antigos continuam no banco e seguem a retenção (Parte 4).
 - Se o site carregar o Pixel ou a gtag por conta própria (`data-no-pixel`/`data-no-ga`), **o site** é quem precisa esperar o aceite para carregar. O `t.js` só avisa a Meta e o Google da escolha (`fbq('consent', …)`, Consent Mode do Google).
 - Quem recusa deixa de ser medido. Os números do painel e das plataformas passam a contar só quem aceitou: é o efeito esperado do consentimento.
+
+## 2. Direitos da pessoa: acesso e exclusão
+
+### Como funciona
+
+1. A pessoa abre **rastrewin.com/privacidade/solicitacao**, escolhe **Ver meus dados** ou **Excluir meus dados** e informa o email (o telefone é opcional).
+2. O backend manda um **link de confirmação** para esse email:
+    - vale por 30 minutos e só pode ser usado uma vez;
+    - o token é guardado só como HMAC;
+    - a resposta da tela é sempre a mesma, para não revelar quem é cliente;
+    - há limite de pedidos por IP e por email (no máximo um link a cada 2 minutos e 5 por dia).
+3. No link, a pessoa clica em **Confirmar pedido**. Só abrir o link não executa nada: programas de email costumam abrir links sozinhos para checar segurança.
+4. **Acesso:** a página mostra e permite baixar em `.json`:
+    - o cadastro (sem senha nem códigos);
+    - a assinatura e os sorteios;
+    - os identificadores de navegação, os eventos e os vídeos;
+    - as compras, dizendo se foram enviadas à Meta e ao Google;
+    - as escolhas de cookies.
+5. **Exclusão:**
+    - **No track:** apaga visitante, eventos e plays de vídeo. Anonimiza as compras: ficam pedido, valor, data, status, produto e campanha, sem identificar a pessoa. Apaga o conteúdo bruto do webhook e desliga a pessoa dos registros de consentimento (a prova continua, anônima).
+    - **No backend:** anonimiza o cadastro (nome, email, CPF, telefone, cidade, PIX, origem da visita), apaga a senha e os códigos, encerra o acesso e apaga as participações em sorteios. Num sorteio que ela ganhou, o nome vira "Participante". Plano, data de pagamento e número do pedido ficam (obrigação fiscal).
+    - **O próprio pedido** de exclusão perde o email e fica só como prova (data e contagens).
+    - Por **30 dias**, uma venda que ainda estava a caminho para o mesmo email ou telefone chega já anonimizada. Depois disso, quem se cadastrar de novo é tratado como pessoa nova.
+6. **GA4:** o painel do track (Configurações › Privacidade › Exclusões de dados) lista os `client_id` daquela pessoa no GA4.
+    - Apague cada um em **GA4 › Explorar › Explorador de usuários › Excluir usuário**.
+    - Depois clique em **Concluído no GA4**, e a lista é apagada do painel.
+
+### Onde personalizar
+
+| O quê                                                         | Onde                                                                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Email de contato do encarregado (formulário)                  | `CONTACT_EMAIL` em `frontend/app/privacidade/solicitacao/page.tsx` (**PERSONALIZAR**; use o mesmo da política).         |
+| Textos do formulário e da página de resultado                 | `frontend/app/privacidade/solicitacao/page.tsx` e `.../confirmar/page.tsx`                                              |
+| Texto do email de confirmação                                 | `sendPrivacyConfirmation` em `backend/src/email/email.service.ts`                                                       |
+| O que é apagado ou mantido no cadastro                        | `PrivacyService.erase` em `backend/src/privacy/privacy.service.ts` (hoje: anonimiza e mantém plano, pagamento e pedido) |
+| O que é apagado ou mantido no tracking                        | `eraseSubject` em `track/src/lib/privacy/subject.ts`                                                                    |
+| Validade do link, limites e por quanto tempo os pedidos ficam | constantes no topo de `privacy.service.ts` e `privacy.controller.ts`                                                    |
+
+### Limites honestos
+
+- **Meta:** não existe forma de apagar eventos que a Conversions API já recebeu. Eles foram enviados com email, telefone e nome em hash. A política avisa isso.
+- **GA4:** a exclusão lá é **manual** (painel do track → Explorador de usuários do GA4). A página de resultado promete que isso é feito "nos próximos dias": **cumpra**, ou troque o texto.
+- **Só o telefone:** sem email não há como confirmar a identidade automaticamente. O formulário manda a pessoa escrever ao encarregado, e o atendimento é manual.
+- **Prazo legal:** a LGPD prevê resposta em até 15 dias para o acesso completo (art. 19). Pelo formulário a resposta é imediata. Pedidos por email ao encarregado seguem o prazo.
+- **Correção de dados** (art. 18, III) não tem tela: hoje é pelo contato do encarregado (ou pela área do cliente, para quem tem conta).
+- O limite por IP do backend usa o cabeçalho `X-Real-IP` do proxy. Se o proxy da API não enviar esse cabeçalho, todos os pedidos parecem vir do mesmo IP, e o limite fica coletivo.
