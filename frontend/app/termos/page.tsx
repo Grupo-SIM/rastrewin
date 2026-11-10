@@ -32,8 +32,8 @@ const SECTIONS: { title: string; body: string[] }[] = [
 	},
 	{
 		body: [
-			"Utilizamos cookies para melhorar sua experiência, coletando informações anônimas durante sua visita, como suas preferências de idioma, duração da visita, páginas acessadas, e outras estatísticas de uso. Esses dados nos ajudam a personalizar seu conteúdo, otimizar a navegação, melhorar continuamente o site em design e funcionalidade, e garantir sua segurança online. Esta prática é essencial para nos permitir oferecer um serviço mais ajustado às suas necessidades e resolver qualquer problema que possa surgir mais rapidamente.",
-			"Se você preferir limitar ou recusar o uso de cookies, a configuração pode ser ajustada através do seu navegador. Isso pode afetar a sua experiência no site, pois algumas funcionalidades dependem dos cookies para funcionar corretamente. Entendemos a importância do controle sobre suas informações e queremos que você saiba que, ao ajustar as configurações para bloquear cookies, algumas partes do nosso site podem não oferecer a experiência completa pretendida.",
+			"Usamos cookies necessários (para guardar sua escolha sobre cookies e manter você conectado) e, somente se você aceitar no aviso de cookies, cookies de marketing e medição, nossos, da Meta e do Google, para saber de onde vêm as visitas e as compras e avaliar nossos anúncios. Antes da sua escolha, nenhum cookie de marketing é usado.",
+			'Recusar é tão simples quanto aceitar e não muda o funcionamento do site. Você pode mudar sua escolha a qualquer momento em "Preferências de cookies", no rodapé do site. A lista completa de cookies, com finalidades e prazos, está na seção 6 da Política de Privacidade (/privacidade).',
 		],
 		title: "5. Cookies e Mais",
 	},

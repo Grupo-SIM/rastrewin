@@ -3385,3 +3385,63 @@ button {
 .auth-main:has(.priv-box) {
 	grid-template-columns: minmax(0, 1fr);
 }
+/* Texto só para leitores de tela (ex.: legenda de tabela). */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+/* Tabelas da política: texto quebra linha; no celular cada linha vira um bloco com rótulos. */
+.policy-table {
+	font-size: 14px;
+}
+.policy-table th,
+.policy-table td {
+	white-space: normal;
+	vertical-align: top;
+}
+.policy-table td:first-child {
+	font-weight: 600;
+	color: var(--ink);
+}
+@media (max-width: 640px) {
+	.priv-table-wrap:has(.policy-table) {
+		overflow-x: visible;
+	}
+	.policy-table thead {
+		display: none;
+	}
+	.policy-table tr {
+		display: block;
+		padding: 10px 12px;
+		border-bottom: 1px solid var(--line);
+	}
+	.policy-table tr:last-child {
+		border-bottom: 0;
+	}
+	.policy-table td {
+		display: grid;
+		grid-template-columns: 34% 1fr;
+		gap: 10px;
+		padding: 3px 0;
+		border: 0;
+	}
+	.policy-table td::before {
+		content: attr(data-label);
+		color: var(--mut);
+		font-weight: 600;
+	}
+	.policy-table td:first-child {
+		display: block;
+		padding-bottom: 6px;
+	}
+	.policy-table td:first-child::before {
+		content: none;
+	}
+}
