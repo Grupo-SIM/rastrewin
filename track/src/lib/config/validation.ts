@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { consentTextsSchema } from "@/lib/privacy/consent-texts";
 import { isValidTimeZone } from "@/lib/time";
 
 /* Normaliza e valida as entradas da tela de Configurações. Usado SÓ no servidor. */
@@ -107,6 +108,23 @@ export const generalSchema = z.object({
 		.trim()
 		.refine(v => v === "" || /^[A-Za-z0-9_-]{4,40}$/.test(v), "Código inválido (ex.: TEST12345)"),
 	timezone: z.string().trim().refine(isValidTimeZone, "Fuso horário inválido"),
+});
+
+/** Banner de consentimento (LGPD): versão, link da política e textos (vazio = padrão). */
+export const privacySchema = z.object({
+	policyUrl: z
+		.string()
+		.trim()
+		.max(500)
+		.refine(
+			v => v === "" || /^https:\/\/[^\s]+$/i.test(v),
+			"Use um link https:// (ex.: https://meusite.com.br/privacidade)",
+		),
+	texts: consentTextsSchema.partial(),
+	version: z
+		.string()
+		.trim()
+		.regex(/^[A-Za-z0-9._-]{1,20}$/, "Use letras, números, ponto ou hífen (ex.: 2 ou 2026-11)"),
 });
 
 export const webhookSecretSchema = z

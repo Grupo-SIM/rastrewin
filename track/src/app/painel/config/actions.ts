@@ -14,6 +14,7 @@ import {
 	accountSchema,
 	fieldErrors,
 	generalSchema,
+	privacySchema,
 	webhookSecretSchema,
 } from "@/lib/config/validation";
 import { requireSession } from "@/lib/dal";
@@ -216,6 +217,33 @@ export async function saveGeneral(input: unknown): Promise<ActionResult> {
 	invalidateRuntimeConfig();
 	refresh();
 	return { message: "Configurações salvas.", ok: true };
+}
+
+/** Banner de consentimento (LGPD): versão do texto, link da política e textos (vazio = padrão). */
+export async function savePrivacy(input: unknown): Promise<ActionResult> {
+	await requireSession();
+	const parsed = privacySchema.safeParse(input);
+	if (!parsed.success) {
+		return { error: "Confira os campos destacados.", fieldErrors: fieldErrors(parsed.error), ok: false };
+	}
+	const { policyUrl, texts, version } = parsed.data;
+	// Só guarda o que foi trocado: campo vazio volta ao texto padrão do código.
+	const custom = Object.fromEntries(Object.entries(texts).filter(([, v]) => v));
+	try {
+		await serviceDb()
+			.update(settings)
+			.set({
+				consentTexts: Object.keys(custom).length ? custom : null,
+				consentVersion: version,
+				privacyPolicyUrl: policyUrl || null,
+			})
+			.where(eq(settings.id, 1));
+	} catch (error) {
+		return dbError(error);
+	}
+	invalidateRuntimeConfig();
+	refresh();
+	return { message: "Privacidade salva. Os sites recebem em até 1 minuto.", ok: true };
 }
 
 /** Gera um segredo novo para o webhook. Ele é devolvido UMA vez para ser copiado. */

@@ -8,6 +8,7 @@ import { AccountsPanel } from "./accounts-panel";
 import { GeneralForm } from "./general-form";
 import { InstallCard } from "./install-card";
 import { MaintenanceCard } from "./maintenance-card";
+import { PrivacyForm } from "./privacy-form";
 import { WebhookCard } from "./webhook-card";
 
 /** `health`: conteúdo da aba Saúde, renderizado no servidor. `?aba=saude` abre direto nela (link da faixa de aviso). */
@@ -18,6 +19,7 @@ export function ConfigTabs({ config, health }: { config: ConfigView; health: Rea
 		{ count: count("ga4"), label: "GA4", short: "GA4", value: "ga4" },
 		{ count: count("pixel"), label: "Pixels Meta", short: "Pixels", value: "pixel" },
 		{ count: count("ads"), label: "Contas de anúncio", short: "Anúncios", value: "ads" },
+		{ label: "Privacidade", short: "LGPD", value: "privacidade" },
 		{ label: "Saúde", short: "Saúde", value: "saude" },
 	];
 	const requested = useSearchParams().get("aba");
@@ -68,6 +70,9 @@ export function ConfigTabs({ config, health }: { config: ConfigView; health: Rea
 			</TabsContent>
 			<TabsContent value="ads">
 				<AccountsPanel kind="ads" accounts={config.accounts.ads} timeZone={config.general.timezone} />
+			</TabsContent>
+			<TabsContent value="privacidade" className="flex flex-col gap-5">
+				<PrivacyForm privacy={config.privacy} />
 			</TabsContent>
 			<TabsContent value="saude">{health}</TabsContent>
 		</Tabs>

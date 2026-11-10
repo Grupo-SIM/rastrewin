@@ -1,3 +1,4 @@
+import type { ConsentTexts } from "@/lib/privacy/consent-texts";
 import type { AccountKind } from "./validation";
 
 /** Dados que vão para o navegador — NUNCA incluem segredos, só a pista mascarada. */
@@ -55,8 +56,19 @@ export interface MaintenanceView {
 	production: boolean;
 }
 
+/** Banner de consentimento (LGPD) e números dos últimos 30 dias. */
+export interface PrivacyView {
+	version: string;
+	policyUrl: string;
+	/** Só os textos trocados no painel; vazio = usa o padrão. */
+	texts: Partial<ConsentTexts>;
+	defaults: ConsentTexts;
+	stats: { accepted: number; rejected: number; revoked: number };
+}
+
 export interface ConfigView {
 	general: GeneralView;
+	privacy: PrivacyView;
 	maintenance: MaintenanceView;
 	accounts: Record<AccountKind, AccountView[]>;
 }

@@ -61,6 +61,16 @@ export function InstallCard({ general }: { general: GeneralView }) {
 							Se o site já tiver o Pixel ou a gtag instalados, acrescente{" "}
 							<code className="text-xs">data-no-pixel</code> ou{" "}
 							<code className="text-xs">data-no-ga</code> na tag do script para não duplicar.
+							Nesse caso o Pixel e a gtag do site também precisam esperar o aceite (LGPD).
+						</p>
+						<p>
+							Consentimento: o script mostra o banner (aba Privacidade) e só rastreia depois do
+							aceite. Para usar um banner próprio, acrescente{" "}
+							<code className="text-xs">data-no-banner</code> e informe a escolha com{" "}
+							<code className="text-xs">
+								trck(&apos;consent&apos;, {"{"} marketing: true {"}"})
+							</code>
+							.
 						</p>
 					</div>
 				</details>
