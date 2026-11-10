@@ -3,6 +3,8 @@ import {
 	Controller,
 	Headers,
 	HttpCode,
+	HttpException,
+	HttpStatus,
 	Post,
 	type RawBodyRequest,
 	Req,
@@ -12,11 +14,16 @@ import type { User } from "@prisma/client";
 import type { Request } from "express";
 import { generatePassword, hashPassword } from "../auth/password.util";
 import { EmailService } from "../email/email.service";
+import { rateLimitKey } from "../http/client-ip";
+import { createRateLimiter } from "../http/rate-limit";
 import { PrismaService } from "../prisma/prisma.service";
 import { TrackRelayService } from "../track/track-relay.service";
 import { isValidSignature, parseSalesEvent, type SalesEvent } from "./simintpay";
 
 const ONE_YEAR_MS = 365 * 24 * 3600 * 1000;
+/** Trava contra inundação da rota pública. Bem acima do volume real (o SimIntPay manda 1 evento por
+ * mudança de venda); ao estourar responde 429 e o SimIntPay reenvia depois. */
+const webhookLimiter = createRateLimiter({ max: 120, windowMs: 60 * 1000 });
 
 /**
  * Webhook de vendas do SimIntPay (API de vendas, assinada). Rota pública:
@@ -40,6 +47,9 @@ export class PaymentsController {
 	@Post("webhook")
 	@HttpCode(200)
 	async webhook(@Req() req: RawBodyRequest<Request>, @Headers("x-simintpay-signature") signature?: string) {
+		// Antes da assinatura: uma inundação nem chega a calcular o HMAC.
+		if (!webhookLimiter.take(rateLimitKey(req)))
+			throw new HttpException("Muitas requisições", HttpStatus.TOO_MANY_REQUESTS);
 		if (!isValidSignature(req.rawBody, signature, process.env.SIMPAY_WEBHOOK_SECRET)) {
 			throw new UnauthorizedException("Assinatura inválida");
 		}

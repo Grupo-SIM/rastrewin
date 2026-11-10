@@ -15,9 +15,10 @@ const KEEP_REQUESTS_MS = 30 * 24 * 3600 * 1000;
 export type PrivacyType = "ACCESS" | "DELETE";
 
 function tokenHash(token: string) {
-	return createHmac("sha256", process.env.JWT_SECRET ?? "")
-		.update(`privacy:${token}`)
-		.digest("hex");
+	// Sem o segredo, a chave viraria vazia em silêncio (o hash ficaria previsível): falha, como o jwt.util.ts.
+	const secret = process.env.JWT_SECRET;
+	if (!secret) throw new Error("JWT_SECRET não configurado");
+	return createHmac("sha256", secret).update(`privacy:${token}`).digest("hex");
 }
 
 /** Só os dígitos, sem o DDI 55: "+55 (11) 99999-8888" e "11999998888" são o mesmo telefone. */
