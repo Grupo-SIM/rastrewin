@@ -3204,3 +3204,184 @@ button {
 		padding: 28px 20px;
 	}
 }
+
+/* ---------- privacidade: pedido de acesso/exclusão (LGPD) ---------- */
+.priv-box {
+	width: min(720px, 100%);
+	min-width: 0;
+	display: grid;
+	gap: 22px;
+	justify-items: center;
+}
+.priv-title {
+	font-size: clamp(44px, 9vw, 72px);
+	line-height: 1;
+	text-align: center;
+}
+.priv-card {
+	width: 100%;
+	display: grid;
+	gap: 14px;
+	text-align: left;
+	background: #fff;
+	border-radius: 28px;
+	padding: 28px;
+	box-shadow:
+		0 0 0 1px rgba(0, 0, 0, 0.08),
+		0 10px 10px -5px rgba(0, 0, 0, 0.03);
+	font: 500 16px/1.6 var(--f-body);
+	color: var(--txt-2);
+}
+.priv-card a {
+	text-decoration: underline;
+}
+/* Itens de grid não encolhem por padrão: sem isto, uma tabela larga estica a página no celular
+   (a tabela deve rolar de lado dentro da própria caixa). */
+.priv-card > *,
+.priv-section > * {
+	min-width: 0;
+}
+.priv-muted {
+	color: var(--mut);
+	font-size: 14px;
+}
+.priv-label {
+	font: 600 15px var(--f-body);
+	color: var(--ink);
+}
+.priv-choices {
+	border: 0;
+	padding: 0;
+	margin: 0;
+	display: grid;
+	gap: 10px;
+}
+.priv-choices legend {
+	margin-bottom: 10px;
+}
+.priv-choice {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+	padding: 14px 16px;
+	border-radius: 18px;
+	border: 1px solid var(--line-2);
+	cursor: pointer;
+}
+.priv-choice.on {
+	border-color: var(--ink);
+	background: var(--blue-bg);
+}
+.priv-choice input {
+	margin-top: 4px;
+	accent-color: var(--ink);
+}
+.priv-choice span {
+	display: grid;
+	gap: 2px;
+}
+.priv-choice small {
+	color: var(--mut);
+	font-size: 14px;
+}
+.priv-input {
+	width: 100%;
+	min-height: 52px;
+	border-radius: 16px;
+	border: 0;
+	background: var(--field);
+	padding: 0 16px;
+	font: 500 17px var(--f-body);
+	color: var(--ink);
+}
+.priv-input:focus-visible {
+	outline: 2px solid var(--ink);
+	outline-offset: 1px;
+}
+.priv-agree {
+	display: flex;
+	gap: 10px;
+	align-items: flex-start;
+	font-size: 14px;
+	color: var(--txt-3);
+}
+.priv-agree input {
+	margin-top: 4px;
+	accent-color: var(--ink);
+}
+.priv-card .btn-dark {
+	justify-self: start;
+	min-height: 48px;
+}
+.priv-section {
+	display: grid;
+	gap: 8px;
+	border-top: 1px solid var(--line);
+	padding-top: 14px;
+}
+.priv-section h2 {
+	font: 600 18px var(--f-display);
+	color: var(--ink);
+}
+.priv-dl {
+	display: grid;
+	gap: 6px;
+	margin: 0;
+}
+.priv-dl div {
+	display: grid;
+	grid-template-columns: minmax(120px, 34%) 1fr;
+	gap: 12px;
+	font-size: 14px;
+}
+.priv-dl dt {
+	color: var(--mut);
+}
+.priv-dl dd {
+	margin: 0;
+	word-break: break-word;
+}
+.priv-table-wrap {
+	overflow-x: auto;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+}
+.priv-table {
+	border-collapse: collapse;
+	font-size: 13px;
+	min-width: 100%;
+}
+.priv-table th,
+.priv-table td {
+	padding: 8px 10px;
+	text-align: left;
+	border-bottom: 1px solid var(--line);
+	white-space: nowrap;
+}
+.priv-table th {
+	color: var(--mut);
+	font-weight: 600;
+}
+.priv-list {
+	display: grid;
+	gap: 6px;
+	padding-left: 20px;
+	list-style: disc;
+}
+@media (max-width: 640px) {
+	.priv-card {
+		padding: 20px;
+		border-radius: 22px;
+	}
+	.priv-card .btn-dark {
+		justify-self: stretch;
+	}
+	.priv-dl div {
+		grid-template-columns: 1fr;
+		gap: 0;
+	}
+}
+/* A coluna do grid da página de privacidade não cresce com o conteúdo (tabelas largas). */
+.auth-main:has(.priv-box) {
+	grid-template-columns: minmax(0, 1fr);
+}
