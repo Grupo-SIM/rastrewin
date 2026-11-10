@@ -17,7 +17,7 @@ const ENCARREGADO = "";
 // PERSONALIZAR: razão social, CNPJ e endereço do controlador (aparecem na seção 1 quando preenchidos).
 const CONTROLADOR = {
 	cnpj: "38.486.051/0001-48",
-	endereco: "Beco Neutel Maia, 21, Bosque, Rio Branco/AC, CEP 69900-618",
+	endereco: "Beco Neutel Maia, 21, Bosque, Rio Branco/AC, CEP 69900-430",
 	razaoSocial: "SIM INTERMEDIACOES LTDA",
 };
 // PERSONALIZAR: mantenha igual à "Versão do texto" do banner (painel do track › Configurações › Privacidade).
