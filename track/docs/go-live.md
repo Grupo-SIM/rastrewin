@@ -149,7 +149,7 @@ Copie o código do cartão **Instalação no site** (Configurações › Geral) 
 1. Ligue **temporariamente** o modo debug do GA4 e preencha o código de teste da Meta. Ele fica em Gerenciador de Eventos › seu pixel › Testar eventos.
 2. Abra o site numa aba anônima, clique no botão de compra e pague o **menor valor possível**.
 3. Confira os quatro destinos:
-    - no painel, **Eventos** mostra PageView e InitiateCheckout;
+    - no painel, **Eventos** mostra PageView, Lead e InitiateCheckout;
     - **Faturamento** mostra a venda "Aprovada", com Meta e GA4 "Enviado";
     - a Meta mostra o Purchase em **Testar eventos**;
     - o GA4 mostra o `purchase` no **DebugView**.

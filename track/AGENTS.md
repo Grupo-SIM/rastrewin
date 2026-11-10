@@ -82,9 +82,11 @@
 ## Captura (Fase 4)
 
 - **Script do site:** fonte em `src/tracker/trck.ts` → `bun run tracker:build` gera `public/t.js` (roda sozinho no `predev`/`prebuild`; o arquivo gerado não vai para o git).
-    - Lê `/api/config/public` (só IDs públicos, só para origens autorizadas), carrega Pixel + gtag das contas ativas, mantém `trck_user_id` (cookie `_trck` no domínio raiz + localStorage), gera `_fbp`/`_fbc`, guarda UTMs (última origem, 90 dias), lê `client_id`/`session_id` via `gtag('get')` (fallback: cookies `_ga` e `_ga_*` GS1/GS2).
+    - Lê `/api/config/public` (só IDs públicos, só para origens autorizadas), carrega Pixel + gtag das contas ativas, mantém `trck_user_id` (cookie `_trck` no domínio raiz + localStorage), gera `_fbp`/`_fbc`, guarda UTMs (última origem, 90 dias), lê `client_id`/`session_id` via `gtag('get')` (fallback: cookies `_ga` e `_ga_*` GS1/GS2). Se faltar algum (1ª visita: a gtag não carregou em 1,5 s e o `_ga` ainda não existe), tenta de novo em 2, 5 e 15 s e reenvia o `identify` — sem client_id a compra iria ao GA4 com id sintético, sem origem.
     - Decora links de checkout (`src`=trck_user_id + UTMs + fbc/fbp, que o SimIntPay repassa) e WhatsApp (`Ref: <id>` na mensagem). Cliques disparam InitiateCheckout/Contact (desliga com `data-no-auto`).
     - `trck('track', nome, dados)` → Pixel (`eventID`) + gtag + `/api/event` com o MESMO event_id. `Purchase` é recusado (só webhook).
+    - Na gtag, o evento sempre leva `items` quando há produto (o GA4 exige em begin_checkout/view_item/add_to_cart): com `content_ids`, um item por id; sem eles, `{ item_name: content_name }`.
+    - O Pixel só recebe `external_id` (no `fbq('init')`). Email/telefone do `identify` vão só pela CAPI: o `fbevents.js` ignora um 2º `fbq('init')` com dados quando o 1º já tinha `external_id`, e `fbq('set', 'userData')` só vale para pixels do Shopify.
     - Dados do `identify` vão junto nos eventos seguintes da página (evita corrida).
 - **Endpoints públicos** (`src/app/api/identify`, `src/app/api/event`, `src/app/api/video`, `src/app/api/config/public`): origem (CORS via `allowed_origins`) → rate limit → limite de corpo → Zod (`src/lib/tracking/schemas.ts`). IP/UA/geo sempre do servidor.
     - Limites: identify 30/min (burst 15), event 120/min (burst 40), por IP. Corpo: 8 KB / 16 KB.
@@ -102,13 +104,16 @@
 - **Endpoint** `src/app/api/webhook/compra/route.ts`: rate limit → corpo ≤ 64 KB → segredo configurado (senão 503) → assinatura (`src/lib/sales/signature.ts`; inválida = 401, nada gravado) → Zod (`src/lib/sales/simintpay.ts`) → idempotência por `eventId` (`webhook_events`) → UPSERT por `transaction_id` (`src/lib/sales/process.ts`) → 200; envios em `after()`.
 - **Status com precedência** (`nextStatus`): pending/declined/expired < approved/refund_requested < refunded/chargeback. Evento atrasado não desfaz reembolso.
 - **Atualização preserva dados:** eventos seguintes (reembolso etc.) vêm sem tracking/email — só campos com valor sobrescrevem; UTMs trocam só em conjunto.
-- **Ligação venda → visitante** (`matchVisitor`): `tracking.src` (formato trck_user_id) → hash do email → hash do telefone. Resultado em `purchases.match`.
+- **Ligação venda → visitante** (`matchVisitor`): `tracking.src` (formato trck_user_id) → hash do email → hash do telefone. Resultado em `purchases.match`. O rastrewin.com abre o checkout com `src`/UTMs/fbc/fbp na URL (`withTracking` em `frontend/lib/track.ts`), então o `src` chega mesmo se o comprador usar outro email.
 - **Envio** (`src/lib/sales/deliver.ts`, função única para webhook e reenvio; trava em memória por compra):
     - Meta: `Purchase`, `event_id = purchase_<transactionId>`, valor BRUTO; `action_source` = website (com UA do visitante) ou `system_generated` (sem visitante); até 7 dias.
+        - `user_data`: o que o webhook não trouxer (em/ph/fn/ln) vem do visitante ligado; `country` padrão `br` sem geo (a Meta pede sempre); sem `_fbc`, o `fbc` é montado do `fbclid` (`fbcFromFbclid` em `src/lib/meta/capi.ts`: `fb.1.<ms>.<fbclid>`, maiúsculas preservadas).
+        - `custom_data` sem `num_items` (a Meta diz que é só para InitiateCheckout).
     - GA4 (`src/lib/ga4/mp.ts`): `purchase` com `client_id`/`session_id` da visita (sem visitante: client_id sintético estável), `timestamp_micros` até 72 h; **sem campo consent** (decisão do usuário; reavaliar com aviso de cookies/LGPD).
-    - Reembolso/chargeback → `refund` ao GA4 (só se a compra foi enviada; mesmo client_id). Meta não recebe reembolso.
+        - Na web o MP não deduz geo/aparelho do client_id (sem eles fica "(not set)"): `visitContext` (`src/lib/ga4/mp.ts`) manda `user_location` (`country_id`, `region_id` `BR-<UF>`, `city`) ou, sem geo, `ip_override`, e `device.category` pelo UA.
+    - Reembolso/chargeback → `refund` ao GA4 (só se a compra foi enviada; mesmo client_id, com `items` e a mesma localização/aparelho). Meta não recebe reembolso.
     - Modo debug do GA4 (`settings.ga4_debug`): valida no /debug/mp/collect e envia com `debug_mode`.
-- **Reenvio automático:** `src/instrumentation.ts` → `src/lib/sales/retry.ts` a cada 5 min (não roda no build nem sem `DATABASE_URL`); até 5 tentativas por destino, últimos 7 dias.
+- **Reenvio automático:** `src/instrumentation.ts` → `src/lib/sales/retry.ts` a cada 5 min (não roda no build nem sem `DATABASE_URL`); até 5 tentativas por destino, últimos 7 dias. O reenvio vai só aos pixels/propriedades que ainda não confirmaram (as respostas anteriores ficam em `response_meta`/`response_ga4` por destino): repetir para quem já recebeu duplicaria a compra no GA4.
 - **Fuso horário do painel:** `settings.timezone` (IANA, padrão Brasília), escolhido em Configurações › Geral; formatação em `src/lib/time.ts`. Deve ser o MESMO da conta de anúncios: a conta do usuário está em **America/Sao_Paulo** (manter o padrão). Só o computador dele está no fuso do Acre — o Gerenciador de Eventos e o DebugView mostram o horário local de quem olha.
 
 ## Dashboard (Fase 6)
@@ -151,7 +156,7 @@
 
 ## Regras de tracking (não quebrar)
 
-- Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.
+- Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. `ln` = só o ÚLTIMO nome (`normLastName`: "da Silva" → "silva"), igual ao que sai do nome completo do webhook. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.
 - GA4: eventos web via **gtag no navegador** (measurement_id vindo da config). Measurement Protocol **só** para a compra do webhook, com o mesmo `client_id`/`session_id`. Nunca duplicar no MP o que a gtag já enviou.
 - Eventos vão para **todos** os destinos ativos; a resposta de cada destino fica no log.
 
