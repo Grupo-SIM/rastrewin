@@ -5,7 +5,7 @@ import { SiteIcon } from "@/components/SiteIcon";
 import { api, fmtRemaining, type User } from "@/lib/api";
 import { isValidCpf, maskCpf, maskPhone } from "@/lib/mask";
 import { SITES as ALL_SITES } from "@/lib/sites";
-import { readTracking, trck } from "@/lib/track";
+import { readTracking, trck, withTracking } from "@/lib/track";
 
 const PLANS = [
 	{ desc: "até 500 sorteios/dia", id: "basico", name: "Básico", price: "R$ 150/ano", value: 150 },
@@ -145,8 +145,9 @@ export default function Landing() {
 				value: plan?.value,
 			});
 			localStorage.setItem("userId", user.id);
-			if (checkoutTab) checkoutTab.location.href = user.checkoutUrl;
-			else window.location.href = user.checkoutUrl;
+			const checkoutUrl = withTracking(user.checkoutUrl);
+			if (checkoutTab) checkoutTab.location.href = checkoutUrl;
+			else window.location.href = checkoutUrl;
 		} catch (e) {
 			checkoutTab?.close();
 			setErr(`Não foi possível concluir. A API está rodando? ${(e as Error).message}`);
