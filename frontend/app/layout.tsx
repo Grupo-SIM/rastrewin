@@ -1,26 +1,24 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
-import { Instrument_Serif, Manrope, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { TRACK_URL, TRCK_STUB } from "@/lib/track";
 
-const jakarta = Plus_Jakarta_Sans({
+// Fontes servidas pelo próprio site (subconjunto latin do Google Fonts, licença OFL em ./fonts).
+// Evita baixar do Google Fonts no build, que falhava às vezes e derrubava a imagem.
+const jakarta = localFont({
 	display: "swap",
-	subsets: ["latin"],
+	src: [{ path: "./fonts/plus-jakarta-sans-latin.woff2", style: "normal", weight: "500 700" }],
 	variable: "--font-jakarta",
-	weight: ["500", "600", "700"],
 });
-const manrope = Manrope({
+const manrope = localFont({
 	display: "swap",
-	subsets: ["latin"],
+	src: [{ path: "./fonts/manrope-latin.woff2", style: "normal", weight: "400 800" }],
 	variable: "--font-manrope",
-	weight: ["400", "500", "600", "700", "800"],
 });
-const serif = Instrument_Serif({
+const serif = localFont({
 	display: "swap",
-	style: "italic",
-	subsets: ["latin"],
+	src: [{ path: "./fonts/instrument-serif-italic-latin.woff2", style: "italic", weight: "400" }],
 	variable: "--font-serif",
-	weight: "400",
 });
 
 export const metadata: Metadata = {
