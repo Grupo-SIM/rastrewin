@@ -140,6 +140,17 @@ function checkServerActions() {
 	if (!files.length) record(area, 'nenhum arquivo com "use server" encontrado', "atencao");
 }
 
+/**
+ * Auxiliares que fazem as proteções no lugar da rota: se a rota chama um deles, o código do
+ * auxiliar entra na análise (sem isso, a rota que delega pareceria desprotegida).
+ */
+const ROUTE_GUARDS: Record<string, string> = {
+	readSignedPrivacyRequest: "lib/privacy/signed-request.ts",
+};
+
+/** Rotas assinadas (server-to-server): sem `verifySignature`, qualquer um poderia chamá-las. */
+const SIGNED_ROUTE = /^api\/(webhook|privacy)\//;
+
 /** Rotas que dispensam as proteções padrão, com o motivo. */
 const ROUTE_EXCEPTIONS: Record<string, string> = {
 	"api/auth/[...all]": "Better Auth: rate limit próprio (login 5/min), trustedOrigins e cadastro desligado",
@@ -155,31 +166,36 @@ function checkRoutes() {
 			record(area, `/${route}`, "ok", `exceção: ${ROUTE_EXCEPTIONS[route]}`);
 			continue;
 		}
-		const code = stripComments(read(file));
+		const own = stripComments(read(file));
+		const guards = Object.entries(ROUTE_GUARDS).filter(([fn]) => new RegExp(`\\b${fn}\\(`).test(own));
+		const code = [own, ...guards.map(([, guard]) => stripComments(read(path.join(SRC, guard))))].join(
+			"\n",
+		);
 		const methods = [
-			...code.matchAll(/export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b/g),
+			...own.matchAll(/export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b/g),
 		].map(m => m[1]);
 		const writes = methods.some(m => m !== "GET");
+		const signed = SIGNED_ROUTE.test(route);
 		const missing: string[] = [];
 		if (!/\.take\(/.test(code)) missing.push("rate limit");
 		if (writes && !/\breadJsonBody\(/.test(code)) missing.push("limite de corpo (readJsonBody)");
 		if (writes && !/\.(safeParse|parse)\(/.test(code)) missing.push("validação Zod");
-		if (route.startsWith("api/webhook/") && !/\bverifySignature\(/.test(code))
-			missing.push("assinatura HMAC");
-		const capture = /export\s+(?:async\s+)?function\s+OPTIONS\b/.test(code);
+		if (signed && !/\bverifySignature\(/.test(code)) missing.push("assinatura HMAC");
+		const capture = /export\s+(?:async\s+)?function\s+OPTIONS\b/.test(own);
 		if (capture && !/\ballowedOrigin\(/.test(code)) missing.push("origem autorizada (CORS)");
 		const done = [
 			capture && "origem",
 			"rate limit",
 			writes && "corpo",
 			writes && "Zod",
-			route.startsWith("api/webhook/") && "assinatura",
+			signed && "assinatura",
 		].filter(Boolean);
+		const via = guards.length ? ` (via ${guards.map(([fn]) => fn).join(", ")})` : "";
 		record(
 			area,
 			`/${route} (${methods.join(", ") || "sem handler"})`,
 			pass(!missing.length),
-			missing.length ? `falta: ${missing.join(", ")}` : done.join(" + "),
+			missing.length ? `falta: ${missing.join(", ")}${via}` : done.join(" + ") + via,
 		);
 	}
 }
