@@ -133,3 +133,42 @@ A limpeza roda todo dia a partir das 03:15 (Brasília), dentro do app. O painel 
 - **5 anos de prova de consentimento:** o controlador precisa provar o consentimento (art. 8º, §2º) pelo prazo em que pode ser cobrado.
 
 Teste: `bun run test:retention` (Postgres descartável). Ele cria dados velhos e novos de cada tipo e confere que só os velhos são limpos.
+
+## 5. Política de privacidade (rascunho)
+
+A página fica em **rastrewin.com/privacidade** (`frontend/app/privacidade/page.tsx`) e descreve o que o sistema faz de fato:
+
+- dados coletados, com a navegação só depois do aceite;
+- bases legais: consentimento para marketing e medição;
+- o que vai para a Meta e o Google, e como;
+- tabela de cookies;
+- tabela de prazos (seção 4 deste guia);
+- direitos, com o formulário e os limites honestos (fiscal, Meta e GA4);
+- transferência internacional;
+- versão do texto.
+
+Os Termos de Uso (seção 5) foram alinhados: antes falavam em "informações anônimas".
+
+## Checklist do que personalizar antes de publicar
+
+| #   | O quê                                                  | Onde                                                                                                                                 |
+| --- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Razão social, CNPJ e endereço do controlador           | `CONTROLADOR` em `frontend/app/privacidade/page.tsx` (aparece na seção 1 quando preenchido)                                          |
+| 2   | Encarregado (DPO): nome, se houver, e o email do canal | `ENCARREGADO` e `CONTACT_EMAIL` na política **e** `CONTACT_EMAIL` em `frontend/app/privacidade/solicitacao/page.tsx`                 |
+| 3   | Versão e data da política                              | `POLICY_VERSION` e `UPDATED_AT` na política. A versão deve ser **igual** à "Versão do texto" do painel (Configurações › Privacidade) |
+| 4   | Link da política no banner                             | Painel do track › Configurações › Privacidade › `https://rastrewin.com/privacidade`                                                  |
+| 5   | Textos do banner                                       | Mesmo lugar (vazio = padrão)                                                                                                         |
+| 6   | Visual do banner                                       | CSS do site (`#trck-consent { --trck-… }`)                                                                                           |
+| 7   | Prazos de retenção (e a tabela da política)            | `RETENTION_DAYS` em `track/src/lib/maintenance/retention.ts` **e** seção 7 da política                                               |
+| 8   | Prazo de 5 anos das vendas                             | Confirmar com o contador                                                                                                             |
+| 9   | Promessa de apagar no GA4 "em até 15 dias"             | Cumprir pelo painel (Exclusões de dados) ou mudar o texto (política seção 10 e página de confirmação)                                |
+| 10  | Lista de provedores e países                           | Política, seções 4 e 12                                                                                                              |
+| 11  | Revisão jurídica do texto todo                         | Política, Termos, banner e emails                                                                                                    |
+
+## Ordem para publicar
+
+1. Aplicar no banco de produção do track as migrations `0010_consent`, `0011_privacy_erasures` e `0012_retention_lgpd` (`docker compose --profile tools run --rm migrate`). Sem elas, o track novo quebra.
+2. Publicar o track. A partir daí, o banner aparece e nada de marketing roda sem aceite.
+3. Publicar o backend. O `db push` do container cria a tabela `PrivacyRequest`.
+4. Publicar o frontend e a VSL (formulário, política, links do rodapé).
+5. No painel do track (Configurações › Privacidade), conferir o link da política e a versão do texto.
