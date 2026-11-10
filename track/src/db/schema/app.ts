@@ -330,6 +330,34 @@ export const consentRecords = pgTable(
 	],
 );
 
+/**
+ * Exclusões pedidas pelo titular (LGPD art. 18, VI), via backend do rastrewin (rota assinada).
+ * Guarda só os HASHES do email/telefone, por 30 dias, para honrar a exclusão: venda da mesma pessoa
+ * que ainda estava a caminho chega anonimizada. Depois a retenção apaga os hashes (ficam data e contagens). ga_client_ids: o que ainda precisa ser apagado à mão no GA4 (sem API aqui);
+ * zerado quando alguém marca "Concluído no GA4" no painel.
+ */
+export const privacyErasures = pgTable(
+	"privacy_erasures",
+	{
+		/** Quantas linhas foram apagadas/anonimizadas em cada tabela. */
+		counts: jsonb("counts").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		emHash: text("em_hash"),
+		gaClientIds: text("ga_client_ids")
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		/** Quando os client_ids foram apagados no GA4 (manual). */
+		gaDoneAt: timestamp("ga_done_at", { withTimezone: true }),
+		id: bigserial("id", { mode: "number" }).primaryKey(),
+		phHash: text("ph_hash"),
+	},
+	t => [
+		index("privacy_erasures_em_hash_idx").on(t.emHash),
+		index("privacy_erasures_ph_hash_idx").on(t.phHash),
+	],
+);
+
 /** Todo evento recebido no webhook (idempotência + auditoria). */
 export const webhookEvents = pgTable(
 	"webhook_events",

@@ -7,6 +7,7 @@ import { readJsonBody } from "@/lib/http/body";
 import { rateLimitKey } from "@/lib/http/client-ip";
 import { json } from "@/lib/http/cors";
 import { createRateLimiter } from "@/lib/http/rate-limit";
+import { isErased, subjectHashes } from "@/lib/privacy/subject";
 import { deliverPurchase } from "@/lib/sales/deliver";
 import { upsertPurchase } from "@/lib/sales/process";
 import { verifySignature } from "@/lib/sales/signature";
@@ -49,7 +50,12 @@ export async function POST(request: Request) {
 			400,
 		);
 	}
-	const event = parsed.data;
+	// LGPD: pessoa que pediu exclusão há pouco — o evento é gravado sem dados pessoais nem tracking.
+	const subject = subjectHashes({ email: parsed.data.customerEmail, phone: parsed.data.phone });
+	const erased = await isErased(subject.emHash, subject.phHash);
+	const event = erased
+		? { ...parsed.data, customerEmail: null, customerName: null, phone: null, tracking: null }
+		: parsed.data;
 	const db = serviceDb();
 
 	// Idempotência por eventId: já processado → 200 sem refazer nada.

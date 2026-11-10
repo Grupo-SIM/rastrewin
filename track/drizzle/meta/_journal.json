@@ -77,6 +77,13 @@
 			"tag": "0010_consent",
 			"version": "7",
 			"when": 1794322440720
+		},
+		{
+			"breakpoints": true,
+			"idx": 11,
+			"tag": "0011_privacy_erasures",
+			"version": "7",
+			"when": 1794324649830
 		}
 	],
 	"version": "7"
