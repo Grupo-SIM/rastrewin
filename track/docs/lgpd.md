@@ -93,3 +93,43 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
 - **Prazo legal:** a LGPD prevê resposta em até 15 dias para o acesso completo (art. 19). Pelo formulário a resposta é imediata. Pedidos por email ao encarregado seguem o prazo.
 - **Correção de dados** (art. 18, III) não tem tela: hoje é pelo contato do encarregado (ou pela área do cliente, para quem tem conta).
 - O limite por IP do backend usa o cabeçalho `X-Real-IP` do proxy. Se o proxy da API não enviar esse cabeçalho, todos os pedidos parecem vir do mesmo IP, e o limite fica coletivo.
+
+## 3. Minimização: o que vai para a Meta e o Google
+
+- **Meta (Conversions API):**
+    - Vão em **SHA-256**: email, telefone, nome, sobrenome, cidade, estado, país e o id do visitante (`external_id`).
+    - Vão **sem hash**, porque a Meta exige assim: IP, navegador (user agent), `fbp` e `fbc`, que são identificadores da própria Meta.
+    - Um teste automático (`src/lib/meta/capi.test.ts`) garante que nenhum email, telefone, nome ou cidade sai em claro.
+- **Google (GA4):**
+    - Os eventos do site vão pela gtag no navegador, e só depois do aceite.
+    - A compra vai pelo Measurement Protocol com o `client_id` do próprio GA, a compra (pedido, valor, itens), o local aproximado (país, estado e cidade) e o tipo de aparelho. **Nenhum** email, telefone ou nome, nem em hash. Teste em `src/lib/ga4/mp.test.ts`.
+- **Só com consentimento:** sem o aceite de marketing, nada vai a nenhuma das duas (seção 1).
+- **No banco do track:**
+    - O email do visitante fica em texto, para a busca no painel. Telefone e nome ficam só em hash.
+    - O registro de consentimento não guarda IP nem navegador.
+    - O link de origem (`referrer`) é guardado sem parâmetros.
+
+## 4. Retenção: por quanto tempo cada dado fica
+
+A limpeza roda todo dia a partir das 03:15 (Brasília), dentro do app. O painel mostra a última execução e as contagens em Configurações › Geral › Manutenção e servidor.
+
+| Dado                                                                     | Prazo                      | O que acontece                                                                          |
+| ------------------------------------------------------------------------ | -------------------------- | --------------------------------------------------------------------------------------- |
+| Conteúdo enviado e recebido da Meta e do GA4 em cada evento              | 14 dias                    | apagado (o evento fica)                                                                 |
+| IP e navegador dos eventos e dos visitantes                              | 90 dias                    | apagados                                                                                |
+| Corpo bruto do webhook de vendas (traz email, nome e telefone)           | 90 dias                    | apagado                                                                                 |
+| Visitante sem atividade (email, hashes, ids da Meta e do Google, origem) | 13 meses                   | apagado; eventos e plays ficam ligados só a um id aleatório que não aponta para ninguém |
+| Dados pessoais nas vendas (email, hashes, ids de marketing, cidade)      | 5 anos                     | anonimizados; valor, data, status, produto e campanha ficam                             |
+| Prova de consentimento (cada escolha no banner)                          | 5 anos                     | apagada                                                                                 |
+| Hash de quem pediu exclusão                                              | 30 dias                    | apagado (ficam data e contagens)                                                        |
+| Pedidos de acesso e links não confirmados (backend)                      | 30 dias                    | apagados                                                                                |
+| Sessões de login vencidas, cache de campanhas, histórico da limpeza      | 1 dia / 30 dias / 180 dias | apagados                                                                                |
+
+**PERSONALIZAR:** os prazos ficam numa constante só, `RETENTION_DAYS` em `track/src/lib/maintenance/retention.ts`. Ao mudar um prazo, atualize a política de privacidade. Por que estes prazos:
+
+- **90 dias de IP:** cobre a atribuição de compras (a Meta aceita até 7 dias) e investigações de fraude ou erro de integração.
+- **13 meses de visitante:** cobre um ciclo anual de campanhas, como a Black Friday de um ano comparada com a do seguinte.
+- **5 anos nas vendas:** prazo usual de guarda de registros fiscais e de defesa em processos. Confirme com o seu contador.
+- **5 anos de prova de consentimento:** o controlador precisa provar o consentimento (art. 8º, §2º) pelo prazo em que pode ser cobrado.
+
+Teste: `bun run test:retention` (Postgres descartável). Ele cria dados velhos e novos de cada tipo e confere que só os velhos são limpos.

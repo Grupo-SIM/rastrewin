@@ -41,7 +41,7 @@ As regras para quem mexe no código estão no [CLAUDE.md](CLAUDE.md), seção "S
 - os 4 segredos reais ausentes do git, do JS do navegador, do HTML do painel e dos logs;
 - toda Server Action com sessão e Zod;
 - `test:rls` com 30 verificações;
-- `test:retention` com 17 verificações.
+- `test:retention` com 30 verificações (inclui os prazos LGPD).
 
 ## Auditoria de novembro (2ª, 09/11/2026) — script de verificação
 
@@ -72,7 +72,7 @@ Revisão do que entrou depois da Fase 8 (vídeos, aba Saúde e repasse do backen
 - **Venda depende do repasse do backend:** o backend guarda cada repasse na tabela `TrackRelay` e reenvia por até ~3 dias se o track estiver fora do ar. Depois disso, ou com erro definitivo (4xx que não seja 401/429), a linha fica com `lastError` e o evento não chega sozinho. A aba Configurações › Saúde mostra essas vendas (o backend manda um sinal por minuto) e o "Tentar de novo" as recoloca na fila. Os dados pessoais dessas linhas ficam no banco do backend até a entrega.
 - **Rate limits em memória:** eles valem para **uma instância**. Com várias réplicas, cada uma conta separado, e um restart zera a contagem.
 - **Eventos do site forjáveis por quem não é navegador:** o `Origin` é um controle de navegador. Isso vale para qualquer rastreamento no cliente. Mitigação: limites e validação. Vendas, que são o que importa para o ROAS, só entram pelo webhook assinado.
-- **Dados pessoais guardados:** compras (e-mail) e o corpo bruto do webhook ficam sem prazo. A retenção diária só limpa os payloads do `events_log`. Os plays de vídeo (`video_views`: visitante, progresso, UTMs e geo aproximada, sem e-mail) também ficam sem prazo. O `visitors.referrer` guarda só origem e caminho do site de onde a pessoa veio, sem query. Revisar junto com o banner de cookies/LGPD.
+- **Dados pessoais guardados:** com prazo na limpeza diária (LGPD, `RETENTION_DAYS` em `src/lib/maintenance/retention.ts`): IP/navegador 90 dias, corpo bruto do webhook 90 dias, visitante sem atividade 13 meses, dados pessoais das vendas 5 anos (anonimizados), prova de consentimento 5 anos. Os plays de vídeo (`video_views`: id do visitante, progresso, UTMs e geo aproximada, sem e-mail) ficam sem prazo: depois que o visitante é apagado, o id aleatório não liga mais a ninguém. O `visitors.referrer` guarda só origem e caminho do site de onde a pessoa veio, sem query. Detalhes e o que personalizar: [docs/lgpd.md](docs/lgpd.md).
 - **Avisos do `bun audit` (sem `--prod`):** vêm de ferramentas de desenvolvimento (esbuild antigo do `drizzle-kit`, dependências do CLI `shadcn`). Nenhuma vai para a imagem: o `.next/standalone` não as inclui, e o `bun audit --prod` sai limpo.
 
 ## Checklist de produção
