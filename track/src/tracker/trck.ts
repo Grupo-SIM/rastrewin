@@ -208,6 +208,25 @@ type TrckWindow = Window & {
 			ga_session_id: session && /^\d+$/.test(session) ? session : gaSessionFromCookie(mid),
 		};
 	};
+	// Na 1ª visita a gtag pode não ter carregado a tempo (e o cookie _ga ainda não existe).
+	// Sem client_id, a compra iria ao GA4 como usuário novo e sem origem: tenta de novo em
+	// segundo plano e, quando conseguir, atualiza o visitante (os eventos seguintes já levam).
+	async function refreshGaIds() {
+		for (const wait of [2000, 5000, 15_000]) {
+			if (ga.ga_client_id && ga.ga_session_id) return;
+			await new Promise(resolve => setTimeout(resolve, wait));
+			const next = await readGaIds();
+			const changed =
+				(next.ga_client_id && next.ga_client_id !== ga.ga_client_id) ||
+				(next.ga_session_id && next.ga_session_id !== ga.ga_session_id);
+			if (!changed) continue;
+			ga = {
+				ga_client_id: next.ga_client_id ?? ga.ga_client_id,
+				ga_session_id: next.ga_session_id ?? ga.ga_session_id,
+			};
+			identify();
+		}
+	}
 
 	// ---------------------------------------------------------------- carregamento de Pixel e gtag
 	function loadPixel(ids: string[]) {
@@ -499,6 +518,7 @@ type TrckWindow = Window & {
 		ga = await readGaIds();
 		identify();
 		track("PageView");
+		if (cfg.ga4.length) void refreshGaIds();
 		return true;
 	})();
 
