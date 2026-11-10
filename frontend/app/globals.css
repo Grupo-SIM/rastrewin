@@ -838,8 +838,17 @@ button {
 	font: 500 14px var(--f-body);
 	color: var(--mut);
 }
-.foot a {
+.foot a,
+.foot .foot-link {
 	color: var(--txt-2);
+}
+/* Botão com cara de link (ex.: "Preferências de cookies", que abre o banner do t.js). */
+.foot-link {
+	background: none;
+	border: 0;
+	padding: 0;
+	font: inherit;
+	cursor: pointer;
 }
 .foot {
 	align-items: center;

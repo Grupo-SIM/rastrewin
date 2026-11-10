@@ -695,6 +695,10 @@ export default function Landing() {
 				<span style={{ display: "flex", flexWrap: "wrap", gap: 20 }}>
 					<a href="/termos">Termos de Uso</a>
 					<a href="/privacidade">Política de Privacidade</a>
+					{/* LGPD: muda a escolha de cookies a qualquer momento (banner do t.js do track). */}
+					<button type="button" className="foot-link" onClick={() => trck("consent", "open")}>
+						Preferências de cookies
+					</button>
 					<a href="/login">Já sou cliente</a>
 				</span>
 			</footer>
