@@ -66,6 +66,13 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 	const value = Number(p.value);
 	const items = itemsOf(p);
 	const occurredAt = p.occurredAt ?? p.createdAt;
+	const visit = {
+		city: p.geoCity,
+		country: p.geoCountry,
+		ip: visitor?.ip ?? null,
+		region: p.geoRegion,
+		userAgent: visitor?.userAgent ?? null,
+	};
 
 	// ------------------------------------------------------------ Purchase → Meta (CAPI)
 	if (isSaleActive(p.status) && !p.metaSentAt && config.pixels.length && p.metaAttempts < MAX_ATTEMPTS) {
@@ -131,14 +138,14 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 	}
 
 	// ------------------------------------------------------------ purchase → GA4 (MP)
+	const mpItems: MpItem[] = items.map(i => ({
+		item_id: i.id,
+		item_name: i.name,
+		price: i.price,
+		quantity: 1,
+		...(i.type ? { item_category: i.type } : {}),
+	}));
 	if (isSaleActive(p.status) && !p.ga4SentAt && config.ga4.length && p.ga4Attempts < MAX_ATTEMPTS) {
-		const mpItems: MpItem[] = items.map(i => ({
-			item_id: i.id,
-			item_name: i.name,
-			price: i.price,
-			quantity: 1,
-			...(i.type ? { item_category: i.type } : {}),
-		}));
 		const body = buildMpBody({
 			clientId: p.gaClientId,
 			currency: p.currency,
@@ -149,6 +156,7 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 			sessionId: p.gaSessionId,
 			transactionId: p.transactionId,
 			value,
+			visit,
 		});
 		const responses = await sendMp(config.ga4, body, config.ga4Debug);
 		const allOk = Object.values(responses).every(r => r.ok);
@@ -171,11 +179,14 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 			clientId: p.gaClientId,
 			currency: p.currency,
 			debug: config.ga4Debug,
+			// Itens no refund: o GA4 recomenda para as métricas de reembolso por item.
+			items: mpItems,
 			name: "refund",
 			occurredAt: p.refundedAt,
 			sessionId: p.gaSessionId,
 			transactionId: p.transactionId,
 			value,
+			visit,
 		});
 		const responses = await sendMp(config.ga4, body, config.ga4Debug);
 		const allOk = Object.values(responses).every(r => r.ok);

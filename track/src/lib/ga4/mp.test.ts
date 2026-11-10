@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildMpBody, syntheticClientId } from "./mp";
+import { buildMpBody, deviceCategory, syntheticClientId, visitContext } from "./mp";
 
 const now = new Date("2026-11-02T18:00:00Z");
 
@@ -62,4 +62,32 @@ test("modo debug marca debug_mode", () => {
 	});
 	assert.equal(body.events[0].name, "refund");
 	assert.equal(body.events[0].params.debug_mode, 1);
+});
+
+test("visita: user_location ISO (BR-SP) e categoria do aparelho", () => {
+	const body = buildMpBody({
+		clientId: "1.2",
+		currency: "BRL",
+		name: "purchase",
+		now,
+		transactionId: "tx",
+		value: 5,
+		visit: {
+			city: "São Paulo",
+			country: "BR",
+			ip: "177.71.207.1",
+			region: "SP",
+			userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148",
+		},
+	});
+	assert.deepEqual(body.user_location, { city: "São Paulo", country_id: "BR", region_id: "BR-SP" });
+	assert.equal(body.ip_override, undefined); // user_location tem precedência
+	assert.deepEqual(body.device, { category: "mobile" });
+});
+
+test("visita sem geo usa ip_override; sem visita, nada", () => {
+	assert.deepEqual(visitContext({ ip: "2804:14c::1" }), { ip_override: "2804:14c::1" });
+	assert.deepEqual(visitContext(null), {});
+	assert.equal(deviceCategory("Mozilla/5.0 (Linux; Android 14; SM-X200) Safari/537.36"), "tablet");
+	assert.equal(deviceCategory("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130"), "desktop");
 });
