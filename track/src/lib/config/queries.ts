@@ -6,6 +6,7 @@ import {
 	ga4Accounts,
 	metaAdAccounts,
 	metaPixels,
+	privacyErasures,
 	settings,
 	webhookEvents,
 } from "@/db/schema";
@@ -115,8 +116,20 @@ export async function getConfigView(): Promise<ConfigView> {
 			.from(consentRecords)
 			.where(sql`${consentRecords.createdAt} > now() - interval '30 days'`);
 
+		const erasures = await tx
+			.select({
+				counts: privacyErasures.counts,
+				createdAt: privacyErasures.createdAt,
+				gaClientIds: privacyErasures.gaClientIds,
+				gaDoneAt: privacyErasures.gaDoneAt,
+				id: privacyErasures.id,
+			})
+			.from(privacyErasures)
+			.orderBy(desc(privacyErasures.createdAt))
+			.limit(50);
+
 		const maintenance = await getMaintenanceView(tx, requestHeaders, production);
-		return { ads, consentStats, ga4, general, lastWebhook, maintenance, pixel };
+		return { ads, consentStats, erasures, ga4, general, lastWebhook, maintenance, pixel };
 	});
 
 	const toView =
@@ -160,6 +173,13 @@ export async function getConfigView(): Promise<ConfigView> {
 		maintenance: data.maintenance,
 		privacy: {
 			defaults: DEFAULT_CONSENT_TEXTS,
+			erasures: data.erasures.map(e => ({
+				counts: (e.counts ?? {}) as Record<string, number>,
+				createdAt: e.createdAt.toISOString(),
+				gaClientIds: e.gaClientIds,
+				gaDoneAt: e.gaDoneAt?.toISOString() ?? null,
+				id: e.id,
+			})),
 			policyUrl: data.general?.privacyPolicyUrl ?? "",
 			stats: data.consentStats ?? { accepted: 0, rejected: 0, revoked: 0 },
 			texts: consentTextsSchema.partial().safeParse(data.general?.consentTexts ?? {}).data ?? {},

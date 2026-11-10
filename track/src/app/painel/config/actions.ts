@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { serviceDb } from "@/db";
-import { ga4Accounts, metaAdAccounts, metaPixels, settings } from "@/db/schema";
+import { ga4Accounts, metaAdAccounts, metaPixels, privacyErasures, settings } from "@/db/schema";
 import { testGa4, testMetaAdAccount, testMetaPixel, type TestResult } from "@/lib/config/connection-tests";
 import type { ActionResult } from "@/lib/config/types";
 import {
@@ -244,6 +244,26 @@ export async function savePrivacy(input: unknown): Promise<ActionResult> {
 	invalidateRuntimeConfig();
 	refresh();
 	return { message: "Privacidade salva. Os sites recebem em até 1 minuto.", ok: true };
+}
+
+/**
+ * Exclusão de titular: os client_ids do GA4 já foram apagados à mão no GA4. Apaga a lista (ela também
+ * é dado da pessoa) e registra quando.
+ */
+export async function markErasureGaDone(id: unknown): Promise<ActionResult> {
+	await requireSession();
+	const parsed = z.number().int().positive().safeParse(id);
+	if (!parsed.success) return { error: "Exclusão inválida.", ok: false };
+	try {
+		await serviceDb()
+			.update(privacyErasures)
+			.set({ gaClientIds: [], gaDoneAt: new Date() })
+			.where(eq(privacyErasures.id, parsed.data));
+	} catch (error) {
+		return dbError(error);
+	}
+	refresh();
+	return { message: "Marcado como concluído no GA4.", ok: true };
 }
 
 /** Gera um segredo novo para o webhook. Ele é devolvido UMA vez para ser copiado. */

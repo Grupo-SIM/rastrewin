@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ConfigView } from "@/lib/config/types";
 import { AccountsPanel } from "./accounts-panel";
+import { ErasuresCard } from "./erasures-card";
 import { GeneralForm } from "./general-form";
 import { InstallCard } from "./install-card";
 import { MaintenanceCard } from "./maintenance-card";
@@ -73,6 +74,7 @@ export function ConfigTabs({ config, health }: { config: ConfigView; health: Rea
 			</TabsContent>
 			<TabsContent value="privacidade" className="flex flex-col gap-5">
 				<PrivacyForm privacy={config.privacy} />
+				<ErasuresCard erasures={config.privacy.erasures} timeZone={config.general.timezone} />
 			</TabsContent>
 			<TabsContent value="saude">{health}</TabsContent>
 		</Tabs>

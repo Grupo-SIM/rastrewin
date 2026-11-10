@@ -64,6 +64,17 @@ export interface PrivacyView {
 	texts: Partial<ConsentTexts>;
 	defaults: ConsentTexts;
 	stats: { accepted: number; rejected: number; revoked: number };
+	/** Exclusões pedidas pelos titulares (mais novas primeiro). */
+	erasures: ErasureView[];
+}
+
+export interface ErasureView {
+	id: number;
+	createdAt: string;
+	counts: Record<string, number>;
+	/** client_ids do GA4 ainda a apagar à mão (vazio = nada a fazer). */
+	gaClientIds: string[];
+	gaDoneAt: string | null;
 }
 
 export interface ConfigView {
