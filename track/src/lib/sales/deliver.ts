@@ -37,6 +37,16 @@ function itemsOf(p: typeof purchases.$inferSelect): PurchaseItem[] {
 	];
 }
 
+/**
+ * Respostas anteriores por destino (pixel ou propriedade GA4). O reenvio vai só a quem ainda não
+ * confirmou: com vários destinos, repetir para quem já recebeu duplicaria a compra.
+ */
+function previousOk(previous: unknown): Record<string, { ok: boolean }> {
+	return previous && typeof previous === "object" && !Array.isArray(previous)
+		? (previous as Record<string, { ok: boolean }>)
+		: {};
+}
+
 // Trava por compra: o webhook (after) e o reenvio automático rodam no mesmo processo
 // e não podem enviar a mesma compra ao mesmo tempo (o GA4 não deduplica como a Meta).
 const g = globalThis as unknown as { __purchaseInFlight?: Set<number> };
@@ -118,9 +128,13 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 					userAgent,
 				},
 			});
-			const { payload, responses } = await sendToPixels(config.pixels, event, config.testEventCode);
-			const allOk = Object.values(responses).every(r => r.ok);
-			const errors = Object.entries(responses)
+			const before = previousOk(p.responseMeta);
+			const pending = config.pixels.filter(px => !before[px.pixelId]?.ok);
+			const sent = await sendToPixels(pending, event, config.testEventCode);
+			const payload = sent.payload;
+			const responses = { ...before, ...sent.responses };
+			const allOk = config.pixels.every(px => responses[px.pixelId]?.ok);
+			const errors = Object.entries(sent.responses)
 				.filter(([, r]) => !r.ok)
 				.map(([id, r]) => `pixel ${id}: HTTP ${r.status}`);
 			await db
@@ -158,8 +172,10 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 			value,
 			visit,
 		});
-		const responses = await sendMp(config.ga4, body, config.ga4Debug);
-		const allOk = Object.values(responses).every(r => r.ok);
+		const before = previousOk(p.responseGa4);
+		const pending = config.ga4.filter(a => !before[a.measurementId]?.ok);
+		const responses = { ...before, ...(await sendMp(pending, body, config.ga4Debug)) };
+		const allOk = config.ga4.every(a => responses[a.measurementId]?.ok);
 		await db
 			.update(purchases)
 			.set({
@@ -188,8 +204,10 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 			value,
 			visit,
 		});
-		const responses = await sendMp(config.ga4, body, config.ga4Debug);
-		const allOk = Object.values(responses).every(r => r.ok);
+		const before = previousOk((p.refundResponseGa4 as { responses?: unknown } | null)?.responses);
+		const pending = config.ga4.filter(a => !before[a.measurementId]?.ok);
+		const responses = { ...before, ...(await sendMp(pending, body, config.ga4Debug)) };
+		const allOk = config.ga4.every(a => responses[a.measurementId]?.ok);
 		await db
 			.update(purchases)
 			.set({ refundResponseGa4: { payload: body, responses }, refundSentAt: allOk ? new Date() : null })
