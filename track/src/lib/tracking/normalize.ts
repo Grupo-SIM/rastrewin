@@ -43,6 +43,14 @@ export function normName(raw: string | null | undefined): string | null {
 	return v || null;
 }
 
+/**
+ * Sobrenome = só o ÚLTIMO nome ("da Silva" → "silva"), igual ao que sai do nome completo do
+ * webhook (splitFullName). Assim a mesma pessoa tem um só hash de ln no site e na venda.
+ */
+export function normLastName(raw: string | null | undefined): string | null {
+	return normName(raw?.trim().split(/\s+/).at(-1));
+}
+
 /** "Maria Clara Souza" → { fn: "maria", ln: "souza" } */
 export function splitFullName(full: string | null | undefined): { fn: string | null; ln: string | null } {
 	const parts = full?.trim().split(/\s+/).filter(Boolean) ?? [];

@@ -6,6 +6,7 @@ import {
 	normCity,
 	normCountry,
 	normEmail,
+	normLastName,
 	normName,
 	normPhone,
 	normState,
@@ -58,4 +59,11 @@ test("hashed não refaz o hash de um hash", () => {
 	const h = sha256("a@b.com");
 	assert.equal(hashed(h), h);
 	assert.equal(hashed(null), null);
+});
+
+test("sobrenome: só o último nome, igual ao do nome completo do webhook", () => {
+	assert.equal(normLastName("da Silva"), "silva");
+	assert.equal(normLastName("Souza"), "souza");
+	assert.equal(normLastName("  "), null);
+	assert.equal(normLastName("da Silva"), splitFullName("Ana da Silva").ln);
 });

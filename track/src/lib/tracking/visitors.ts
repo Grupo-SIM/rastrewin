@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { serviceDb } from "@/db";
 import { visitors } from "@/db/schema";
 import type { Geo } from "@/lib/geo";
-import { hashed, normEmail, normName, normPhone } from "./normalize";
+import { hashed, normEmail, normLastName, normName, normPhone } from "./normalize";
 
 export interface VisitorInput {
 	trckUserId: string;
@@ -56,7 +56,7 @@ export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
 		geoRegion: input.geo.region,
 		ip: input.ip ?? null,
 		landingUrl: input.landingUrl ?? null,
-		lnHash: hashed(normName(input.lastName)),
+		lnHash: hashed(normLastName(input.lastName)),
 		phHash: hashed(normPhone(input.phone)),
 		pixelId: input.pixelId ?? null,
 		referrer: input.referrer ?? null,
