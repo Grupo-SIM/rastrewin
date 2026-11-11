@@ -3,7 +3,7 @@
 	"private": true,
 	"scripts": {
 		"build": "next build",
-		"check-types": "next typegen && tsc --noEmit",
+		"check-types": "next typegen && bun check",
 		"create-admin": "tsx --env-file=.env scripts/create-admin.ts",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "tsx --env-file=.env scripts/migrate.ts",

@@ -4,7 +4,7 @@
 	"private": true,
 	"scripts": {
 		"build": "nest build",
-		"check-types": "tsc --noEmit",
+		"check-types": "bun check",
 		"db:push": "prisma db push",
 		"db:seed": "tsx --env-file=.env prisma/seed.ts",
 		"db:seed-admin": "tsx --env-file=.env prisma/seed-admin.ts",

@@ -4,7 +4,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "next build",
-		"check-types": "tsc --noEmit",
+		"check-types": "bun check",
 		"dev": "next dev",
 		"test": "vitest run"
 	},
