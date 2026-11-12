@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildMpBody, syntheticClientId } from "./mp";
+import { buildMpBody, deviceCategory, syntheticClientId, visitContext } from "./mp";
 
 const now = new Date("2026-11-02T18:00:00Z");
 
@@ -24,6 +24,8 @@ test("purchase com client_id/session_id da visita e timestamp da venda", () => {
 	assert.equal(params.session_id, "1793600000");
 	assert.equal(params.currency, "BRL");
 	assert.equal(params.debug_mode, undefined);
+	// Só sai para quem aceitou marketing no banner: o consentimento vai junto.
+	assert.deepEqual(body.consent, { ad_personalization: "GRANTED", ad_user_data: "GRANTED" });
 });
 
 test("sem visitante: client_id sintético e estável; venda antiga sem timestamp", () => {
@@ -62,4 +64,56 @@ test("modo debug marca debug_mode", () => {
 	});
 	assert.equal(body.events[0].name, "refund");
 	assert.equal(body.events[0].params.debug_mode, 1);
+});
+
+test("visita: user_location ISO (BR-SP) e categoria do aparelho", () => {
+	const body = buildMpBody({
+		clientId: "1.2",
+		currency: "BRL",
+		name: "purchase",
+		now,
+		transactionId: "tx",
+		value: 5,
+		visit: {
+			city: "São Paulo",
+			country: "BR",
+			ip: "177.71.207.1",
+			region: "SP",
+			userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148",
+		},
+	});
+	assert.deepEqual(body.user_location, { city: "São Paulo", country_id: "BR", region_id: "BR-SP" });
+	assert.equal(body.ip_override, undefined); // user_location tem precedência
+	assert.deepEqual(body.device, { category: "mobile" });
+});
+
+test("visita sem geo usa ip_override; sem visita, nada", () => {
+	assert.deepEqual(visitContext({ ip: "2804:14c::1" }), { ip_override: "2804:14c::1" });
+	assert.deepEqual(visitContext(null), {});
+	assert.equal(deviceCategory("Mozilla/5.0 (Linux; Android 14; SM-X200) Safari/537.36"), "tablet");
+	assert.equal(deviceCategory("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130"), "desktop");
+});
+
+test("LGPD: o corpo do Measurement Protocol não leva dados pessoais (só ids do GA, compra e local aproximado)", () => {
+	const body = buildMpBody({
+		clientId: "123.456",
+		currency: "BRL",
+		items: [{ item_id: "plano-basico", item_name: "Plano Básico", price: 150, quantity: 1 }],
+		name: "purchase",
+		now,
+		transactionId: "tx_9",
+		value: 150,
+		visit: {
+			city: "São Paulo",
+			country: "BR",
+			ip: "177.71.207.1",
+			region: "SP",
+			userAgent: "Mozilla/5.0 (iPhone)",
+		},
+	});
+	const json = JSON.stringify(body);
+	// ("ad_user_data" é o campo de consentimento do Google, não dado da pessoa.)
+	assert.equal(/@|"user_data"|sha256_|"email|"phone/i.test(json), false, json);
+	// Com local conhecido, o IP nem vai (user_location tem precedência).
+	assert.equal(json.includes("177.71.207.1"), false);
 });

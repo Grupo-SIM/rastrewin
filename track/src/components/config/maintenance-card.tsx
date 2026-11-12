@@ -60,6 +60,13 @@ function proxyStatus(m: MaintenanceView) {
 	};
 }
 
+/** 14 → "14 dias"; 395 → "13 meses"; 1825 → "5 anos". */
+function period(days: number) {
+	if (days >= 365 && days % 365 === 0) return `${days / 365} ${days === 365 ? "ano" : "anos"}`;
+	if (days >= 300) return `${Math.round(days / 30.4)} meses`;
+	return `${days} dias`;
+}
+
 export function MaintenanceCard({
 	maintenance: m,
 	timeZone,
@@ -75,10 +82,14 @@ export function MaintenanceCard({
 			<CardHeader>
 				<CardTitle className="font-semibold">Manutenção e servidor</CardTitle>
 				<CardDescription>
-					Todo dia, a partir das 03:15 (Brasília), uma limpeza automática apaga o conteúdo enviado e
-					recebido da Meta e do GA4 nos eventos com mais de {m.retentionDays} dias. O evento
-					continua nos relatórios. Ela também remove sessões de login vencidas e o cache antigo das
-					campanhas.
+					Todo dia, a partir das 03:15 (Brasília), uma limpeza automática aplica os prazos de
+					retenção (LGPD): conteúdo enviado à Meta e ao GA4 após {period(m.retention.payloads)}; IP
+					e navegador após {period(m.retention.client)}; corpo bruto do webhook após{" "}
+					{period(m.retention.webhookRaw)}; visitante sem atividade após{" "}
+					{period(m.retention.visitor)}; dados pessoais das vendas após{" "}
+					{period(m.retention.salePii)} (valor e data ficam); prova de consentimento após{" "}
+					{period(m.retention.consent)}. Os eventos continuam nos relatórios. Ela também remove
+					sessões de login vencidas e o cache antigo das campanhas.
 				</CardDescription>
 			</CardHeader>
 			<CardContent>
@@ -93,8 +104,17 @@ export function MaintenanceCard({
 							</span>
 							{m.health !== "erro" && m.health !== "rodando" && (
 								<span className="text-muted-foreground block text-xs">
-									{nf.format(run.rowsPayloads)} eventos limpos ·{" "}
-									{nf.format(run.rowsSessions)} sessões removidas
+									{[
+										`${nf.format(run.rowsPayloads)} eventos limpos`,
+										...(run.details
+											? [
+													`${nf.format((run.details.ip_eventos ?? 0) + (run.details.ip_visitantes ?? 0))} IPs apagados`,
+													`${nf.format(run.details.visitantes_apagados ?? 0)} visitantes apagados`,
+													`${nf.format(run.details.vendas_anonimizadas ?? 0)} vendas anonimizadas`,
+												]
+											: []),
+										`${nf.format(run.rowsSessions)} sessões removidas`,
+									].join(" · ")}
 								</span>
 							)}
 						</Row>
@@ -107,7 +127,7 @@ export function MaintenanceCard({
 					)}
 					{m.health === "atrasada" && (
 						<p className="bg-amber/10 text-amber rounded-lg px-3 py-2 text-sm">
-							Nenhuma limpeza nos últimos 2 dias. Ela roda dentro do app: confira os logs (
+							Nenhuma limpeza nas últimas 36 horas. Ela roda dentro do app: confira os logs (
 							<code className="text-xs">docker compose logs app | grep retenção</code>).
 						</p>
 					)}

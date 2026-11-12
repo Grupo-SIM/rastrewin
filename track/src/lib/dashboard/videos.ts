@@ -25,7 +25,13 @@ export interface VideoDetail {
 	durationS: number;
 	plays: number;
 	people: number;
+	/** PageViews da página do vídeo, contadas desde o início da medição (ver measuredSince). */
 	pageViews: number;
+	/**
+	 * Início da medição (1º play registrado do vídeo, ISO) quando ele cai DENTRO do período.
+	 * Antes dele não havia como registrar plays, então as visualizações só contam a partir daí.
+	 */
+	measuredSince: string | null;
 	avgPct: number | null;
 	avgWatchedS: number;
 	completed: number;
@@ -37,6 +43,7 @@ export interface VideoDetail {
 }
 export interface VideosView {
 	period: Period;
+	timeZone: string;
 	videos: VideoRow[];
 	selected: VideoDetail | null;
 }
@@ -44,7 +51,7 @@ export interface VideosView {
 const toNum = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
 export function getVideos(sp: SearchParams): Promise<VideosView> {
-	return withDashboard(sp, async ({ tx, period }) => {
+	return withDashboard(sp, async ({ tx, period, tz }) => {
 		const { start: s, end: e } = period;
 		const inPeriod = sql`started_at >= ${s} and started_at < ${e}`;
 
@@ -73,7 +80,7 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
 
 		const wanted = param(sp, "video");
 		const pick = videos.find(v => v.videoId === wanted) ?? videos[0];
-		if (!pick) return { period, selected: null, videos };
+		if (!pick) return { period, selected: null, timeZone: tz, videos };
 
 		const vid = sql`video_id = ${pick.videoId} and ${inPeriod}`;
 		const [sum] = await rows<Record<string, unknown>>(
@@ -88,6 +95,16 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
 		);
 		const ctaS = toNum(sum?.cta);
 
+		// Taxa de play: plays ÷ visualizações. As visualizações de antes do 1º play registrado do vídeo
+		// (medição ainda fora do ar) não entram, senão a taxa cai em períodos que começam antes dele.
+		const [first] = await rows<{ first: unknown }>(
+			tx,
+			sql`select min(started_at) as first from video_views where video_id = ${pick.videoId}`,
+		);
+		const firstPlay = first?.first ? new Date(first.first as string | Date) : null;
+		const measuredSince = firstPlay && firstPlay > s ? firstPlay : null;
+		const viewsFrom = measuredSince ?? s;
+
 		const [extra] = await rows<Record<string, unknown>>(
 			tx,
 			sql`
@@ -96,7 +113,7 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
       select
         (select count(*) from plays where ${ctaS === null ? sql`false` : sql`max_position_s >= ${ctaS}`}) as reached_cta,
         (select count(*) from events_log
-          where event_name = 'PageView' and created_at >= ${s} and created_at < ${e}
+          where event_name = 'PageView' and created_at >= ${viewsFrom} and created_at < ${e}
             and ${pageKeySql(sql`event_source_url`)} in (select page from pages)) as page_views,
         (select count(distinct p.trck_user_id) from purchases p
           where p.status in ${ACTIVE_SALE} and not p.is_renewal
@@ -125,6 +142,7 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
 				ctaS,
 				curve: retentionCurve(bins),
 				durationS: pick.durationS,
+				measuredSince: measuredSince?.toISOString() ?? null,
 				pageViews: num(extra?.page_views),
 				people: num(sum?.people),
 				plays: num(sum?.plays),
@@ -132,6 +150,7 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
 				title: pick.title,
 				videoId: pick.videoId,
 			},
+			timeZone: tz,
 			videos,
 		};
 	});

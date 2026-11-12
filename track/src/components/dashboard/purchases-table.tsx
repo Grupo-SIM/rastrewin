@@ -9,8 +9,12 @@ import type { PurchaseDetail } from "@/lib/dashboard/details";
 import { formatMoney } from "@/lib/dashboard/format";
 import type { PurchaseRow } from "@/lib/dashboard/revenue";
 import { formatDateTime } from "@/lib/time";
+import { JourneyLink } from "./back-button";
 import { JsonBlock } from "./json-block";
 import { DeliveryStatus, PurchaseStatus } from "./status-badge";
+
+/** LGPD: a venda não está ligada a um visitante que aceitou marketing no banner. */
+const NO_CONSENT = "Não enviado: o comprador não aceitou marketing no banner (LGPD)";
 
 const MATCH_LABEL: Record<string, string> = {
 	email: "Email",
@@ -216,6 +220,22 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 									)}
 									<dt className="text-muted-foreground">Comprador</dt>
 									<dd className="break-all">{detail.email ?? "—"}</dd>
+									<dt className="text-muted-foreground">Visitante</dt>
+									<dd className="break-all">
+										{detail.trckUserId ? (
+											<>
+												<span className="num">{detail.trckUserId}</span>{" "}
+												<JourneyLink
+													href={`/painel/visitante/${encodeURIComponent(detail.trckUserId)}`}
+													className="text-primary text-xs whitespace-nowrap underline-offset-4 hover:underline"
+												>
+													Ver jornada →
+												</JourneyLink>
+											</>
+										) : (
+											"Não ligada a um visitante"
+										)}
+									</dd>
 									<dt className="text-muted-foreground">Ligada por</dt>
 									<dd>
 										{(() => {
@@ -245,13 +265,17 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 									<dd>
 										{detail.metaSentAt
 											? `Enviado em ${formatDateTime(detail.metaSentAt, timeZone)}`
-											: `Não enviado (${detail.metaAttempts} tentativa(s))`}
+											: detail.marketingConsent !== true
+												? NO_CONSENT
+												: `Não enviado (${detail.metaAttempts} tentativa(s))`}
 									</dd>
 									<dt className="text-muted-foreground">GA4</dt>
 									<dd>
 										{detail.ga4SentAt
 											? `Enviado em ${formatDateTime(detail.ga4SentAt, timeZone)}`
-											: `Não enviado (${detail.ga4Attempts} tentativa(s))`}
+											: detail.marketingConsent !== true
+												? NO_CONSENT
+												: `Não enviado (${detail.ga4Attempts} tentativa(s))`}
 										{detail.refundSentAt &&
 											` · refund em ${formatDateTime(detail.refundSentAt, timeZone)}`}
 									</dd>

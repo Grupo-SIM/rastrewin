@@ -82,11 +82,14 @@
 ## Captura (Fase 4)
 
 - **Script do site:** fonte em `src/tracker/trck.ts` → `bun run tracker:build` gera `public/t.js` (roda sozinho no `predev`/`prebuild`; o arquivo gerado não vai para o git).
-    - Lê `/api/config/public` (só IDs públicos, só para origens autorizadas), carrega Pixel + gtag das contas ativas, mantém `trck_user_id` (cookie `_trck` no domínio raiz + localStorage), gera `_fbp`/`_fbc`, guarda UTMs (última origem, 90 dias), lê `client_id`/`session_id` via `gtag('get')` (fallback: cookies `_ga` e `_ga_*` GS1/GS2).
+    - Lê `/api/config/public` (só IDs públicos, só para origens autorizadas), carrega Pixel + gtag das contas ativas, mantém `trck_user_id` (cookie `_trck` no domínio raiz + localStorage), gera `_fbp`/`_fbc`, guarda UTMs (última origem, 90 dias), lê `client_id`/`session_id` via `gtag('get')` (fallback: cookies `_ga` e `_ga_*` GS1/GS2). Se faltar algum (1ª visita: a gtag não carregou em 1,5 s e o `_ga` ainda não existe), tenta de novo em 2, 5 e 15 s e reenvia o `identify` — sem client_id a compra iria ao GA4 com id sintético, sem origem.
     - Decora links de checkout (`src`=trck_user_id + UTMs + fbc/fbp, que o SimIntPay repassa) e WhatsApp (`Ref: <id>` na mensagem). Cliques disparam InitiateCheckout/Contact (desliga com `data-no-auto`).
     - `trck('track', nome, dados)` → Pixel (`eventID`) + gtag + `/api/event` com o MESMO event_id. `Purchase` é recusado (só webhook).
+    - Na gtag, o evento sempre leva `items` quando há produto (o GA4 exige em begin_checkout/view_item/add_to_cart): com `content_ids`, um item por id; sem eles, `{ item_name: content_name }`.
+    - O Pixel só recebe `external_id` (no `fbq('init')`). Email/telefone do `identify` vão só pela CAPI: o `fbevents.js` ignora um 2º `fbq('init')` com dados quando o 1º já tinha `external_id`, e `fbq('set', 'userData')` só vale para pixels do Shopify.
     - Dados do `identify` vão junto nos eventos seguintes da página (evita corrida).
-- **Endpoints públicos** (`src/app/api/identify`, `src/app/api/event`, `src/app/api/video`, `src/app/api/config/public`): origem (CORS via `allowed_origins`) → rate limit → limite de corpo → Zod (`src/lib/tracking/schemas.ts`). IP/UA/geo sempre do servidor.
+- **Consentimento (LGPD), antes de tudo:** o `t.js` só rastreia depois do aceite de "Marketing e medição" no banner (`src/tracker/consent-banner.ts`, Shadow DOM). Detalhes na seção "Privacidade e LGPD".
+- **Endpoints públicos** (`src/app/api/identify`, `src/app/api/event`, `src/app/api/video`, `src/app/api/consent`, `src/app/api/config/public`): origem (CORS via `allowed_origins`) → rate limit → limite de corpo → Zod (`src/lib/tracking/schemas.ts`). IP/UA/geo sempre do servidor.
     - Limites: identify 30/min (burst 15), event 120/min (burst 40), por IP. Corpo: 8 KB / 16 KB.
     - `/api/event` responde 202 e envia à Meta em `after()`; dedup por `event_id` (repetido → `duplicate: true`, sem reenvio).
     - **Vídeo:** `trck('video', {...})` no `t.js` vai direto para `/api/video` (30/min, burst 10, corpo de 2 KB), que grava um resumo por play em `video_views` (`src/lib/tracking/videos.ts`). **Não é evento:** não chama Pixel/gtag, não vai à CAPI nem ao `events_log`. Cada envio só aumenta o progresso (`greatest`), e um `view_id` de outro visitante não é sobrescrito.
@@ -102,21 +105,24 @@
 - **Endpoint** `src/app/api/webhook/compra/route.ts`: rate limit → corpo ≤ 64 KB → segredo configurado (senão 503) → assinatura (`src/lib/sales/signature.ts`; inválida = 401, nada gravado) → Zod (`src/lib/sales/simintpay.ts`) → idempotência por `eventId` (`webhook_events`) → UPSERT por `transaction_id` (`src/lib/sales/process.ts`) → 200; envios em `after()`.
 - **Status com precedência** (`nextStatus`): pending/declined/expired < approved/refund_requested < refunded/chargeback. Evento atrasado não desfaz reembolso.
 - **Atualização preserva dados:** eventos seguintes (reembolso etc.) vêm sem tracking/email — só campos com valor sobrescrevem; UTMs trocam só em conjunto.
-- **Ligação venda → visitante** (`matchVisitor`): `tracking.src` (formato trck_user_id) → hash do email → hash do telefone. Resultado em `purchases.match`.
+- **Ligação venda → visitante** (`matchVisitor`): `tracking.src` (formato trck_user_id) → hash do email → hash do telefone. Resultado em `purchases.match`. O rastrewin.com abre o checkout com `src`/UTMs/fbc/fbp na URL (`withTracking` em `frontend/lib/track.ts`), então o `src` chega mesmo se o comprador usar outro email.
 - **Envio** (`src/lib/sales/deliver.ts`, função única para webhook e reenvio; trava em memória por compra):
     - Meta: `Purchase`, `event_id = purchase_<transactionId>`, valor BRUTO; `action_source` = website (com UA do visitante) ou `system_generated` (sem visitante); até 7 dias.
+        - `user_data`: o que o webhook não trouxer (em/ph/fn/ln) vem do visitante ligado; `country` padrão `br` sem geo (a Meta pede sempre); sem `_fbc`, o `fbc` é montado do `fbclid` (`fbcFromFbclid` em `src/lib/meta/capi.ts`: `fb.1.<ms>.<fbclid>`, maiúsculas preservadas).
+        - `custom_data` sem `num_items` (a Meta diz que é só para InitiateCheckout).
     - GA4 (`src/lib/ga4/mp.ts`): `purchase` com `client_id`/`session_id` da visita (sem visitante: client_id sintético estável), `timestamp_micros` até 72 h; **sem campo consent** (decisão do usuário; reavaliar com aviso de cookies/LGPD).
-    - Reembolso/chargeback → `refund` ao GA4 (só se a compra foi enviada; mesmo client_id). Meta não recebe reembolso.
+        - Na web o MP não deduz geo/aparelho do client_id (sem eles fica "(not set)"): `visitContext` (`src/lib/ga4/mp.ts`) manda `user_location` (`country_id`, `region_id` `BR-<UF>`, `city`) ou, sem geo, `ip_override`, e `device.category` pelo UA.
+    - Reembolso/chargeback → `refund` ao GA4 (só se a compra foi enviada; mesmo client_id, com `items` e a mesma localização/aparelho). Meta não recebe reembolso.
     - Modo debug do GA4 (`settings.ga4_debug`): valida no /debug/mp/collect e envia com `debug_mode`.
-- **Reenvio automático:** `src/instrumentation.ts` → `src/lib/sales/retry.ts` a cada 5 min (não roda no build nem sem `DATABASE_URL`); até 5 tentativas por destino, últimos 7 dias.
+- **Reenvio automático:** `src/instrumentation.ts` → `src/lib/sales/retry.ts` a cada 5 min (não roda no build nem sem `DATABASE_URL`); até 5 tentativas por destino, últimos 7 dias. O reenvio vai só aos pixels/propriedades que ainda não confirmaram (as respostas anteriores ficam em `response_meta`/`response_ga4` por destino): repetir para quem já recebeu duplicaria a compra no GA4.
 - **Fuso horário do painel:** `settings.timezone` (IANA, padrão Brasília), escolhido em Configurações › Geral; formatação em `src/lib/time.ts`. Deve ser o MESMO da conta de anúncios: a conta do usuário está em **America/Sao_Paulo** (manter o padrão). Só o computador dele está no fuso do Acre — o Gerenciador de Eventos e o DebugView mostram o horário local de quem olha.
 
 ## Dashboard (Fase 6)
 
-- **Consultas** em `src/lib/dashboard/` — todas dentro de `withDashboard()` (`context.ts`): UMA transação `readAsUser` (RLS), lê fuso/moeda e resolve o período da URL (`period.ts`, padrão 30d; presets hoje/ontem/7d/30d/90d/mês/personalizado). Agregações em SQL; dias agrupados com `at time zone <fuso do painel>`.
-- **Definições** (mostradas no ⓘ de cada KPI): usuários únicos = trck_user_id distintos com evento no período; compras = status approved/refund_requested por `occurred_at`; conversão = compras ÷ usuários; receita = soma do valor BRUTO; reembolsos por `refunded_at`.
+- **Consultas** em `src/lib/dashboard/` — todas dentro de `withDashboard()` (`context.ts`): UMA transação `readAsUser` (RLS), lê fuso/moeda e resolve o período da URL (`period.ts`, padrão hoje; presets no modelo do Gerenciador de Anúncios: hoje, ontem, hoje e ontem, 7/14/28/30/90 dias, esta semana, semana passada, este mês, mês passado, máximo e personalizado; os "Últimos N dias" terminam ONTEM, como na Meta). Agregações em SQL; dias agrupados com `at time zone <fuso do painel>`.
+- **Definições** (mostradas no ⓘ de cada KPI): usuários únicos = trck_user_id distintos com evento no período; compras = vendas novas (approved/refund_requested, sem renovações) por `occurred_at`; conversão = compras ÷ usuários; receita = soma do valor BRUTO de todas as vendas, renovações incluídas; reembolsos por `refunded_at`; gasto = Meta (mesmo cache de Campanhas); ROAS geral = receita das vendas novas ÷ gasto.
     - **Funil por PESSOAS**: Visitou (PageView) ⊇ Checkout (InitiateCheckout entre quem visitou) ⊇ Comprou (compradores entre os do checkout). Compras sem ligação/checkout aparecem numa nota (nunca passa de 100%).
-    - Deltas: período anterior de mesmo tamanho ("Máximo" não compara).
+    - Deltas (`previousRange` em `period.ts`): "Este mês" × os mesmos dias do mês anterior; "Mês passado" × o mês inteiro antes dele; os demais × o mesmo número de dias logo antes; "Máximo" não compara. As consultas usam o intervalo anterior `[prevStart, prevEnd)` (nos filtros de mês ele não encosta no atual). "novo" só quando antes era 0 e agora não; sem base → "sem comparação".
 - **Páginas** (`src/lib/dashboard/pages.ts`): página = domínio + caminho sem query/hash/barra final (`page-url.ts`: `pageKey` em JS e `pageKeySql` em SQL fazem o mesmo). Uma pessoa conta em TODA página que viu; checkout/compras = dos que viram, no período (compras sem renovação).
 - **Vídeos** (`src/lib/dashboard/videos.ts`, matemática pura em `video-stats.ts`): plays de `video_views` por `started_at`; curva de retenção = % dos plays que chegaram a cada ponto (`max_position_s`); "chegou ao botão" usa o `cta_s` que o site informa.
 - **Detalhes** (payload/resposta Meta e GA4, webhook bruto) só ao abrir o modal: Server Actions `src/app/painel/{eventos,faturamento}/actions.ts` → `src/lib/dashboard/details.ts` (readAsUser).
@@ -138,10 +144,11 @@
 
 ## Retenção, segurança e go-live (Fase 8)
 
-- **Limpeza diária** (procedure em `drizzle/0005_retention.sql`/`0006`) **agendada pelo APP, sem pg_cron**: `src/lib/maintenance/scheduler.ts` (ligado no `instrumentation.ts`) confere a cada 15 min e chama `runRetentionIfDue()` (`src/lib/maintenance/retention.ts`).
+- **Limpeza diária** (procedure em `drizzle/0005_retention.sql`/`0006`, hoje `0012_retention_lgpd.sql`) **agendada pelo APP, sem pg_cron**: `src/lib/maintenance/scheduler.ts` (ligado no `instrumentation.ts`) confere a cada 15 min e chama `runRetentionIfDue()` (`src/lib/maintenance/retention.ts`).
     - Roda uma vez por dia a partir das **03:15 Brasília** (06:15 UTC). Se o app estava fora do ar no horário, roda quando voltar; após falha, tenta de novo em 1 h.
     - Executa como **app_service** (único papel com EXECUTE; ele já podia alterar essas linhas) com trava `pg_try_advisory_lock(726401115)` numa conexão dedicada: nunca duas ao mesmo tempo, nem com várias instâncias. A trava é liberada no `finally`; se falhar, a conexão é descartada.
     - Zera `payload_meta/response_meta/payload_ga4/response_ga4` do `events_log` com mais de 14 dias, em lotes de 5.000 com COMMIT (a linha fica). Índice parcial `events_log_retention_idx` só cobre linhas com payload.
+    - **Prazos LGPD** — constante ÚNICA `RETENTION_DAYS` em `src/lib/maintenance/retention.ts` (o executor passa por nome para a procedure, que tem os mesmos padrões): IP/navegador de `events_log` e `visitors` 90 dias (mínimo 8: a CAPI aceita compra de até 7 dias); corpo bruto do webhook (`webhook_events.payload` → `{"redacted": true}`, `purchases.webhook_raw`) 90 dias; visitante sem atividade (`updated_at`) 395 dias → linha apagada (eventos e plays ficam com o id aleatório); dados pessoais de `purchases` 5 anos → anonimizados (valor, data, status, produto, UTMs ficam); `consent_records` 5 anos; hashes de `privacy_erasures` 30 dias. Contagens em `maintenance_runs.details` (o card de Manutenção mostra).
     - Também apaga sessões/verificações vencidas há 1 dia e `meta_insights_cache` com 30+ dias. Registra cada execução em `maintenance_runs` (painel: Configurações › Geral › "Manutenção e servidor").
     - É PROCEDURE sem SECURITY DEFINER e sem `SET search_path` (os dois impedem COMMIT): todo nome é qualificado com schema. Policies `owner_maintenance` só para o dono (caso ele não seja superusuário).
     - Teste: `bun run test:retention` (procedure + executor pela conexão real do app). Rodar à mão: `CALL app_private.run_retention();`. Logs: `docker compose logs app | grep retenção`. Histórico: tabela `maintenance_runs`.
@@ -151,9 +158,24 @@
 
 ## Regras de tracking (não quebrar)
 
-- Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.
+- Meta CAPI: SHA-256 em em/ph(só dígitos)/fn/ln/ct/st/country/external_id. `ln` = só o ÚLTIMO nome (`normLastName`: "da Silva" → "silva"), igual ao que sai do nome completo do webhook. **Não** hashear fbp, fbc, IP, user_agent. Sempre IP+UA, `action_source: "website"`, `event_id` igual ao do Pixel.
 - GA4: eventos web via **gtag no navegador** (measurement_id vindo da config). Measurement Protocol **só** para a compra do webhook, com o mesmo `client_id`/`session_id`. Nunca duplicar no MP o que a gtag já enviou.
 - Eventos vão para **todos** os destinos ativos; a resposta de cada destino fica no log.
+- **Sem aceite de marketing, nada vai à Meta nem ao GA4** (nem a compra). Ver "Privacidade e LGPD".
+
+## Privacidade e LGPD
+
+Guia para o dono do produto (o que foi feito e o que personalizar): [docs/lgpd.md](docs/lgpd.md).
+
+- **Banner** (`src/tracker/consent-banner.ts`, montado pelo `t.js`): Shadow DOM, não bloqueia a página, "Recusar" com o MESMO destaque de "Aceitar todos". Categorias: Necessários (só o cookie da escolha) e Marketing e medição (tudo o resto). Textos, versão e link da política vêm do painel (Configurações › Privacidade → `settings.consent_texts/consent_version/privacy_policy_url`), com padrão em `src/lib/privacy/consent-texts.ts`.
+- **Antes do aceite o `t.js` não faz nada:** sem `_trck`/`_fbp`/`_fbc`, sem UTMs no localStorage, sem Pixel/gtag, sem identify/event/video. `trck(...)` antes do aceite é DESCARTADO (não fica em fila). Escolha no cookie `_trck_consent` (`{ id, v, m }`, 365 dias, `CONSENT_DAYS`); versão diferente da atual = pergunta de novo.
+- **Aceite:** `start()` cria o visitante, carrega Pixel e gtag (Consent Mode `granted`), identify + PageView. **Recusa** de quem já tinha visitante (aceite anterior ou de antes do banner) vira **revogação**: `revoke` no servidor, `gtag consent denied`, `fbq consent revoke`, apaga `_trck`, `_fbp`, `_fbc`, `_ga*`, `_gid`, `_gcl_au`, `_trck_utm` e recarrega. `trck('consent', 'open')` reabre as preferências (link no rodapé dos sites); `data-no-banner` + `trck('consent', { marketing })` para banner próprio.
+- **Servidor:** `POST /api/consent` (`src/lib/privacy/consent.ts`) grava `consent_records` (id aleatório da escolha, ação, versão, origem, página SEM query; **sem IP nem navegador**) e aplica em `visitors.consent_marketing`/`consent_at`; na recusa/revogação zera fbc, fbp e ids do GA do visitante. `identify`, `event` e `video` exigem o campo `consent` (versão) no corpo: sem ele respondem `ignored` (t.js antigo em cache não grava nada).
+- **Direitos do titular (acesso e exclusão):** formulário em `rastrewin.com/privacidade/solicitacao` → backend (`backend/src/privacy/`, link de confirmação por email) → track por rota ASSINADA (mesmo segredo/assinatura das vendas; corpo com `action` e `sent_at` ≤ 5 min): `POST /api/privacy/export` e `POST /api/privacy/erase` (`src/lib/privacy/signed-request.ts`, `subject.ts`). A pessoa é achada pelo hash do email/telefone (`normalize.ts`) e pelos `trck_user_id` ligados a ela.
+    - **Erase** (uma transação): apaga `visitors`, `events_log`, `video_views`; em `consent_records` zera `trck_user_id` (a prova fica anônima); anonimiza `purchases` (ficam valor, data, status, produto, UTMs) e troca o `payload` de `webhook_events` por `{"redacted": true}`. Registra em `privacy_erasures` contagens, hashes e `ga_client_ids` (GA4 não tem API aqui: o painel lista para apagar à mão no Explorador de usuários e "Concluído no GA4" zera a lista).
+    - **Lápide de 30 dias:** venda que chega para hash em `privacy_erasures` dos últimos 30 dias é gravada sem email/nome/telefone/tracking (`isErased` no webhook). Depois disso a pessoa é nova (cadastro novo passa pelo banner de novo).
+    - Arrays em SQL bruto vão como literal (`pgTextArray`): o `sql` do Drizzle expande array JS em vários parâmetros.
+- **Compra:** `purchases.marketing_consent` = o visitante ligado à venda aceitou (`process.ts`). Sem `true`, `deliver.ts` não envia Purchase à Meta nem ao GA4 e o reenvio ignora a venda; o Faturamento mostra "Sem consentimento (não enviada)". O refund só sai para compra já enviada ao GA4. O webhook só enriquece o visitante (email/telefone) se ele aceitou. O MP leva `consent: { ad_user_data, ad_personalization: GRANTED }`.
 
 ## Banco e migrations
 
@@ -169,6 +191,8 @@ bun run db:migrate               # aplica migrations (papéis, RLS)
 bun run create-admin -- --email voce@empresa.com --name "Seu Nome"   # pede a senha sem mostrar
 bun run delete-user -- --email voce@empresa.com                      # apaga usuário (e sessões)
 bun run test:rls                 # 30 verificações de segurança do banco
+bun run security:check           # regras de segurança no código (--url <site>: de fora, só leitura); ver SECURITY.md
+                                 # rota que delega as proteções a um auxiliar: registre-o em ROUTE_GUARDS (scripts/security-check.ts)
 bun run test:retention           # limpeza diária — procedure + executor do app, de verdade
 bun run geo:download             # base de geolocalização (uma vez; ~127 MB em data/geo)
 bun run test                         # testes unitários (normalização/hash, IP, rate limit, CAPI, validação)

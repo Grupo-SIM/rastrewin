@@ -1,6 +1,8 @@
 import "server-only";
 import { sql } from "drizzle-orm";
-import { num, param, rows, type SearchParams, withDashboard } from "./context";
+import { type Origin, originOf } from "@/lib/tracking/referrer";
+import { num, ownHosts, param, rows, type SearchParams, withDashboard } from "./context";
+import { parseEventTypes } from "./event-types";
 import type { Period } from "./period";
 
 export const DELIVERY_FILTERS = [
@@ -12,7 +14,7 @@ export const DELIVERY_FILTERS = [
 ] as const;
 
 /** Status do envio à Meta de cada evento (derivado do log). */
-const META_STATUS = sql`
+export const META_STATUS = sql`
   case
     when l.payload_meta is null and l.response_meta is null and l.created_at < now() - interval '14 days' then 'expirado'
     when l.response_meta is null then 'pendente'
@@ -32,6 +34,8 @@ export interface EventRow {
 	currency: string | null;
 	utmSource: string | null;
 	utmCampaign: string | null;
+	/** UTM do evento; sem UTM, o site de onde a pessoa veio (1ª origem externa); senão, Direto. */
+	origin: Origin;
 	place: string | null;
 	metaStatus: "ok" | "erro" | "pendente" | "expirado";
 }
@@ -44,7 +48,7 @@ export interface EventsPage {
 	page: number;
 	pageSize: number;
 	eventNames: string[];
-	filters: { tipo: string; envio: string; q: string };
+	filters: { tipos: string[]; envio: string; q: string };
 }
 
 const PAGE_SIZE = 50;
@@ -52,7 +56,7 @@ const PAGE_SIZE = 50;
 export function getEvents(sp: SearchParams): Promise<EventsPage> {
 	return withDashboard(sp, async ({ tx, tz, period }) => {
 		const { start: s, end: e } = period;
-		const tipo = (param(sp, "tipo") ?? "").slice(0, 40);
+		const tipos = parseEventTypes(param(sp, "tipo"));
 		const envio = DELIVERY_FILTERS.some(f => f.key === param(sp, "envio"))
 			? param(sp, "envio")!
 			: "todos";
@@ -62,10 +66,18 @@ export function getEvents(sp: SearchParams): Promise<EventsPage> {
 		const where = sql.join(
 			[
 				sql`l.created_at >= ${s} and l.created_at < ${e}`,
-				...(tipo ? [sql`l.event_name = ${tipo}`] : []),
+				...(tipos.length
+					? [
+							sql`l.event_name in (${sql.join(
+								tipos.map(t => sql`${t}`),
+								sql`, `,
+							)})`,
+						]
+					: []),
 				...(q
 					? [
-							sql`(l.trck_user_id = ${q} or l.event_id = ${q} or l.utm_campaign ilike ${`%${q}%`} or l.utm_source ilike ${`%${q}%`})`,
+							sql`(l.trck_user_id = ${q} or l.event_id = ${q} or l.utm_campaign ilike ${`%${q}%`} or l.utm_source ilike ${`%${q}%`}
+                or exists (select 1 from visitors v where v.trck_user_id = l.trck_user_id and v.referrer ilike ${`%${q}%`}))`,
 						]
 					: []),
 			],
@@ -84,7 +96,8 @@ export function getEvents(sp: SearchParams): Promise<EventsPage> {
       select * from (
         select l.id, l.created_at, l.event_name, l.event_id, l.trck_user_id, l.value, l.currency, l.utm_source, l.utm_campaign,
                nullif(concat_ws(', ', l.geo_city, l.geo_region, l.geo_country), '') as place,
-               ${META_STATUS} as meta_status
+               ${META_STATUS} as meta_status,
+               (select v.referrer from visitors v where v.trck_user_id = l.trck_user_id) as referrer
         from events_log l where ${where}
       ) x where ${statusFilter}
       order by created_at desc, id desc
@@ -96,9 +109,11 @@ export function getEvents(sp: SearchParams): Promise<EventsPage> {
       select distinct event_name from events_log where created_at >= ${s} and created_at < ${e} order by 1`,
 		);
 
+		const own = await ownHosts(tx);
+
 		return {
 			eventNames: names.map(n => n.event_name),
-			filters: { envio, q, tipo },
+			filters: { envio, q, tipos },
 			page,
 			pageSize: PAGE_SIZE,
 			period,
@@ -109,6 +124,14 @@ export function getEvents(sp: SearchParams): Promise<EventsPage> {
 				eventName: String(x.event_name),
 				id: num(x.id),
 				metaStatus: x.meta_status as EventRow["metaStatus"],
+				origin: originOf(
+					{
+						referrer: (x.referrer as string) ?? null,
+						utmCampaign: (x.utm_campaign as string) ?? null,
+						utmSource: (x.utm_source as string) ?? null,
+					},
+					own,
+				),
 				place: (x.place as string) ?? null,
 				trckUserId: String(x.trck_user_id),
 				utmCampaign: (x.utm_campaign as string) ?? null,

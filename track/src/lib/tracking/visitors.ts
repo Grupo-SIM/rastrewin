@@ -3,10 +3,12 @@ import { sql } from "drizzle-orm";
 import { serviceDb } from "@/db";
 import { visitors } from "@/db/schema";
 import type { Geo } from "@/lib/geo";
-import { hashed, normEmail, normName, normPhone } from "./normalize";
+import { hashed, normEmail, normLastName, normName, normPhone } from "./normalize";
 
 export interface VisitorInput {
 	trckUserId: string;
+	/** true quando a requisição veio com o aceite de marketing (t.js depois do banner). */
+	consentMarketing?: boolean;
 	email?: string | null;
 	phone?: string | null;
 	firstName?: string | null;
@@ -34,7 +36,7 @@ export type VisitorRow = typeof visitors.$inferSelect;
  * UPSERT do visitante. Regras:
  * - dados novos só sobrescrevem se vierem preenchidos (coalesce);
  * - UTMs: última origem com UTM (o conjunto inteiro é trocado junto);
- * - referrer/landing_url: os da PRIMEIRA visita;
+ * - referrer: a PRIMEIRA origem externa (a rota já descarta o próprio site); landing_url: a da 1ª visita;
  * - email fica em texto (painel); telefone e nomes, só o hash.
  */
 export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
@@ -44,6 +46,8 @@ export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
 	);
 
 	const values = {
+		consentAt: input.consentMarketing ? sql`now()` : null,
+		consentMarketing: input.consentMarketing ? true : null,
 		email,
 		emHash: hashed(email),
 		fbc: input.fbc ?? null,
@@ -56,7 +60,7 @@ export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
 		geoRegion: input.geo.region,
 		ip: input.ip ?? null,
 		landingUrl: input.landingUrl ?? null,
-		lnHash: hashed(normName(input.lastName)),
+		lnHash: hashed(normLastName(input.lastName)),
 		phHash: hashed(normPhone(input.phone)),
 		pixelId: input.pixelId ?? null,
 		referrer: input.referrer ?? null,
@@ -80,6 +84,15 @@ export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
 		.values(values)
 		.onConflictDoUpdate({
 			set: {
+				// Aceite: liga (e marca a data só quando muda). Sem o campo, mantém o que estava.
+				consentAt: input.consentMarketing
+					? sql.raw(
+							"case when visitors.consent_marketing is true then visitors.consent_at else now() end",
+						)
+					: sql.raw("visitors.consent_at"),
+				consentMarketing: input.consentMarketing
+					? sql.raw("true")
+					: sql.raw("visitors.consent_marketing"),
 				email: keepOld("email"),
 				emHash: keepOld("em_hash"),
 				fbc: keepOld("fbc"),

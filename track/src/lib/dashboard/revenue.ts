@@ -31,9 +31,12 @@ export interface PurchaseRow {
 	utmSource: string | null;
 	utmCampaign: string | null;
 	matchedBy: string | null;
-	/** ok = enviado; erro = tentou e falhou; pendente = ainda não tentou (ou sem conta ativa); renovacao = não vai à Meta/GA4 */
-	metaStatus: "ok" | "erro" | "pendente" | "renovacao";
-	ga4Status: "ok" | "erro" | "pendente" | "renovacao";
+	/**
+	 * ok = enviado; erro = tentou e falhou; pendente = ainda não tentou (ou sem conta ativa);
+	 * renovacao = não vai à Meta/GA4; sem_consentimento = o comprador não aceitou marketing (LGPD), não vai.
+	 */
+	metaStatus: "ok" | "erro" | "pendente" | "renovacao" | "sem_consentimento";
+	ga4Status: "ok" | "erro" | "pendente" | "renovacao" | "sem_consentimento";
 }
 
 export interface Revenue {
@@ -48,6 +51,10 @@ export interface Revenue {
 		purchasesPrev: number;
 		refunds: number;
 		refundsValue: number;
+		/** Renovações (recompra de quem já tinha pago): já incluídas em receita e compras. */
+		renewals: number;
+		renewalsPrev: number;
+		renewalsValue: number;
 	};
 	revenueByDay: DailyPoint[];
 	byPaymentMethod: { key: string; label: string; value: number; count: number }[];
@@ -59,7 +66,8 @@ const PAGE_SIZE = 25;
 
 export function getRevenue(sp: SearchParams): Promise<Revenue> {
 	return withDashboard(sp, async ({ tx, tz, period, currency }) => {
-		const { start: s, end: e, prevStart: ps } = period;
+		// Período anterior = [ps, pe). Nos filtros de mês ele não encosta no atual (01–08/10 × 01–08/11).
+		const { start: s, end: e, prevStart: ps, prevEnd: pe } = period;
 		const d = sql`coalesce(occurred_at, created_at)`;
 
 		const [k] = await rows<Record<string, unknown>>(
@@ -69,8 +77,11 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
         count(*) filter (where ${d} >= ${s}) as purchases,
         coalesce(sum(value) filter (where ${d} >= ${s}), 0) as revenue,
         coalesce(sum(net_value) filter (where ${d} >= ${s}), 0) as net,
-        count(*) filter (where ${d} < ${s}) as purchases_prev,
-        coalesce(sum(value) filter (where ${d} < ${s}), 0) as revenue_prev
+        count(*) filter (where ${d} < ${pe}) as purchases_prev,
+        coalesce(sum(value) filter (where ${d} < ${pe}), 0) as revenue_prev,
+        count(*) filter (where ${d} >= ${s} and is_renewal) as renewals,
+        coalesce(sum(value) filter (where ${d} >= ${s} and is_renewal), 0) as renewals_value,
+        count(*) filter (where ${d} < ${pe} and is_renewal) as renewals_prev
       from purchases where status in ${ACTIVE_SALE} and ${d} >= ${ps} and ${d} < ${e}`,
 		);
 
@@ -123,8 +134,8 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 			sql`
       select p.id, p.transaction_id, coalesce(p.occurred_at, p.created_at) as date, p.product, p.value, p.currency, p.status,
              p.payment_method, p.utm_source, p.utm_campaign, p.match->>'by' as matched_by,
-             case when p.is_renewal then 'renovacao' when p.meta_sent_at is not null then 'ok' when p.meta_attempts > 0 then 'erro' else 'pendente' end as meta_status,
-             case when p.is_renewal then 'renovacao' when p.ga4_sent_at is not null then 'ok' when p.ga4_attempts > 0 then 'erro' else 'pendente' end as ga4_status
+             case when p.is_renewal then 'renovacao' when p.meta_sent_at is not null then 'ok' when p.marketing_consent is not true then 'sem_consentimento' when p.meta_attempts > 0 then 'erro' else 'pendente' end as meta_status,
+             case when p.is_renewal then 'renovacao' when p.ga4_sent_at is not null then 'ok' when p.marketing_consent is not true then 'sem_consentimento' when p.ga4_attempts > 0 then 'erro' else 'pendente' end as ga4_status
       from purchases p where ${where}
       order by coalesce(p.occurred_at, p.created_at) desc, p.id desc
       limit ${PAGE_SIZE} offset ${(page - 1) * PAGE_SIZE}`,
@@ -144,6 +155,9 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 				purchasesPrev: num(k.purchases_prev),
 				refunds: num(r.refunds),
 				refundsValue: num(r.refunds_value),
+				renewals: num(k.renewals),
+				renewalsPrev: num(k.renewals_prev),
+				renewalsValue: num(k.renewals_value),
 				revenue: num(k.revenue),
 				revenuePrev: num(k.revenue_prev),
 			},

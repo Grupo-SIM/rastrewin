@@ -4,25 +4,25 @@ import { connection } from "next/server";
 import { serviceDb } from "@/db";
 import { metaAdAccounts } from "@/db/schema";
 import { ACTIVE_SALE, num, param, rows, type SearchParams, withDashboard } from "@/lib/dashboard/context";
-import {
-	addDays,
-	daysBetween,
-	daysOf,
-	localDate,
-	maxLookback,
-	type Period,
-	withFrom,
-} from "@/lib/dashboard/period";
+import { daysBetween, daysOf, localDate, maxLookback, type Period, withFrom } from "@/lib/dashboard/period";
 import { decryptSecret } from "@/lib/secrets";
 import {
 	buildTree,
 	dailySeries,
+	effectiveSpend,
 	type InsightRow,
 	type Metrics,
 	type SalePurchase,
-	type TreeNode,
+	type SpendSummary,
 } from "./build";
-import { type AdAccount, getInsights, type InsightsResult, peekInsights } from "./cache";
+import { type AdAccount, getInsights, getStructure, type InsightsResult, peekInsights } from "./cache";
+import {
+	combineStructures,
+	mergeStructure,
+	splitArchived,
+	type StructuredNode,
+	sumMetrics,
+} from "./structure";
 
 /** Contas de anúncio ATIVAS, com token decifrado (só no servidor). */
 export async function listAdAccounts(): Promise<AdAccount[]> {
@@ -43,8 +43,17 @@ export interface CampaignsView {
 	currency: string;
 	accounts: { adAccountId: string; label: string }[];
 	selected: string | null;
-	results: Omit<InsightsResult, "rows" | "firstDay">[];
-	tree: TreeNode[];
+	results: Omit<InsightsResult, "rows" | "firstDay" | "truncated" | "accountTotals">[];
+	/**
+	 * A Meta tinha mais linhas (anúncio × dia) que o limite: a árvore está incompleta.
+	 * incomplete = além disso, os totais da conta não vieram, então o gasto mostrado é menor que o real.
+	 */
+	detail: { truncated: boolean; incomplete: boolean };
+	/** Situação e orçamento: avisos por conta (sem estrutura) e se alguma lista veio cortada. */
+	structure: { notices: { adAccountId: string; label: string; notice: string }[]; truncated: boolean };
+	tree: StructuredNode[];
+	/** Campanhas arquivadas ou excluídas com gasto no período (grupo fechado no fim) e a soma delas. */
+	archived: { nodes: StructuredNode[]; totals: Metrics } | null;
 	totals: Metrics;
 	prevTotals: Metrics | null;
 	unattributed: Metrics | null;
@@ -95,6 +104,90 @@ export function metaRange(period: Period): { since: string; days: number; max: b
 	return { days: daysBetween(since, period.to) + 1, max: true, since };
 }
 
+export interface AdSpend {
+	/** Há conta de anúncios ativa cadastrada. */
+	configured: boolean;
+	/** Gasto de todas as contas ativas; null se nenhuma conta trouxe dados (aviso/erro). */
+	spend: number | null;
+	/** Gasto do período anterior, SÓ se já estiver em cache (null = sem comparação). */
+	prevSpend: number | null;
+	notice: string | null;
+	/** A Meta cortou o detalhe e os totais da conta não vieram: o gasto está abaixo do real. */
+	incomplete: boolean;
+	/** Só no "Máximo": dia do primeiro gasto da conta na Meta (o gasto conta desde ele). */
+	firstDay: string | null;
+}
+
+/** Com o detalhe cortado, gasto/impressões/cliques vêm dos totais da conta (exatos). */
+function withSpend(totals: Metrics, s: SpendSummary): Metrics {
+	if (!s.truncated) return totals;
+	return {
+		...totals,
+		clicks: s.clicks,
+		impressions: s.impressions,
+		linkClicks: s.linkClicks,
+		spend: s.spend,
+	};
+}
+
+/**
+ * Gasto da Meta para a Visão geral. Mesmos argumentos de getInsights que a aba Campanhas usa:
+ * mesma chave de cache e mesmo limite, então uma aba aquece o cache da outra.
+ */
+export async function getAdSpend(period: Period, timeZone: string): Promise<AdSpend> {
+	const accounts = await listAdAccounts();
+	if (!accounts.length)
+		return {
+			configured: false,
+			firstDay: null,
+			incomplete: false,
+			notice: null,
+			prevSpend: null,
+			spend: null,
+		};
+	// Mesma proteção de getCampaigns contra a pré-renderização.
+	await connection();
+	const includesToday = period.to >= localDate(new Date(), timeZone);
+	const meta = metaRange(period);
+	const results = await Promise.all(
+		accounts.map(a => getInsights(a, meta.since, period.to, meta.days, includesToday, meta.max)),
+	);
+	const withData = results.filter(r => r.fetchedAt !== null);
+	const notice = results.find(r => r.notice)?.notice ?? null;
+
+	let prevSpend: number | null = null;
+	if (period.compare) {
+		const prev = await Promise.all(
+			accounts.map(a =>
+				peekInsights(
+					a,
+					period.prevFrom,
+					period.prevTo,
+					daysBetween(period.prevFrom, period.prevTo) + 1,
+				),
+			),
+		);
+		if (prev.every(r => r !== null)) prevSpend = effectiveSpend(prev.filter(r => r !== null)).spend;
+	}
+
+	const now = effectiveSpend(withData);
+	// "Máximo": o gasto vem desde o 1º gasto da conta, que pode ser bem antes do 1º dado do track.
+	const firstDay = meta.max
+		? (results
+				.map(r => r.firstDay)
+				.filter((d): d is string => !!d && d >= meta.since)
+				.sort()[0] ?? null)
+		: null;
+	return {
+		configured: true,
+		firstDay,
+		incomplete: now.incomplete,
+		notice,
+		prevSpend,
+		spend: withData.length ? now.spend : null,
+	};
+}
+
 export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 	// 1) vendas do período (RLS) — fora desta transação vem a chamada à Meta
 	const loaded = await loadSales(sp);
@@ -130,27 +223,68 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 	// 3) árvore + atribuição
 	const built = buildTree(insightRows, sales);
 	const attributedSales = selected ? sales.filter(s => built.attributions.get(s.id)?.level) : sales;
-	const { tree, totals, unattributed, attributions } = selected
-		? buildTree(insightRows, attributedSales)
-		: built;
+	const {
+		tree,
+		totals: treeTotals,
+		unattributed,
+		attributions,
+	} = selected ? buildTree(insightRows, attributedSales) : built;
+	// 3b) situação e orçamento (cache próprio por conta; não mexe em números nem na ordem).
+	const structures = await Promise.all(accounts.map(a => getStructure(a)));
+	structures.forEach((s, i) => {
+		for (const id of Object.keys(s.structure?.campaigns ?? {})) campaignAccount[id] ??= accounts[i].label;
+	});
+	const viewCurrency = results.find(r => r.currency)?.currency ?? currency;
+	const structured = mergeStructure(
+		tree,
+		combineStructures(structures.map(s => s.structure)),
+		viewCurrency,
+	);
+	// Grupo "Arquivadas ou excluídas": só conta com lista completa pode dizer que uma campanha sumiu.
+	const completeAccounts = new Set(
+		accounts
+			.filter((_, i) => structures[i].structure && !structures[i].structure?.truncated)
+			.map(a => a.adAccountId),
+	);
+	const accountOf = new Map<string, string>();
+	for (const r of results) for (const row of r.rows) accountOf.set(row.campaignId, r.adAccountId);
+	const { current, archived } = splitArchived(structured, id =>
+		completeAccounts.has(accountOf.get(id) ?? ""),
+	);
+
+	// Detalhe cortado pela Meta: os totais usam os da conta (a árvore segue com o que veio).
+	const spendNow = effectiveSpend(results);
+	const totals = withSpend(treeTotals, spendNow);
 
 	// 4) período anterior só se já estiver em cache (sem chamada extra à Meta)
-	const prevFrom = addDays(period.from, -period.days);
-	const prevTo = addDays(period.from, -1);
-	const prevRows = period.compare
-		? await Promise.all(accounts.map(a => peekInsights(a, prevFrom, prevTo, period.days)))
+	const prevDays = daysBetween(period.prevFrom, period.prevTo) + 1;
+	const prevSources = period.compare
+		? await Promise.all(accounts.map(a => peekInsights(a, period.prevFrom, period.prevTo, prevDays)))
 		: [];
+	const prevComplete = prevSources.filter(r => r !== null);
 	const prevTotals =
-		period.compare && prevRows.every(r => r !== null) && accounts.length
-			? buildTree(prevRows.flat() as InsightRow[], prevSales).totals
+		period.compare && prevComplete.length === prevSources.length && accounts.length
+			? withSpend(
+					buildTree(
+						prevComplete.flatMap(r => r.rows),
+						prevSales,
+					).totals,
+					effectiveSpend(prevComplete),
+				)
 			: null;
+
+	const daily = dailySeries(daysOf(period), insightRows, sales, attributions).map(d =>
+		spendNow.truncated ? { ...d, spend: spendNow.dailySpend.get(d.day) ?? 0 } : d,
+	);
 
 	return {
 		accounts: all.map(a => ({ adAccountId: a.adAccountId, label: a.label })),
+		archived: archived.length ? { nodes: archived, totals: sumMetrics(archived) } : null,
 		campaignAccount,
-		currency: results.find(r => r.currency)?.currency ?? currency,
-		daily: dailySeries(daysOf(period), insightRows, sales, attributions),
-		dailyAvailable: insightRows.some(r => r.date !== null),
+		currency: viewCurrency,
+		daily,
+		dailyAvailable: insightRows.some(r => r.date !== null) || spendNow.dailySpend.size > 0,
+		detail: { incomplete: spendNow.incomplete, truncated: spendNow.truncated },
 		period,
 		prevTotals,
 		results: results.map(r => ({
@@ -165,9 +299,17 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 		salesInPeriod: sales.length,
 		salesWithCampaignUtm: sales.filter(s => s.utmCampaign || s.utmContent || s.utmTerm).length,
 		selected,
+		structure: {
+			notices: structures.flatMap((s, i) =>
+				s.notice
+					? [{ adAccountId: accounts[i].adAccountId, label: accounts[i].label, notice: s.notice }]
+					: [],
+			),
+			truncated: structures.some(s => s.structure?.truncated),
+		},
 		timeZone: tz,
 		totals,
-		tree,
+		tree: current,
 		unattributed: selected ? null : unattributed,
 	};
 }

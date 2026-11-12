@@ -25,6 +25,8 @@ export async function GET(request: Request) {
       ga4: config.ga4.map((g) => g.measurementId),
       checkoutDomains: config.checkoutDomains,
       currency: config.currency,
+      // Banner de consentimento (LGPD): o t.js só ativa o marketing depois do aceite desta versão.
+      consent: config.consent,
     },
     200,
     { ...corsHeaders(origin, "GET, OPTIONS"), "Cache-Control": "public, max-age=60" },

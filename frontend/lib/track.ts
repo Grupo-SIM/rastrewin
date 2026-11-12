@@ -57,3 +57,20 @@ export function readTracking(): Record<string, string> {
 	if (fbp) out.fbp = fbp;
 	return out;
 }
+
+/**
+ * Link do checkout com a origem do visitante na query (src, UTMs, fbc, fbp): o SimIntPay aceita
+ * esses campos e devolve no webhook, então a venda se liga à visita mesmo que o comprador use
+ * outro email no checkout. Não sobrescreve o que o link já trouxer.
+ */
+export function withTracking(checkoutUrl: string): string {
+	try {
+		const url = new URL(checkoutUrl);
+		for (const [k, v] of Object.entries(readTracking())) {
+			if (!url.searchParams.has(k)) url.searchParams.set(k, v);
+		}
+		return url.toString();
+	} catch {
+		return checkoutUrl;
+	}
+}

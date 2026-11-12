@@ -3,12 +3,11 @@ import { desc } from "drizzle-orm";
 import type { ReaderTx } from "@/db";
 import { maintenanceRuns } from "@/db/schema";
 import { clientIp, ipSource } from "@/lib/http/client-ip";
-import { nextSlot } from "@/lib/maintenance/retention";
+import { nextSlot, RETENTION_DAYS } from "@/lib/maintenance/retention";
 import type { MaintenanceView } from "./types";
 
-/** Mesmo valor padrão da procedure (drizzle/0005_retention.sql). */
-export const RETENTION_DAYS = 14;
-const STALE_MS = 2 * 24 * 60 * 60 * 1000;
+/** Roda todo dia às 03:15: mais de 36 h sem rodar = perdeu uma noite (com folga para atrasos). */
+const STALE_MS = 36 * 60 * 60 * 1000;
 const RUNNING_LIMIT_MS = 60 * 60 * 1000;
 
 export function maintenanceHealth(
@@ -30,6 +29,7 @@ export async function getMaintenanceView(
 ): Promise<MaintenanceView> {
 	const [run] = await tx
 		.select({
+			details: maintenanceRuns.details,
 			error: maintenanceRuns.error,
 			finishedAt: maintenanceRuns.finishedAt,
 			rowsCache: maintenanceRuns.rowsCache,
@@ -50,6 +50,7 @@ export async function getMaintenanceView(
 		ipSource: ipSource(requestHeaders),
 		lastRun: run
 			? {
+					details: (run.details as Record<string, number> | null) ?? null,
 					error:
 						run.status === "running" && health === "erro"
 							? "Interrompida antes de terminar."
@@ -63,6 +64,6 @@ export async function getMaintenanceView(
 			: null,
 		nextRunAt: nextSlot(now).toISOString(),
 		production,
-		retentionDays: RETENTION_DAYS,
+		retention: RETENTION_DAYS,
 	};
 }

@@ -1,23 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import type { ReactNode } from "react";
 import { pageConfig } from "@/config/page-config";
 import { TRACK_URL, TRCK_STUB } from "@/config/track";
 import "./globals.css";
 
-// next/font baixa as fontes no build e as serve do próprio domínio (nenhuma requisição ao Google).
-const jakarta = Plus_Jakarta_Sans({
+// Fontes servidas pelo próprio domínio (subconjunto latin do Google Fonts, licença OFL em ./fonts).
+// Ficam no repositório para o build não depender do Google Fonts, que às vezes falha.
+const jakarta = localFont({
 	display: "swap",
-	subsets: ["latin"],
+	src: [{ path: "./fonts/plus-jakarta-sans-latin.woff2", style: "normal", weight: "700 800" }],
 	variable: "--font-jakarta",
-	weight: ["700", "800"],
 });
 
-const manrope = Manrope({
+const manrope = localFont({
 	display: "swap",
-	subsets: ["latin"],
+	src: [{ path: "./fonts/manrope-latin.woff2", style: "normal", weight: "400 600" }],
 	variable: "--font-manrope",
-	weight: ["400", "500", "600"],
 });
 
 // Base dos links absolutos (prévia ao compartilhar) em todas as páginas, inclusive a 404.

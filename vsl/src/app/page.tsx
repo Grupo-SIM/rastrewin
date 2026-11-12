@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { CookiePreferencesButton } from "@/components/vsl/cookie-preferences";
 import { VslSection } from "@/components/vsl/vsl-section";
 import { pageConfig } from "@/config/page-config";
 
@@ -53,9 +54,22 @@ export default function Home() {
 			</main>
 
 			<footer className="border-line bg-paper-2 border-t">
-				<p className="text-mut mx-auto max-w-xl px-4 py-6 text-center text-xs leading-relaxed text-pretty">
+				<p className="text-mut mx-auto max-w-xl px-4 pt-6 text-center text-xs leading-relaxed text-pretty">
 					{copy.metaDisclaimer}
 				</p>
+				{/* LGPD: a política de privacidade e a mudança da escolha de cookies ficam a um clique. */}
+				<nav
+					aria-label="Privacidade"
+					className="text-mut mx-auto flex max-w-xl flex-wrap justify-center gap-x-5 px-4 pt-2 pb-6 text-xs"
+				>
+					<a
+						href={`${pageConfig.destinationUrl}/privacidade`}
+						className="inline-flex min-h-11 items-center underline"
+					>
+						Política de privacidade
+					</a>
+					<CookiePreferencesButton className="inline-flex min-h-11 cursor-pointer items-center underline" />
+				</nav>
 			</footer>
 		</div>
 	);

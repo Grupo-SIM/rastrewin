@@ -96,6 +96,29 @@ async function main() {
 			unsecured.rows.map(r => r.relname).join(", ") || undefined,
 		);
 
+		// Grant por coluna: coluna nova só fica legível para o painel se a migration rodar secure_table de
+		// novo (incidente da 0007: o painel deu 500 porque o app_reader não lia purchases.is_renewal).
+		const columns = await owner.query<{ col: string; painel: boolean; cifrada: boolean; le: boolean }>(`
+      select c.relname || '.' || a.attname as col,
+             exists (select 1 from pg_policy p where p.polrelid = c.oid and p.polname = 'reader_select') as painel,
+             a.attname like '%\\_enc' escape '\\' as cifrada,
+             has_column_privilege('app_reader', c.oid, a.attnum, 'SELECT') as le
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+      where n.nspname = 'public' and c.relkind = 'r'`);
+		const unreadable = columns.rows.filter(r => r.painel && !r.cifrada && !r.le).map(r => r.col);
+		const overexposed = columns.rows.filter(r => r.le && (r.cifrada || !r.painel)).map(r => r.col);
+		record(
+			"app_reader lê TODAS as colunas não cifradas das tabelas do painel",
+			unreadable.length === 0,
+			unreadable.join(", ") || undefined,
+		);
+		record(
+			"app_reader não lê nenhuma coluna *_enc nem tabela de login",
+			overexposed.length === 0,
+			overexposed.join(", ") || undefined,
+		);
+
 		const roles = await owner.query<{
 			rolname: string;
 			rolsuper: boolean;

@@ -1,6 +1,16 @@
-import { ActivityIcon, BanknoteIcon, PercentIcon, PlugIcon, ShoppingBagIcon, UsersIcon } from "lucide-react";
+import {
+	ActivityIcon,
+	BanknoteIcon,
+	CoinsIcon,
+	PercentIcon,
+	PlugIcon,
+	ShoppingBagIcon,
+	TrendingUpIcon,
+	UsersIcon,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import { Suspense } from "react";
 import { ChartCard } from "@/components/charts/chart-card";
 import { Funnel } from "@/components/charts/funnel";
@@ -12,9 +22,24 @@ import { KpiCard } from "@/components/kpi-card";
 import { PageHeader } from "@/components/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { roas } from "@/lib/campaigns/build";
+import { type AdSpend, getAdSpend } from "@/lib/campaigns/query";
 import type { SearchParams } from "@/lib/dashboard/context";
-import { delta, formatDayShort, formatInt, formatMoney, formatPct, ratio } from "@/lib/dashboard/format";
+import {
+	delta,
+	formatDayLong,
+	formatDayRangeShort,
+	formatDayShort,
+	formatInt,
+	formatMoney,
+	formatPct,
+	formatRoas,
+	ratio,
+} from "@/lib/dashboard/format";
 import { getOverview } from "@/lib/dashboard/overview";
+import { type Period, previousDays } from "@/lib/dashboard/period";
+import { safeErrorMessage } from "@/lib/errors";
 
 export const metadata: Metadata = { title: "Visão geral" };
 
@@ -34,6 +59,7 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 	const { kpis, funnel, currency } = d;
 	/** Em "Máximo" não há período anterior: os cartões não mostram a variação. */
 	const cmp = <T,>(x: T) => (d.period.compare ? x : undefined);
+	const prev = previousDays(d.period);
 	const conv = ratio(kpis.purchases, kpis.users);
 	const convPrev = ratio(kpis.purchasesPrev, kpis.usersPrev);
 	const steps = [
@@ -47,8 +73,10 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 			<div className="flex flex-col gap-4">
 				<FiltersBar />
 				<p className="text-muted-foreground text-xs">
-					{d.period.label} · {formatDayShort(d.period.from)} a {formatDayShort(d.period.to)}
-					{d.period.compare && ` · comparado com os ${formatInt(d.period.days)} dia(s) anteriores`}
+					{d.period.label}
+					{/* No personalizado o nome já traz as datas */}
+					{d.period.key !== "custom" && ` · ${formatDayRangeShort(d.period)}`}
+					{prev && ` · comparado com ${formatDayRangeShort(prev)}`}
 				</p>
 				<PendingArea className="flex flex-col gap-4">
 					{!d.hasAnyData && (
@@ -63,7 +91,7 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 						</EmptyState>
 					)}
 
-					<section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+					<section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
 						<KpiCard
 							label="Usuários únicos"
 							value={formatInt(kpis.users)}
@@ -84,27 +112,45 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 							value={formatInt(kpis.purchases)}
 							icon={ShoppingBagIcon}
 							tone="amber"
-							info="Vendas aprovadas (ou em mediação) pela data da venda."
+							info="Vendas novas aprovadas (ou em mediação) pela data da venda. Renovações não contam: entram só na Receita."
 							delta={cmp({ value: delta(kpis.purchases, kpis.purchasesPrev) })}
 						/>
 						<KpiCard
 							label="Conversão"
 							value={formatPct(conv)}
 							icon={PercentIcon}
-							info="Compras ÷ usuários únicos do período."
+							info="Compras (vendas novas) ÷ usuários únicos do período."
 							delta={cmp({
-								value: conv !== null && convPrev !== null ? delta(conv, convPrev) : null,
+								value: delta(conv, convPrev),
 							})}
 						/>
+					</section>
+
+					<section aria-label="Investimento" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
 						<KpiCard
 							className="col-span-2 lg:col-span-1"
 							label="Receita"
 							value={formatMoney(kpis.revenue, currency)}
 							icon={BanknoteIcon}
 							tone="cyan"
-							info="Soma do valor bruto pago nas compras do período (o mesmo valor enviado à Meta e ao GA4)."
+							info="Soma do valor bruto pago no período: vendas novas e renovações (é todo o dinheiro que entrou)."
+							hint={
+								kpis.renewalRevenue > 0
+									? `Inclui ${formatMoney(kpis.renewalRevenue, currency)} de renovações`
+									: undefined
+							}
 							delta={cmp({ value: delta(kpis.revenue, kpis.revenuePrev) })}
 						/>
+						{/* Gasto vem da Meta: carrega à parte para nunca atrasar o resto da página. */}
+						<Suspense fallback={<SpendSkeleton />}>
+							<SpendCards
+								period={d.period}
+								timeZone={d.timeZone}
+								currency={currency}
+								revenue={kpis.revenueNew}
+								revenuePrev={kpis.revenueNewPrev}
+							/>
+						</Suspense>
 					</section>
 
 					<div className="grid gap-4 lg:grid-cols-2">
@@ -149,6 +195,20 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 						</ChartCard>
 					</div>
 
+					<ChartCard
+						title="Origens dos visitantes"
+						description="Pessoas únicas do período por origem: a UTM quando houver; sem UTM, o site de onde vieram na primeira visita (Google, Instagram...)."
+						table={{
+							columns: [
+								{ key: "origem", label: "Origem" },
+								{ align: "right", key: "pessoas", label: "Pessoas" },
+							],
+							rows: d.origins.map(o => ({ origem: o.label, pessoas: formatInt(o.value) })),
+						}}
+					>
+						<RankedBars items={d.origins} color="var(--viz-1)" />
+					</ChartCard>
+
 					<div className="grid gap-4 lg:grid-cols-2">
 						<ChartCard
 							title="Usuários únicos por dia"
@@ -190,5 +250,78 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 				</PendingArea>
 			</div>
 		</FiltersProvider>
+	);
+}
+
+function SpendSkeleton() {
+	return (
+		<>
+			<Skeleton className="h-full min-h-28 rounded-xl" aria-label="Carregando gasto" />
+			<Skeleton className="h-full min-h-28 rounded-xl" aria-label="Carregando ROAS" />
+		</>
+	);
+}
+
+async function SpendCards({
+	period,
+	timeZone,
+	currency,
+	revenue,
+	revenuePrev,
+}: {
+	period: Period;
+	timeZone: string;
+	currency: string;
+	revenue: number;
+	revenuePrev: number;
+}) {
+	let ads: AdSpend;
+	try {
+		ads = await getAdSpend(period, timeZone);
+	} catch (err) {
+		unstable_rethrow(err);
+		console.error("[visão geral] gasto da Meta:", safeErrorMessage(err));
+		ads = {
+			configured: true,
+			firstDay: null,
+			incomplete: false,
+			notice: "Não foi possível consultar a Meta agora.",
+			prevSpend: null,
+			spend: null,
+		};
+	}
+	const { spend, prevSpend } = ads;
+	const hint = !ads.configured
+		? "Cadastre a conta de anúncios em Configurações."
+		: spend === null
+			? (ads.notice ?? "Sem dados da Meta ainda.")
+			: ads.incomplete
+				? "Incompleto: a Meta cortou o detalhe. Veja a aba Campanhas."
+				: period.key === "max" && ads.firstDay
+					? `Desde ${formatDayLong(ads.firstDay)} (primeiro gasto na Meta)`
+					: undefined;
+	const r = spend === null ? null : roas({ revenue, spend });
+	const rPrev = prevSpend === null ? null : roas({ revenue: revenuePrev, spend: prevSpend });
+	const compare = period.compare && spend !== null && prevSpend !== null;
+
+	return (
+		<>
+			<KpiCard
+				label="Gasto"
+				value={spend === null ? "—" : formatMoney(spend, currency)}
+				icon={CoinsIcon}
+				tone="amber"
+				info="Investimento nos anúncios segundo a Meta (todas as contas ativas). Atualiza a cada 1 h quando o período inclui hoje."
+				hint={hint}
+				delta={compare ? { goodWhenUp: false, value: delta(spend, prevSpend) } : undefined}
+			/>
+			<KpiCard
+				label="ROAS"
+				value={formatRoas(r)}
+				icon={TrendingUpIcon}
+				info="Receita das vendas novas ÷ gasto (renovações não entram). Inclui vendas novas que não vieram de anúncio; o ROAS só das campanhas fica na aba Campanhas."
+				delta={compare && r !== null && rPrev !== null ? { value: delta(r, rPrev) } : undefined}
+			/>
+		</>
 	);
 }

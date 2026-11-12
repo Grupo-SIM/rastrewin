@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { EventsTable } from "@/components/dashboard/events-table";
 import {
+	EventTypesFilter,
 	FiltersBar,
 	FiltersProvider,
 	Pagination,
@@ -39,12 +40,7 @@ async function EventsContent({ searchParams }: { searchParams: Promise<SearchPar
 		<FiltersProvider>
 			<div className="flex flex-col gap-4">
 				<FiltersBar>
-					<SelectFilter
-						name="tipo"
-						label="Tipo de evento"
-						allLabel="Todos os eventos"
-						options={d.eventNames.map(n => ({ label: n, value: n }))}
-					/>
+					<EventTypesFilter options={d.eventNames} />
 					<SelectFilter
 						name="envio"
 						label="Envio à Meta"
@@ -54,7 +50,7 @@ async function EventsContent({ searchParams }: { searchParams: Promise<SearchPar
 							value: f.key,
 						}))}
 					/>
-					<SearchFilter placeholder="Visitante, event_id ou campanha" />
+					<SearchFilter placeholder="Visitante, campanha ou origem" />
 				</FiltersBar>
 				<PendingArea>
 					<GlassCard>

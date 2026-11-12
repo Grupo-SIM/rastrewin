@@ -3,9 +3,15 @@ import { eq } from "drizzle-orm";
 import { after } from "next/server";
 import { serviceDb } from "@/db";
 import { metaInsightsCache } from "@/db/schema";
+import { safeErrorMessage } from "@/lib/errors";
 import { describeGraphError } from "@/lib/meta/graph";
-import { fetchAdInsights, fetchFirstSpendDay } from "@/lib/meta/insights";
-import type { InsightRow } from "./build";
+import {
+	fetchAccountTotals,
+	fetchAdInsights,
+	fetchAdStructure,
+	fetchFirstSpendDay,
+} from "@/lib/meta/insights";
+import type { AccountTotals, InsightRow, SpendSource } from "./build";
 import {
 	canCall,
 	type Decision,
@@ -17,6 +23,7 @@ import {
 	USAGE_PAUSE_PCT,
 	usagePct,
 } from "./limiter";
+import type { AdStructure } from "./structure";
 
 /*
  * Cache dos insights (tabela meta_insights_cache) + limite próprio por conta.
@@ -25,6 +32,11 @@ import {
  * - Nunca mais de uma busca simultânea para a mesma chave.
  * - "Máximo" (withFirstDay): a mesma tarefa também acha o dia do gasto mais antigo da conta
  *   (2 chamadas pequenas a mais, contadas no limite) e guarda junto, em firstDay.
+ * - Detalhe cortado (mais linhas que o limite de páginas): a mesma tarefa busca os totais da CONTA
+ *   (1 chamada pequena, contada no limite) e guarda em accountTotals; os totais da tela usam eles.
+ * - Estrutura (situação e orçamento): uma cópia por conta, chave "<conta>:estrutura", válida por 1 h.
+ *   A tarefa dos insights também a atualiza quando venceu (ou sempre, no "Atualizar agora"); se os
+ *   insights ainda estão em cache, getStructure busca sozinha, dentro do mesmo limite.
  */
 
 export interface AdAccount {
@@ -43,6 +55,10 @@ export interface InsightsResult {
 	notice: string | null;
 	/** Só no "Máximo": dia do gasto mais antigo da conta (null = sem gasto ou não consultado). */
 	firstDay: string | null;
+	/** A Meta tinha mais linhas que o limite: rows está incompleto. */
+	truncated: boolean;
+	/** Totais da conta, buscados só quando truncated (null se não buscados ou se a chamada falhou). */
+	accountTotals: AccountTotals | null;
 }
 
 const FRESH_TODAY_MS = 60 * 60_000;
@@ -51,6 +67,8 @@ interface Cached {
 	rows: InsightRow[];
 	currency: string | null;
 	firstDay?: string | null;
+	truncated?: boolean;
+	accountTotals?: AccountTotals | null;
 }
 
 const g = globalThis as unknown as {
@@ -59,6 +77,9 @@ const g = globalThis as unknown as {
 };
 const limiter = (g.__insightsLimiter ??= new Map());
 const inflight = (g.__insightsInflight ??= new Map());
+
+const STRUCTURE_FRESH_MS = 60 * 60_000;
+const structureKey = (acct: string) => `${acct}:estrutura`;
 
 const keyOf = (acct: string, since: string, until: string, daily: boolean) =>
 	`${acct}:${since}:${until}:${daily ? "d" : "t"}`;
@@ -141,7 +162,24 @@ async function refresh(
 			if (first.ok) firstDay = first.day;
 		}
 
-		const data: Cached = { currency: res.currency, firstDay, rows: res.rows };
+		let accountTotals: AccountTotals | null = null;
+		if (res.truncated) {
+			// Falha aqui não derruba a consulta: a tela avisa que o detalhe está incompleto.
+			const totals = await fetchAccountTotals(acct.adAccountId, acct.token, since, until, daily);
+			limiter.set(acct.adAccountId, recordCall(limiter.get(acct.adAccountId)!, Date.now()));
+			if (totals.ok) accountTotals = totals.totals;
+		}
+
+		// Situação/orçamento: na mesma tarefa, se venceu (falha não derruba os insights).
+		await updateStructure(acct, manual);
+
+		const data: Cached = {
+			accountTotals,
+			currency: res.currency,
+			firstDay,
+			rows: res.rows,
+			truncated: res.truncated,
+		};
 		await serviceDb()
 			.insert(metaInsightsCache)
 			.values({
@@ -165,6 +203,88 @@ async function refresh(
 	return job;
 }
 
+/** Busca a estrutura na Meta e grava (as chamadas contam no limite). Retorna se deu certo. */
+async function fetchAndStoreStructure(acct: AdAccount): Promise<boolean> {
+	const res = await fetchAdStructure(acct.adAccountId, acct.token);
+	if (!res.ok && res.status === 0) return false;
+	for (let i = 0; i < res.calls; i++)
+		limiter.set(acct.adAccountId, recordCall(limiter.get(acct.adAccountId) ?? emptyState(), Date.now()));
+	if (!res.ok) {
+		if (res.error.code !== undefined && THROTTLE_CODES.has(res.error.code))
+			limiter.set(acct.adAccountId, pause(limiter.get(acct.adAccountId)!, Date.now()));
+		console.error(`[campanhas] estrutura da conta ${acct.adAccountId}:`, describeGraphError(res.error));
+		return false;
+	}
+	const pct = usagePct(res.usage);
+	if (pct >= USAGE_PAUSE_PCT)
+		limiter.set(acct.adAccountId, pause(limiter.get(acct.adAccountId)!, Date.now()));
+	const values = {
+		adAccountId: acct.adAccountId,
+		cacheKey: structureKey(acct.adAccountId),
+		data: res.structure,
+		fetchedAt: new Date(),
+		level: "estrutura",
+		usage: { ...res.usage, pct },
+	};
+	await serviceDb()
+		.insert(metaInsightsCache)
+		.values(values)
+		.onConflictDoUpdate({
+			set: { data: values.data, fetchedAt: values.fetchedAt, usage: values.usage },
+			target: metaInsightsCache.cacheKey,
+		});
+	return true;
+}
+
+/** Dentro da tarefa dos insights (que já passou pelo limite): atualiza a estrutura se venceu. */
+async function updateStructure(acct: AdAccount, force: boolean): Promise<void> {
+	try {
+		const cached = await readCache(structureKey(acct.adAccountId));
+		if (!force && cached && Date.now() - cached.fetchedAt.getTime() < STRUCTURE_FRESH_MS) return;
+		await fetchAndStoreStructure(acct);
+	} catch (error) {
+		console.error("[campanhas] estrutura:", safeErrorMessage(error));
+	}
+}
+
+/** Busca SÓ a estrutura, passando pelo limite (insights em cache, estrutura vencida ou ausente). */
+function refreshStructure(acct: AdAccount): Promise<string | null> {
+	const key = structureKey(acct.adAccountId);
+	const running = inflight.get(key);
+	if (running) return running;
+	const job = (async () => {
+		const now = Date.now();
+		const state = limiter.get(acct.adAccountId) ?? emptyState();
+		const decision = canCall(state, now);
+		if (!decision.ok) return explain(decision);
+		return (await fetchAndStoreStructure(acct)) ? null : "A Meta não respondeu.";
+	})().finally(() => inflight.delete(key));
+	inflight.set(key, job);
+	return job;
+}
+
+export interface StructureResult {
+	structure: AdStructure | null;
+	/** Por que não há situação para mostrar (null = há, ou ainda nada a explicar). */
+	notice: string | null;
+}
+
+/** Situação e orçamento da conta: cache primeiro; vencido atualiza depois da resposta. */
+export async function getStructure(acct: AdAccount): Promise<StructureResult> {
+	const key = structureKey(acct.adAccountId);
+	const cached = await readCache(key);
+	if (cached) {
+		if (Date.now() - cached.fetchedAt.getTime() >= STRUCTURE_FRESH_MS)
+			after(() => refreshStructure(acct).catch(() => {}));
+		return { notice: null, structure: cached.data as AdStructure };
+	}
+	const notice = await refreshStructure(acct).catch(() => "A Meta não respondeu.");
+	const fresh = await readCache(key);
+	return fresh
+		? { notice: null, structure: fresh.data as AdStructure }
+		: { notice: notice ?? "A Meta não respondeu.", structure: null };
+}
+
 function toResult(
 	acct: AdAccount,
 	cached: Awaited<ReturnType<typeof readCache>>,
@@ -174,6 +294,7 @@ function toResult(
 	const data = (cached?.data as Cached | undefined) ?? { currency: null, rows: [] };
 	const pct = (cached?.usage as { pct?: number } | null)?.pct;
 	return {
+		accountTotals: data.accountTotals ?? null,
 		adAccountId: acct.adAccountId,
 		currency: data.currency,
 		fetchedAt: cached?.fetchedAt.toISOString() ?? null,
@@ -182,6 +303,7 @@ function toResult(
 		notice,
 		rows: data.rows,
 		stale,
+		truncated: data.truncated === true,
 		usagePct: typeof pct === "number" ? pct : null,
 	};
 }
@@ -214,9 +336,11 @@ export async function peekInsights(
 	since: string,
 	until: string,
 	days: number,
-): Promise<InsightRow[] | null> {
+): Promise<SpendSource | null> {
 	const cached = await readCache(keyOf(acct.adAccountId, since, until, isDaily(days)));
-	return cached ? (cached.data as Cached).rows : null;
+	if (!cached) return null;
+	const data = cached.data as Cached;
+	return { accountTotals: data.accountTotals ?? null, rows: data.rows, truncated: data.truncated === true };
 }
 
 /** Botão "Atualizar agora": respeita o cooldown de 15 min por conta. */

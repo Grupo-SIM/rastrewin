@@ -39,10 +39,19 @@ export const settings = pgTable(
 			.array()
 			.notNull()
 			.default(sql`'{}'::text[]`),
+		/**
+		 * Textos do banner de consentimento (LGPD). Nulo = textos padrão do código
+		 * (src/lib/privacy/consent-texts.ts). Campos ausentes também caem no padrão.
+		 */
+		consentTexts: jsonb("consent_texts"),
+		/** Versão do texto do consentimento. Mudar pede o consentimento de novo a todos os visitantes. */
+		consentVersion: text("consent_version").notNull().default("1"),
 		currency: text("currency").notNull().default("BRL"),
 		/** Modo debug do GA4: valida no /debug/mp/collect e envia com debug_mode (aparece no DebugView). */
 		ga4Debug: boolean("ga4_debug").notNull().default(false),
 		id: smallint("id").primaryKey().default(1),
+		/** Link da política de privacidade mostrado no banner. */
+		privacyPolicyUrl: text("privacy_policy_url"),
 		testEventCode: text("test_event_code"),
 		/** Fuso horário do painel (IANA). Use o MESMO da conta de anúncios para os relatórios por dia baterem. */
 		timezone: text("timezone").notNull().default("America/Sao_Paulo"),
@@ -108,6 +117,13 @@ export const metaAdAccounts = pgTable(
 export const visitors = pgTable(
 	"visitors",
 	{
+		/** Quando a escolha de marketing abaixo foi registrada. */
+		consentAt: timestamp("consent_at", { withTimezone: true }),
+		/**
+		 * Consentimento de marketing e medição (banner do t.js). Nulo = visitante de antes do banner.
+		 * Só com true os eventos e a compra vão à Meta e ao GA4.
+		 */
+		consentMarketing: boolean("consent_marketing"),
 		email: text("email"),
 		/** SHA-256 (normalizado) — formato exigido pela Meta CAPI. */
 		emHash: text("em_hash"),
@@ -132,6 +148,8 @@ export const visitors = pgTable(
 		index("visitors_em_hash_idx").on(t.emHash),
 		index("visitors_ph_hash_idx").on(t.phHash),
 		index("visitors_created_at_idx").on(t.createdAt),
+		// Retenção (LGPD): visitante sem atividade há 13 meses é apagado.
+		index("visitors_updated_at_idx").on(t.updatedAt),
 	],
 );
 
@@ -161,6 +179,12 @@ export const eventsLog = pgTable(
 		index("events_log_event_name_idx").on(t.eventName),
 		index("events_log_created_at_idx").on(t.createdAt),
 		index("events_log_event_name_created_at_idx").on(t.eventName, t.createdAt),
+		// Jornada do visitante: todos os eventos de uma pessoa, em ordem.
+		index("events_log_trck_user_id_created_at_idx").on(t.trckUserId, t.createdAt),
+		// Retenção (LGPD): só linhas que ainda têm IP ou navegador.
+		index("events_log_client_retention_idx")
+			.on(t.createdAt)
+			.where(sql`${t.ip} is not null or ${t.userAgent} is not null`),
 		// Retenção: só linhas que ainda têm payload (o job diário não relê o que já limpou).
 		index("events_log_retention_idx")
 			.on(t.createdAt)
@@ -225,6 +249,8 @@ export const purchases = pgTable(
 		id: bigserial("id", { mode: "number" }).primaryKey(),
 		items: jsonb("items"),
 		lnHash: text("ln_hash"),
+		/** Visitante ligado à venda tinha aceitado marketing (foto no momento da venda). Sem true, não vai à Meta/GA4. */
+		marketingConsent: boolean("marketing_consent"),
 		netValue: numeric("net_value", { precision: 14, scale: 2 }),
 		paymentMethod: text("payment_method"),
 		phHash: text("ph_hash"),
@@ -275,6 +301,69 @@ export const purchases = pgTable(
 	],
 );
 
+// ---------------------------------------------------------------- privacidade (LGPD)
+
+/**
+ * Registro de cada escolha feita no banner (prova do consentimento, LGPD art. 8º).
+ * Sem IP nem navegador: só o id aleatório da escolha, o visitante (se aceitou), a versão do texto e onde.
+ */
+export const consentRecords = pgTable(
+	"consent_records",
+	{
+		/** accept_all | reject_all | custom | revoke */
+		action: text("action").notNull(),
+		/** Id aleatório gerado pelo t.js e guardado no cookie _trck_consent. */
+		consentId: text("consent_id").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		id: bigserial("id", { mode: "number" }).primaryKey(),
+		marketing: boolean("marketing").notNull(),
+		/** Site (origem) onde a escolha foi feita. */
+		origin: text("origin"),
+		/** Página, sem query nem #. */
+		pagePath: text("page_path"),
+		/** Só quando a pessoa aceitou (na recusa não existe visitante). */
+		trckUserId: text("trck_user_id"),
+		version: text("version").notNull(),
+	},
+	t => [
+		index("consent_records_consent_id_idx").on(t.consentId),
+		index("consent_records_trck_user_id_idx").on(t.trckUserId),
+		index("consent_records_created_at_idx").on(t.createdAt),
+		check(
+			"consent_records_action_check",
+			sql`${t.action} in ('accept_all', 'reject_all', 'custom', 'revoke')`,
+		),
+	],
+);
+
+/**
+ * Exclusões pedidas pelo titular (LGPD art. 18, VI), via backend do rastrewin (rota assinada).
+ * Guarda só os HASHES do email/telefone, por 30 dias, para honrar a exclusão: venda da mesma pessoa
+ * que ainda estava a caminho chega anonimizada. Depois a retenção apaga os hashes (ficam data e contagens). ga_client_ids: o que ainda precisa ser apagado à mão no GA4 (sem API aqui);
+ * zerado quando alguém marca "Concluído no GA4" no painel.
+ */
+export const privacyErasures = pgTable(
+	"privacy_erasures",
+	{
+		/** Quantas linhas foram apagadas/anonimizadas em cada tabela. */
+		counts: jsonb("counts").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		emHash: text("em_hash"),
+		gaClientIds: text("ga_client_ids")
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		/** Quando os client_ids foram apagados no GA4 (manual). */
+		gaDoneAt: timestamp("ga_done_at", { withTimezone: true }),
+		id: bigserial("id", { mode: "number" }).primaryKey(),
+		phHash: text("ph_hash"),
+	},
+	t => [
+		index("privacy_erasures_em_hash_idx").on(t.emHash),
+		index("privacy_erasures_ph_hash_idx").on(t.phHash),
+	],
+);
+
 /** Todo evento recebido no webhook (idempotência + auditoria). */
 export const webhookEvents = pgTable(
 	"webhook_events",
@@ -322,6 +411,8 @@ export const metaInsightsCache = pgTable(
 export const maintenanceRuns = pgTable(
 	"maintenance_runs",
 	{
+		/** Contagens das etapas de retenção LGPD (IPs zerados, visitantes apagados, vendas anonimizadas...). */
+		details: jsonb("details"),
 		error: text("error"),
 		finishedAt: timestamp("finished_at", { withTimezone: true }),
 		id: bigserial("id", { mode: "number" }).primaryKey(),

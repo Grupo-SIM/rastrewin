@@ -4,3 +4,8 @@ dist
 generated
 node_modules
 out
+
+# Segredos: o Next copia .env/.env.production para o .next/standalone, que vai para a imagem.
+**/.env
+**/.env.*
+!**/.env.example

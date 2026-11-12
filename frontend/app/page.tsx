@@ -5,7 +5,7 @@ import { SiteIcon } from "@/components/SiteIcon";
 import { api, fmtRemaining, type User } from "@/lib/api";
 import { isValidCpf, maskCpf, maskPhone } from "@/lib/mask";
 import { SITES as ALL_SITES } from "@/lib/sites";
-import { readTracking, trck } from "@/lib/track";
+import { readTracking, trck, withTracking } from "@/lib/track";
 
 const PLANS = [
 	{ desc: "até 500 sorteios/dia", id: "basico", name: "Básico", price: "R$ 150/ano", value: 150 },
@@ -124,8 +124,8 @@ export default function Landing() {
 		// abre a aba já no clique (gesto do usuário), senão o navegador bloqueia o popup
 		// depois que a resposta da API chegar.
 		const checkoutTab = window.open("", "_blank");
-		// Rastreamento: identifica o lead já no envio (o t.js manda ao track). O InitiateCheckout
-		// só sai depois que o cadastro for aceito, para tentativa que falhou não contar como checkout.
+		// Rastreamento: identifica o lead já no envio (o t.js manda ao track). Lead e InitiateCheckout
+		// só saem depois que o cadastro for aceito, para tentativa que falhou não contar.
 		const plan = PLANS.find(p => p.id === f.plan);
 		const [firstName, ...rest] = f.name.trim().split(/\s+/);
 		trck("identify", {
@@ -139,14 +139,19 @@ export default function Landing() {
 				body: JSON.stringify({ ...f, tracking: readTracking() }),
 				method: "POST",
 			});
-			trck("track", "InitiateCheckout", {
+			// Cadastro aceito = lead; em seguida vai ao checkout.
+			const planData = {
+				content_ids: plan ? [plan.id] : undefined,
 				content_name: plan?.name,
 				currency: "BRL",
 				value: plan?.value,
-			});
+			};
+			trck("track", "Lead", planData);
+			trck("track", "InitiateCheckout", planData);
 			localStorage.setItem("userId", user.id);
-			if (checkoutTab) checkoutTab.location.href = user.checkoutUrl;
-			else window.location.href = user.checkoutUrl;
+			const checkoutUrl = withTracking(user.checkoutUrl);
+			if (checkoutTab) checkoutTab.location.href = checkoutUrl;
+			else window.location.href = checkoutUrl;
 		} catch (e) {
 			checkoutTab?.close();
 			setErr(`Não foi possível concluir. A API está rodando? ${(e as Error).message}`);
@@ -690,6 +695,10 @@ export default function Landing() {
 				<span style={{ display: "flex", flexWrap: "wrap", gap: 20 }}>
 					<a href="/termos">Termos de Uso</a>
 					<a href="/privacidade">Política de Privacidade</a>
+					{/* LGPD: muda a escolha de cookies a qualquer momento (banner do t.js do track). */}
+					<button type="button" className="foot-link" onClick={() => trck("consent", "open")}>
+						Preferências de cookies
+					</button>
 					<a href="/login">Já sou cliente</a>
 				</span>
 			</footer>

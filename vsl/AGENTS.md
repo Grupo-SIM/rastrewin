@@ -2,10 +2,12 @@
 
 Página de VSL (título, subtítulo, vídeo vertical do Vimeo, botão com delay e rodapé) que antecede
 https://rastrewin.com. Fica em **vsl.rastrewin.com**. Conteúdo **estático**: sem backend e sem banco. A única coleta é
-o script do track (`t.js`, ver `src/config/track.ts`), que registra o visitante, a origem do anúncio e o PageView, e o
+o script do track (`t.js`, ver `src/config/track.ts`), que mostra o banner de consentimento (LGPD) e, **só depois do aceite**, registra o visitante, a origem do anúncio e o PageView, e o
 progresso do vídeo que o player manda ao track pelo comando `trck('video')` (`src/lib/video-tracking.ts`: no play, a cada
 15 s tocando, na pausa, no fim e ao sair da página). Esse progresso vai só para a aba Vídeos do painel, nunca à Meta ou ao
 GA4. A medição nunca pode afetar o player nem o botão: o envio fica em `try/catch`, e a regra de liberar o botão é separada.
+Sem aceite, o `t.js` descarta o `trck('video')`. O rodapé tem o link da política (rastrewin.com/privacidade) e o botão
+"Preferências de cookies" (`src/components/vsl/cookie-preferences.tsx`, chama `trck('consent', 'open')`).
 
 ## Stack
 

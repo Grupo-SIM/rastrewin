@@ -5,6 +5,7 @@ import {
 	buildTree,
 	cpa,
 	dailySeries,
+	effectiveSpend,
 	indexInsights,
 	type InsightRow,
 	metaPurchase,
@@ -138,4 +139,64 @@ test("série diária e compras reportadas pela Meta", () => {
 		3,
 	);
 	assert.equal(metaPurchase(undefined), 0);
+});
+
+test("effectiveSpend: sem corte soma as linhas por anúncio", () => {
+	const s = effectiveSpend([
+		{ rows: [row({ date: "2026-05-10", spend: 100 }), row({ date: "2026-05-11", spend: 50.255 })] },
+	]);
+	assert.equal(s.spend, 150.26);
+	assert.equal(s.impressions, 2000);
+	assert.deepEqual(
+		[...s.dailySpend],
+		[
+			["2026-05-10", 100],
+			["2026-05-11", 50.26],
+		],
+	);
+	assert.deepEqual([s.truncated, s.incomplete], [false, false]);
+});
+
+test("effectiveSpend: detalhe cortado usa os totais da conta (sem misturar com as linhas)", () => {
+	const totals = {
+		clicks: 900,
+		daily: [
+			{ date: "2026-05-10", spend: 700 },
+			{ date: "2026-05-11", spend: 300 },
+		],
+		impressions: 50_000,
+		linkClicks: 800,
+		spend: 1000,
+	};
+	const s = effectiveSpend([
+		{ accountTotals: totals, rows: [row({ spend: 100 })], truncated: true },
+		{ rows: [row({ date: "2026-05-11", spend: 25 })] }, // outra conta, completa
+	]);
+	assert.equal(s.spend, 1025);
+	assert.equal(s.clicks, 950);
+	assert.deepEqual(
+		[...s.dailySpend],
+		[
+			["2026-05-10", 700],
+			["2026-05-11", 325],
+		],
+	);
+	assert.deepEqual([s.truncated, s.incomplete], [true, false]);
+});
+
+test("effectiveSpend: cortado e sem totais da conta fica marcado como incompleto", () => {
+	const s = effectiveSpend([{ accountTotals: null, rows: [row({ spend: 100 })], truncated: true }]);
+	assert.equal(s.spend, 100);
+	assert.deepEqual([s.truncated, s.incomplete], [true, true]);
+});
+
+test("effectiveSpend: totais da conta são ignorados quando não houve corte", () => {
+	const s = effectiveSpend([
+		{
+			accountTotals: { clicks: 0, daily: [], impressions: 0, linkClicks: 0, spend: 999 },
+			rows: [row({ spend: 100 })],
+			truncated: false,
+		},
+	]);
+	assert.equal(s.spend, 100);
 });

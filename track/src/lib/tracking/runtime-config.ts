@@ -2,6 +2,7 @@ import "server-only";
 import { eq, sql } from "drizzle-orm";
 import { serviceDb } from "@/db";
 import { ga4Accounts, metaPixels, settings } from "@/db/schema";
+import { type ConsentTexts, resolveConsentTexts } from "@/lib/privacy/consent-texts";
 import { decryptSecret } from "@/lib/secrets";
 
 /*
@@ -21,6 +22,8 @@ export interface RuntimeConfig {
 	ga4Debug: boolean;
 	/** Segredo HMAC do webhook de vendas (null = não configurado). */
 	webhookSecret: string | null;
+	/** Banner de consentimento (LGPD): versão do texto, link da política e textos já com o padrão. */
+	consent: { version: string; policyUrl: string | null; texts: ConsentTexts };
 }
 
 const TTL_MS = 30_000;
@@ -35,8 +38,11 @@ async function load(): Promise<RuntimeConfig> {
 		.select({
 			allowedOrigins: settings.allowedOrigins,
 			checkoutDomains: settings.checkoutDomains,
+			consentTexts: settings.consentTexts,
+			consentVersion: settings.consentVersion,
 			currency: settings.currency,
 			ga4Debug: settings.ga4Debug,
+			privacyPolicyUrl: settings.privacyPolicyUrl,
 			testEventCode: settings.testEventCode,
 			webhookSecret: sql<
 				string | null
@@ -58,6 +64,11 @@ async function load(): Promise<RuntimeConfig> {
 	return {
 		allowedOrigins: row?.allowedOrigins ?? [],
 		checkoutDomains: row?.checkoutDomains ?? [],
+		consent: {
+			policyUrl: row?.privacyPolicyUrl ?? null,
+			texts: resolveConsentTexts(row?.consentTexts),
+			version: row?.consentVersion ?? "1",
+		},
 		currency: row?.currency ?? "BRL",
 		ga4,
 		ga4Debug: row?.ga4Debug ?? false,

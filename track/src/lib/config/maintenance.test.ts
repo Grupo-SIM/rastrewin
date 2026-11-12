@@ -7,7 +7,8 @@ test("maintenanceHealth", () => {
 	const ago = (h: number) => new Date(now.getTime() - h * 3600_000);
 	assert.equal(maintenanceHealth(null, now), "nunca");
 	assert.equal(maintenanceHealth({ startedAt: ago(6), status: "ok" }, now), "ok");
-	assert.equal(maintenanceHealth({ startedAt: ago(49), status: "ok" }, now), "atrasada");
+	assert.equal(maintenanceHealth({ startedAt: ago(30), status: "ok" }, now), "ok");
+	assert.equal(maintenanceHealth({ startedAt: ago(37), status: "ok" }, now), "atrasada");
 	assert.equal(maintenanceHealth({ startedAt: ago(1), status: "erro" }, now), "erro");
 	assert.equal(maintenanceHealth({ startedAt: ago(0.1), status: "running" }, now), "rodando");
 	assert.equal(maintenanceHealth({ startedAt: ago(2), status: "running" }, now), "erro");

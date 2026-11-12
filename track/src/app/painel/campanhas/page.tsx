@@ -25,7 +25,7 @@ import { CardContent, CardDescription, CardHeader, CardTitle } from "@/component
 import { cpa, roas } from "@/lib/campaigns/build";
 import { getCampaigns } from "@/lib/campaigns/query";
 import type { SearchParams } from "@/lib/dashboard/context";
-import { delta, formatDayShort, formatInt, formatMoney } from "@/lib/dashboard/format";
+import { delta, formatDayShort, formatInt, formatMoney, formatRoas } from "@/lib/dashboard/format";
 import { periodRange } from "@/lib/dashboard/period";
 
 export const metadata: Metadata = { title: "Campanhas" };
@@ -43,9 +43,6 @@ export default function CampanhasPage({ searchParams }: PageProps<"/painel/campa
 		</div>
 	);
 }
-
-const fmtRoas = (r: number | null) =>
-	r === null ? "—" : r.toLocaleString("pt-BR", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
 
 async function CampaignsContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
 	const d = await getCampaigns(await searchParams);
@@ -82,7 +79,12 @@ async function CampaignsContent({ searchParams }: { searchParams: Promise<Search
 						/>
 					)}
 				</FiltersBar>
-				<StatusStrip results={d.results} timeZone={d.timeZone} />
+				<StatusStrip
+					results={d.results}
+					detail={d.detail}
+					structure={d.structure}
+					timeZone={d.timeZone}
+				/>
 				<PendingArea className="flex flex-col gap-4">
 					<section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
 						<KpiCard
@@ -103,7 +105,7 @@ async function CampaignsContent({ searchParams }: { searchParams: Promise<Search
 						/>
 						<KpiCard
 							label="ROAS"
-							value={fmtRoas(r)}
+							value={formatRoas(r)}
 							icon={PercentIcon}
 							info="Receita atribuída ÷ gasto. Acima de 1, a receita superou o gasto."
 							delta={
@@ -169,12 +171,14 @@ async function CampaignsContent({ searchParams }: { searchParams: Promise<Search
 								{d.period.key !== "custom" && ` (${periodRange(d.period)})`}
 							</CardTitle>
 							<CardDescription>
-								Toque numa campanha para ver os conjuntos e anúncios. Ordenado por gasto.
+								Toque numa campanha para ver os conjuntos e anúncios. Ordenado por gasto;
+								campanhas ativas sem gasto no período aparecem no fim.
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
 							<CampaignTree
 								tree={d.tree}
+								archived={d.archived}
 								totals={t}
 								unattributed={d.unattributed}
 								currency={currency}

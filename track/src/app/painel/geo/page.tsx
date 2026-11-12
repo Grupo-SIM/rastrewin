@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { BrazilMap } from "@/components/charts/brazil-map";
 import { ChartCard } from "@/components/charts/chart-card";
 import { RankedBars } from "@/components/charts/ranked-bars";
+import { CitiesTable } from "@/components/dashboard/cities-table";
 import { FiltersBar, FiltersProvider, PendingArea } from "@/components/dashboard/filters";
 import { GlassCard } from "@/components/glass-card";
 import { PageHeader } from "@/components/page-header";
@@ -40,7 +41,7 @@ async function GeoContent({ searchParams }: { searchParams: Promise<SearchParams
 					<div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
 						<ChartCard
 							title="Brasil por estado"
-							description={`${formatInt(d.totals.withGeo)} de ${formatInt(d.totals.visitors)} visitantes com localização (${formatPct(ratio(d.totals.withGeo, d.totals.visitors))}).`}
+							description={`${formatInt(d.totals.withGeo)} de ${formatInt(d.totals.visitors)} visitantes com localização (${formatPct(ratio(d.totals.withGeo, d.totals.visitors))}). Compras e receita: só vendas novas.`}
 							table={{
 								columns: [
 									{ key: "uf", label: "Estado" },
@@ -63,13 +64,13 @@ async function GeoContent({ searchParams }: { searchParams: Promise<SearchParams
 						<div className="flex flex-col gap-4">
 							<ChartCard
 								title="Países"
-								description="Visitantes únicos por país."
+								description="Visitantes únicos por país. O gráfico mostra os 10 maiores; a tabela, todos."
 								table={{
 									columns: [
 										{ key: "p", label: "País" },
 										{ align: "right", key: "v", label: "Visitantes" },
 									],
-									rows: d.countries.map(c => ({ p: c.label, v: formatInt(c.value) })),
+									rows: d.allCountries.map(c => ({ p: c.label, v: formatInt(c.value) })),
 								}}
 							>
 								<RankedBars items={d.countries} color="var(--viz-1)" />
@@ -77,49 +78,25 @@ async function GeoContent({ searchParams }: { searchParams: Promise<SearchParams
 
 							<GlassCard>
 								<CardHeader>
-									<CardTitle className="font-semibold">Principais cidades</CardTitle>
-									<CardDescription>Visitantes únicos por cidade (top 20).</CardDescription>
+									<CardTitle className="font-semibold">Cidades</CardTitle>
+									<CardDescription>
+										Visitantes únicos por cidade, das maiores para as menores.
+									</CardDescription>
 								</CardHeader>
 								<CardContent>
 									{d.cities.length ? (
-										<div className="max-h-96 overflow-auto">
-											<table className="w-full text-sm">
-												<thead className="bg-card sticky top-0">
-													<tr className="text-muted-foreground border-b text-left text-xs">
-														<th scope="col" className="py-2 pr-3 font-medium">
-															Cidade
-														</th>
-														<th scope="col" className="py-2 pr-3 font-medium">
-															Estado / país
-														</th>
-														<th
-															scope="col"
-															className="py-2 text-right font-medium"
-														>
-															Visitantes
-														</th>
-													</tr>
-												</thead>
-												<tbody>
-													{d.cities.map(c => (
-														<tr
-															key={`${c.city}-${c.region}-${c.country}`}
-															className="border-b last:border-0"
-														>
-															<td className="py-1.5 pr-3">{c.city}</td>
-															<td className="text-muted-foreground py-1.5 pr-3">
-																{c.country === "BR"
-																	? (c.region ?? "—")
-																	: countryName(c.country)}
-															</td>
-															<td className="num py-1.5 text-right">
-																{formatInt(c.visitors)}
-															</td>
-														</tr>
-													))}
-												</tbody>
-											</table>
-										</div>
+										<CitiesTable
+											total={d.citiesTotal}
+											rows={d.cities.map(c => ({
+												city: c.city,
+												key: `${c.city}-${c.region}-${c.country}`,
+												place:
+													c.country === "BR"
+														? (c.region ?? "—")
+														: countryName(c.country),
+												visitors: c.visitors,
+											}))}
+										/>
 									) : (
 										<p className="text-muted-foreground py-8 text-center text-sm">
 											Sem dados no período

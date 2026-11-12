@@ -20,7 +20,8 @@ export const PRESETS = [
 	{ key: "max", label: "Máximo" },
 ] as const;
 export type PresetKey = (typeof PRESETS)[number]["key"];
-export const DEFAULT_PRESET: PresetKey = "30d";
+/** Período ao abrir o painel (sem ?periodo na URL) e quando o link traz um período inválido. */
+export const DEFAULT_PRESET: PresetKey = "hoje";
 const MAX_CUSTOM_DAYS = 366;
 
 export interface Period {
@@ -34,6 +35,9 @@ export interface Period {
 	end: Date;
 	prevStart: Date;
 	prevEnd: Date;
+	/** Datas locais do período anterior (iguais a from/to em "Máximo", que não compara). */
+	prevFrom: string;
+	prevTo: string;
 	/** false em "Máximo": não há período anterior para comparar (prevStart = prevEnd = start). */
 	compare: boolean;
 }
@@ -105,7 +109,50 @@ export function periodRange(period: Pick<Period, "from" | "to">): string {
 		: `${fmtShort(period.from)} – ${fmtShort(period.to)}`;
 }
 
-/** Os "Últimos N dias" terminam hoje (N dias contando hoje). */
+/** Datas do período anterior; null em "Máximo", que não compara. */
+export function previousDays(
+	period: Pick<Period, "prevFrom" | "prevTo" | "compare">,
+): { from: string; to: string } | null {
+	if (!period.compare) return null;
+	return { from: period.prevFrom, to: period.prevTo };
+}
+
+/** Primeiro dia do mês de uma data: "2026-11-08" → "2026-11-01". */
+const monthStart = (ymd: string) => `${ymd.slice(0, 8)}01`;
+/** Último dia do mês de uma data: "2026-02-10" → "2026-02-28". */
+function monthEnd(ymd: string): string {
+	const [y, m] = ymd.split("-").map(Number);
+	return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+
+/**
+ * Período de comparação:
+ * - "Este mês" (dia 1 até hoje) → os MESMOS dias do mês anterior (01–08/11 → 01–08/10). Se o mês
+ *   anterior for mais curto, para no último dia dele (01–31/03 → 01–28/02).
+ * - "Mês passado" → o mês inteiro antes dele (outubro → setembro).
+ * - Os demais (hoje, ontem, semanas, últimos N dias, personalizado) → o mesmo número de dias, logo antes.
+ */
+export function previousRange(
+	key: Period["key"],
+	from: string,
+	to: string,
+): { from: string; to: string } | null {
+	if (key === "max") return null;
+	if (key === "mes" || key === "mes-ant") {
+		const prevFrom = monthStart(addDays(monthStart(from), -1));
+		const last = monthEnd(prevFrom);
+		if (key === "mes-ant") return { from: prevFrom, to: last };
+		const sameDay = addDays(prevFrom, Number(to.slice(8, 10)) - 1);
+		return { from: prevFrom, to: sameDay < last ? sameDay : last };
+	}
+	const days = daysBetween(from, to) + 1;
+	return { from: addDays(from, -days), to: addDays(from, -1) };
+}
+
+/**
+ * Os "Últimos N dias" terminam ONTEM (N dias inteiros antes de hoje), como no Gerenciador de
+ * Anúncios da Meta: o mesmo filtro dá o mesmo gasto nos dois lugares.
+ */
 const LAST_DAYS: Partial<Record<PresetKey, number>> = { "7d": 7, "14d": 14, "28d": 28, "30d": 30, "90d": 90 };
 
 /** Dia da semana de uma data local: 0 = domingo … 6 = sábado. */
@@ -123,13 +170,17 @@ function build(key: Period["key"], from: string, to: string, timeZone: string): 
 	const days = daysBetween(from, to) + 1;
 	const start = startOfLocalDay(from, timeZone);
 	const end = startOfLocalDay(addDays(to, 1), timeZone);
-	const compare = key !== "max";
-	const prevStart = compare ? startOfLocalDay(addDays(from, -days), timeZone) : start;
+	const prev = previousRange(key, from, to);
+	const compare = prev !== null;
+	const prevFrom = prev?.from ?? from;
+	const prevTo = prev?.to ?? to;
+	const prevStart = prev ? startOfLocalDay(prev.from, timeZone) : start;
+	const prevEnd = prev ? startOfLocalDay(addDays(prev.to, 1), timeZone) : start;
 	const label =
 		key === "custom"
 			? `${fmtShort(from)} – ${fmtShort(to)}`
 			: (PRESETS.find(p => p.key === key)?.label ?? "");
-	return { compare, days, end, from, key, label, prevEnd: start, prevStart, start, to };
+	return { compare, days, end, from, key, label, prevEnd, prevFrom, prevStart, prevTo, start, to };
 }
 
 /** O mesmo período começando em outra data (usado por "Máximo" quando a Meta tem gasto mais antigo). */
@@ -176,11 +227,11 @@ export function resolvePeriod(
 				from = addDays(to, -6);
 				break;
 			case "mes":
-				from = `${today.slice(0, 8)}01`;
+				from = monthStart(today);
 				break;
 			case "mes-ant":
-				to = addDays(`${today.slice(0, 8)}01`, -1);
-				from = `${to.slice(0, 8)}01`;
+				to = addDays(monthStart(today), -1);
+				from = monthStart(to);
 				break;
 			case "max": {
 				const first = firstDay && YMD.test(firstDay) && firstDay < today ? firstDay : today;
@@ -189,7 +240,8 @@ export function resolvePeriod(
 				break;
 			}
 			default:
-				from = addDays(today, -((LAST_DAYS[key] ?? 30) - 1));
+				to = yesterday;
+				from = addDays(yesterday, -((LAST_DAYS[key] ?? 30) - 1));
 		}
 	}
 	return build(key, from, to, timeZone);

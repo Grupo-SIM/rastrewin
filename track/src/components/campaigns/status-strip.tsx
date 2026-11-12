@@ -10,7 +10,17 @@ import type { CampaignsView } from "@/lib/campaigns/query";
 import { formatDateTime } from "@/lib/time";
 
 /** Quando os dados foram buscados, uso da API e o botão "Atualizar agora" (cooldown de 15 min). */
-export function StatusStrip({ results, timeZone }: { results: CampaignsView["results"]; timeZone: string }) {
+export function StatusStrip({
+	results,
+	detail,
+	structure,
+	timeZone,
+}: {
+	results: CampaignsView["results"];
+	detail: CampaignsView["detail"];
+	structure: CampaignsView["structure"];
+	timeZone: string;
+}) {
 	const params = useSearchParams();
 	const [pending, start] = useTransition();
 	const fetched = results.map(r => r.fetchedAt).filter(Boolean) as string[];
@@ -37,6 +47,30 @@ export function StatusStrip({ results, timeZone }: { results: CampaignsView["res
 					Cache de 1 h (12 h para períodos passados) · uso da API da Meta:{" "}
 					<span className="num">{usage.toFixed(0)}%</span> · máx. 20 consultas/h por conta
 				</span>
+				{detail.truncated && (
+					<span className="text-amber flex items-start gap-1.5 text-xs">
+						<CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" />
+						{detail.incomplete
+							? "A Meta devolveu mais de 5.000 linhas (anúncio × dia) e os totais da conta não vieram: o gasto mostrado está abaixo do real. Tente “Atualizar agora” ou use um período menor."
+							: "A Meta devolveu mais de 5.000 linhas (anúncio × dia). Os totais estão corretos; o detalhe por anúncio está incompleto. Use um período menor para ver tudo."}
+					</span>
+				)}
+				{structure.notices.map(n => (
+					<span
+						key={`estrutura-${n.adAccountId}`}
+						className="text-amber flex items-start gap-1.5 text-xs"
+					>
+						<CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" />
+						{results.length > 1 ? `${n.label}: ` : ""}Situação das campanhas indisponível agora.{" "}
+						{n.notice}
+					</span>
+				))}
+				{structure.truncated && (
+					<span className="text-amber flex items-start gap-1.5 text-xs">
+						<CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" />A conta tem mais itens do que
+						o painel lê de uma vez: alguns aparecem sem a situação.
+					</span>
+				)}
 				{notices.map(r => (
 					<span key={r.adAccountId} className="text-amber flex items-start gap-1.5 text-xs">
 						<CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" /> {r.label}: {r.notice}

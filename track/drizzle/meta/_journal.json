@@ -63,6 +63,34 @@
 			"tag": "0008_video_views",
 			"version": "7",
 			"when": 1793987630440
+		},
+		{
+			"breakpoints": true,
+			"idx": 9,
+			"tag": "0009_events_log_journey_idx",
+			"version": "7",
+			"when": 1794102553779
+		},
+		{
+			"breakpoints": true,
+			"idx": 10,
+			"tag": "0010_consent",
+			"version": "7",
+			"when": 1794322440720
+		},
+		{
+			"breakpoints": true,
+			"idx": 11,
+			"tag": "0011_privacy_erasures",
+			"version": "7",
+			"when": 1794324649830
+		},
+		{
+			"breakpoints": true,
+			"idx": 12,
+			"tag": "0012_retention_lgpd",
+			"version": "7",
+			"when": 1794326259612
 		}
 	],
 	"version": "7"

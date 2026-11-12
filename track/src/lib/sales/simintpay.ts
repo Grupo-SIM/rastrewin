@@ -92,6 +92,16 @@ export function nextStatus(current: string | null | undefined, incoming: Purchas
 	return statusRank(incoming) >= statusRank(current) ? incoming : current;
 }
 
+/**
+ * Depois que a venda foi aprovada, só uma NOVA aprovação pode mudar seus dados (valor, produto, UTMs,
+ * visitante). Os demais eventos (reembolso, chargeback, pedido de reembolso, PIX...) mudam apenas o
+ * status e a data do reembolso: o valor que eles trazem não regrava a receita, e o tracking que o
+ * backend anexa a eles (o do cadastro, possivelmente mais novo) não troca a origem da venda.
+ */
+export function postApprovalOnly(existingApprovedAt: Date | null | undefined, incoming: PurchaseStatus) {
+	return !!existingApprovedAt && incoming !== "approved";
+}
+
 /** Venda válida para enviar Purchase (aprovada ou em mediação). */
 export function isSaleActive(status: string) {
 	return status === "approved" || status === "refund_requested";

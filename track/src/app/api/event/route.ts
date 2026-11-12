@@ -1,9 +1,10 @@
 import { after } from "next/server";
-import { botNetwork, lookupGeo } from "@/lib/geo";
+import { lookupGeo } from "@/lib/geo";
 import { readJsonBody } from "@/lib/http/body";
 import { clientIp, rateLimitKey } from "@/lib/http/client-ip";
 import { allowedOrigin, corsHeaders, json, preflight } from "@/lib/http/cors";
 import { createRateLimiter } from "@/lib/http/rate-limit";
+import { botReason } from "@/lib/tracking/bot-guard";
 import { deliverEventToMeta, insertEvent } from "@/lib/tracking/events";
 import { getRuntimeConfig } from "@/lib/tracking/runtime-config";
 import { eventSchema } from "@/lib/tracking/schemas";
@@ -30,9 +31,10 @@ export async function POST(request: Request) {
 
 	if (!limiter.take(rateLimitKey(request.headers))) return json({ error: "muitas requisições" }, 429, cors);
 
-	// Robô da Meta/Google executando a página (revisão de anúncio, prévia de link): não é cliente.
-	// Responde OK para o t.js e não grava nem envia nada.
-	if (botNetwork(clientIp(request.headers))) return json({ ignored: true, ok: true }, 200, cors);
+	// Robô (rede da Meta/Google ou de nuvem, navegador de robô): não é cliente. Responde OK para o
+	// t.js e não grava nem envia nada (a contagem fica no identify, uma por página).
+	if (botReason(clientIp(request.headers), request.headers.get("user-agent")))
+		return json({ ignored: true, ok: true }, 200, cors);
 
 	const body = await readJsonBody(request, MAX_BYTES);
 	if (!body.ok)
@@ -50,6 +52,9 @@ export async function POST(request: Request) {
 			cors,
 		);
 	const d = parsed.data;
+	if (d.wd) return json({ ignored: true, ok: true }, 200, cors);
+	// LGPD: sem o aceite de marketing (campo consent), nada é gravado nem enviado.
+	if (!d.consent) return json({ ignored: true, ok: true, reason: "sem consentimento" }, 200, cors);
 
 	const config = await getRuntimeConfig();
 	const ip = clientIp(request.headers);
@@ -58,6 +63,7 @@ export async function POST(request: Request) {
 
 	// Garante o visitante (caso o identify ainda não tenha chegado) e pega os dados para enriquecer.
 	const visitor = await upsertVisitor({
+		consentMarketing: true,
 		email: d.user_data?.email,
 		fbc: d.fbc,
 		fbp: d.fbp,
@@ -70,6 +76,12 @@ export async function POST(request: Request) {
 		phone: d.user_data?.phone,
 		trckUserId: d.trck_user_id,
 		userAgent,
+		// Sem UTM no evento, o visitante mantém as que já tinha (o upsert só troca o conjunto inteiro).
+		utmCampaign: d.utm_campaign,
+		utmContent: d.utm_content,
+		utmMedium: d.utm_medium,
+		utmSource: d.utm_source,
+		utmTerm: d.utm_term,
 	});
 
 	const customData = d.custom_data

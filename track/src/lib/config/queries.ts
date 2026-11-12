@@ -1,9 +1,18 @@
 import "server-only";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
-import { ga4Accounts, metaAdAccounts, metaPixels, settings, webhookEvents } from "@/db/schema";
+import {
+	consentRecords,
+	ga4Accounts,
+	metaAdAccounts,
+	metaPixels,
+	privacyErasures,
+	settings,
+	webhookEvents,
+} from "@/db/schema";
 import { readAsUser } from "@/lib/dal";
 import { env } from "@/lib/env";
+import { consentTextsSchema, DEFAULT_CONSENT_TEXTS } from "@/lib/privacy/consent-texts";
 import { DEFAULT_TIMEZONE } from "@/lib/time";
 import { getMaintenanceView } from "./maintenance";
 import type { AccountView, ConfigView } from "./types";
@@ -31,8 +40,11 @@ export async function getConfigView(): Promise<ConfigView> {
 			.select({
 				allowedOrigins: settings.allowedOrigins,
 				checkoutDomains: settings.checkoutDomains,
+				consentTexts: settings.consentTexts,
+				consentVersion: settings.consentVersion,
 				currency: settings.currency,
 				ga4Debug: settings.ga4Debug,
+				privacyPolicyUrl: settings.privacyPolicyUrl,
 				testEventCode: settings.testEventCode,
 				timezone: settings.timezone,
 				webhookTokenHint: settings.webhookTokenHint,
@@ -94,8 +106,30 @@ export async function getConfigView(): Promise<ConfigView> {
 			.from(metaAdAccounts)
 			.orderBy(asc(metaAdAccounts.createdAt));
 
+		// Escolhas no banner nos últimos 30 dias (uma linha por escolha, não por pessoa).
+		const [consentStats] = await tx
+			.select({
+				accepted: sql<number>`count(*) filter (where ${consentRecords.marketing})::int`,
+				rejected: sql<number>`count(*) filter (where not ${consentRecords.marketing} and ${consentRecords.action} <> 'revoke')::int`,
+				revoked: sql<number>`count(*) filter (where ${consentRecords.action} = 'revoke')::int`,
+			})
+			.from(consentRecords)
+			.where(sql`${consentRecords.createdAt} > now() - interval '30 days'`);
+
+		const erasures = await tx
+			.select({
+				counts: privacyErasures.counts,
+				createdAt: privacyErasures.createdAt,
+				gaClientIds: privacyErasures.gaClientIds,
+				gaDoneAt: privacyErasures.gaDoneAt,
+				id: privacyErasures.id,
+			})
+			.from(privacyErasures)
+			.orderBy(desc(privacyErasures.createdAt))
+			.limit(50);
+
 		const maintenance = await getMaintenanceView(tx, requestHeaders, production);
-		return { ads, ga4, general, lastWebhook, maintenance, pixel };
+		return { ads, consentStats, erasures, ga4, general, lastWebhook, maintenance, pixel };
 	});
 
 	const toView =
@@ -137,5 +171,19 @@ export async function getConfigView(): Promise<ConfigView> {
 			webhookUrl: new URL("/api/webhook/compra", env().APP_URL).toString(),
 		},
 		maintenance: data.maintenance,
+		privacy: {
+			defaults: DEFAULT_CONSENT_TEXTS,
+			erasures: data.erasures.map(e => ({
+				counts: (e.counts ?? {}) as Record<string, number>,
+				createdAt: e.createdAt.toISOString(),
+				gaClientIds: e.gaClientIds,
+				gaDoneAt: e.gaDoneAt?.toISOString() ?? null,
+				id: e.id,
+			})),
+			policyUrl: data.general?.privacyPolicyUrl ?? "",
+			stats: data.consentStats ?? { accepted: 0, rejected: 0, revoked: 0 },
+			texts: consentTextsSchema.partial().safeParse(data.general?.consentTexts ?? {}).data ?? {},
+			version: data.general?.consentVersion ?? "1",
+		},
 	};
 }

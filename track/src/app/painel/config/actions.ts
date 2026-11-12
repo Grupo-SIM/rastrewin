@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { serviceDb } from "@/db";
-import { ga4Accounts, metaAdAccounts, metaPixels, settings } from "@/db/schema";
+import { ga4Accounts, metaAdAccounts, metaPixels, privacyErasures, settings } from "@/db/schema";
 import { testGa4, testMetaAdAccount, testMetaPixel, type TestResult } from "@/lib/config/connection-tests";
 import type { ActionResult } from "@/lib/config/types";
 import {
@@ -14,9 +14,11 @@ import {
 	accountSchema,
 	fieldErrors,
 	generalSchema,
+	privacySchema,
 	webhookSecretSchema,
 } from "@/lib/config/validation";
 import { requireSession } from "@/lib/dal";
+import { requestRelayRetry } from "@/lib/health/relay";
 import { decryptSecret, encryptSecret, secretHint } from "@/lib/secrets";
 import { invalidateRuntimeConfig } from "@/lib/tracking/runtime-config";
 
@@ -217,6 +219,53 @@ export async function saveGeneral(input: unknown): Promise<ActionResult> {
 	return { message: "Configurações salvas.", ok: true };
 }
 
+/** Banner de consentimento (LGPD): versão do texto, link da política e textos (vazio = padrão). */
+export async function savePrivacy(input: unknown): Promise<ActionResult> {
+	await requireSession();
+	const parsed = privacySchema.safeParse(input);
+	if (!parsed.success) {
+		return { error: "Confira os campos destacados.", fieldErrors: fieldErrors(parsed.error), ok: false };
+	}
+	const { policyUrl, texts, version } = parsed.data;
+	// Só guarda o que foi trocado: campo vazio volta ao texto padrão do código.
+	const custom = Object.fromEntries(Object.entries(texts).filter(([, v]) => v));
+	try {
+		await serviceDb()
+			.update(settings)
+			.set({
+				consentTexts: Object.keys(custom).length ? custom : null,
+				consentVersion: version,
+				privacyPolicyUrl: policyUrl || null,
+			})
+			.where(eq(settings.id, 1));
+	} catch (error) {
+		return dbError(error);
+	}
+	invalidateRuntimeConfig();
+	refresh();
+	return { message: "Privacidade salva. Os sites recebem em até 1 minuto.", ok: true };
+}
+
+/**
+ * Exclusão de titular: os client_ids do GA4 já foram apagados à mão no GA4. Apaga a lista (ela também
+ * é dado da pessoa) e registra quando.
+ */
+export async function markErasureGaDone(id: unknown): Promise<ActionResult> {
+	await requireSession();
+	const parsed = z.number().int().positive().safeParse(id);
+	if (!parsed.success) return { error: "Exclusão inválida.", ok: false };
+	try {
+		await serviceDb()
+			.update(privacyErasures)
+			.set({ gaClientIds: [], gaDoneAt: new Date() })
+			.where(eq(privacyErasures.id, parsed.data));
+	} catch (error) {
+		return dbError(error);
+	}
+	refresh();
+	return { message: "Marcado como concluído no GA4.", ok: true };
+}
+
 /** Gera um segredo novo para o webhook. Ele é devolvido UMA vez para ser copiado. */
 export async function generateWebhookSecret(): Promise<ActionResult<{ secret: string }>> {
 	await requireSession();
@@ -259,4 +308,17 @@ export async function setWebhookSecret(value: unknown): Promise<ActionResult> {
 	invalidateRuntimeConfig();
 	refresh();
 	return { message: "Segredo do webhook salvo.", ok: true };
+}
+
+// ---------------------------------------------------------------- saúde
+
+/** "Tentar de novo": o backend recoloca na fila as vendas em que desistiu, no próximo sinal (até 1 min). */
+export async function retryBackendRelays(): Promise<ActionResult> {
+	await requireSession();
+	requestRelayRetry();
+	refresh();
+	return {
+		message: "Pedido enviado. O backend tenta de novo no próximo sinal (até 1 minuto).",
+		ok: true,
+	};
 }

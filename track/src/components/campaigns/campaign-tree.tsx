@@ -1,9 +1,21 @@
 "use client";
 
-import { ChevronRightIcon, CircleAlertIcon, CircleCheckIcon, InfoIcon } from "lucide-react";
+import {
+	ArchiveIcon,
+	ChevronRightIcon,
+	CircleAlertIcon,
+	CircleCheckIcon,
+	CircleDashedIcon,
+	CirclePauseIcon,
+	CircleXIcon,
+	ClockIcon,
+	FlagIcon,
+	InfoIcon,
+} from "lucide-react";
 import { Fragment, useState } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cpa, ctr, type Metrics, roas, type TreeNode } from "@/lib/campaigns/build";
+import { cpa, ctr, type Metrics, roas } from "@/lib/campaigns/build";
+import type { NodeStatus, StatusKey, StatusTone, StructuredNode } from "@/lib/campaigns/structure";
 import { formatInt, formatMoney, formatPct } from "@/lib/dashboard/format";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +40,95 @@ const COLUMNS: { key: string; label: string; info: string }[] = [
 ];
 
 const LEVEL = { ad: "Anúncio", adset: "Conjunto", campaign: "Campanha" } as const;
+
+/** Chave do grupo no estado de abertos (ids da Meta são só números: não colide). */
+const ARCHIVED_GROUP = "arquivadas";
+
+function ArchivedTitle({ count }: { count: number }) {
+	return (
+		<span className="min-w-0">
+			<span className="flex items-center gap-1.5 font-semibold">
+				<ArchiveIcon className="text-muted-foreground size-3.5" aria-hidden />
+				Arquivadas ou excluídas{" "}
+				<span className="num text-muted-foreground font-normal">({count})</span>
+			</span>
+			<span className="text-muted-foreground block text-xs">
+				Encerradas na Meta; o gasto delas continua no total.
+			</span>
+		</span>
+	);
+}
+
+/* Situação SEMPRE com ícone + rótulo (nunca só cor); cores de status reservadas. */
+const STATUS_ICON: Record<StatusKey, typeof CircleCheckIcon> = {
+	analise: ClockIcon,
+	arquivada: ArchiveIcon,
+	ativa: CircleCheckIcon,
+	concluida: FlagIcon,
+	outra: CircleDashedIcon,
+	pagamento: CircleAlertIcon,
+	pausada: CirclePauseIcon,
+	problema: CircleAlertIcon,
+	reprovada: CircleXIcon,
+};
+const TONE_COLOR: Record<StatusTone, string> = {
+	critical: "var(--status-critical)",
+	good: "var(--status-good)",
+	muted: "var(--muted-foreground)",
+	warning: "var(--status-warning)",
+};
+
+function StatusLabel({ status }: { status: NodeStatus }) {
+	const Icon = STATUS_ICON[status.key];
+	return (
+		<span className="inline-flex items-center gap-1 whitespace-nowrap">
+			<Icon className="size-3" style={{ color: TONE_COLOR[status.tone] }} aria-hidden />
+			<span className={status.tone === "muted" ? undefined : "text-foreground"}>{status.label}</span>
+		</span>
+	);
+}
+
+/** Linha com " · " entre os itens (o separador fica dentro de cada item: não sobra sozinho). */
+function Dotted({ parts }: { parts: [string, React.ReactNode][] }) {
+	return (
+		<span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-xs">
+			{parts.map(([key, p], i) => (
+				<span key={key} className="inline-flex items-center gap-1.5">
+					{i > 0 && <span aria-hidden>·</span>}
+					{p}
+				</span>
+			))}
+		</span>
+	);
+}
+
+/** Sob o nome: nível · conta · situação; numa 2ª linha, orçamento · sem entrega. */
+function NodeMeta({ n, account }: { n: StructuredNode; account?: string }) {
+	const top: [string, React.ReactNode][] = [["nivel", LEVEL[n.level]]];
+	if (account) top.push(["conta", account]);
+	if (n.status) top.push(["situacao", <StatusLabel key="situacao" status={n.status} />]);
+	const bottom: [string, React.ReactNode][] = [];
+	if (n.budget)
+		bottom.push([
+			"orcamento",
+			<span key="orcamento" className="num whitespace-nowrap">
+				{n.budget}
+			</span>,
+		]);
+	if (n.idle)
+		bottom.push([
+			"ocioso",
+			<span key="ocioso" className="whitespace-nowrap">
+				sem entrega no período
+			</span>,
+		]);
+	return (
+		<>
+			<Dotted parts={top} />
+			{bottom.length > 0 && <Dotted parts={bottom} />}
+		</>
+	);
+}
 
 function Roas({ m }: { m: Metrics }) {
 	const r = roas(m);
@@ -65,15 +166,37 @@ function cells(m: Metrics, currency: string) {
 	};
 }
 
+/** Colunas de números de uma linha (mesma ordem de COLUMNS; impressões e CTR somem < 1400px). */
+function MetricCells({ m, currency }: { m: Metrics; currency: string }) {
+	const c = cells(m, currency);
+	return (
+		<>
+			<td className="num py-2 pr-2.5 text-right">{c.spend}</td>
+			<td className="num hidden py-2 pr-2.5 text-right min-[1400px]:table-cell">{c.impressions}</td>
+			<td className="num py-2 pr-2.5 text-right">{c.clicks}</td>
+			<td className="num hidden py-2 pr-2.5 text-right min-[1400px]:table-cell">{c.ctr}</td>
+			<td className="num py-2 pr-2.5 text-right">{c.purchases}</td>
+			<td className="num py-2 pr-2.5 text-right">{c.revenue}</td>
+			<td className="py-2 pr-2.5 text-right">
+				<Roas m={m} />
+			</td>
+			<td className="num py-2 pr-2.5 text-right">{c.cpa}</td>
+			<td className="num text-muted-foreground py-2 text-right">{c.meta}</td>
+		</>
+	);
+}
+
 export function CampaignTree({
 	tree,
+	archived,
 	totals,
 	unattributed,
 	currency,
 	campaignAccount,
 	showAccount,
 }: {
-	tree: TreeNode[];
+	tree: StructuredNode[];
+	archived: { nodes: StructuredNode[]; totals: Metrics } | null;
 	totals: Metrics;
 	unattributed: Metrics | null;
 	currency: string;
@@ -89,15 +212,14 @@ export function CampaignTree({
 			return n;
 		});
 
-	if (!tree.length)
+	if (!tree.length && !archived)
 		return (
 			<p className="text-muted-foreground py-10 text-center text-sm">
 				Sem gasto em anúncios neste período.
 			</p>
 		);
 
-	const renderRow = (n: TreeNode, depth: number): React.ReactNode => {
-		const c = cells(n, currency);
+	const renderRow = (n: StructuredNode, depth: number): React.ReactNode => {
 		const expandable = n.children.length > 0;
 		const isOpen = open.has(n.id);
 		return (
@@ -144,28 +266,14 @@ export function CampaignTree({
 								>
 									{n.name}
 								</span>
-								<span className="text-muted-foreground block text-xs">
-									{LEVEL[n.level]}
-									{depth === 0 && showAccount && campaignAccount[n.id]
-										? ` · ${campaignAccount[n.id]}`
-										: ""}
-								</span>
+								<NodeMeta
+									n={n}
+									account={depth === 0 && showAccount ? campaignAccount[n.id] : undefined}
+								/>
 							</span>
 						</span>
 					</th>
-					<td className="num py-2 pr-2.5 text-right">{c.spend}</td>
-					<td className="num hidden py-2 pr-2.5 text-right min-[1400px]:table-cell">
-						{c.impressions}
-					</td>
-					<td className="num py-2 pr-2.5 text-right">{c.clicks}</td>
-					<td className="num hidden py-2 pr-2.5 text-right min-[1400px]:table-cell">{c.ctr}</td>
-					<td className="num py-2 pr-2.5 text-right">{c.purchases}</td>
-					<td className="num py-2 pr-2.5 text-right">{c.revenue}</td>
-					<td className="py-2 pr-2.5 text-right">
-						<Roas m={n} />
-					</td>
-					<td className="num py-2 pr-2.5 text-right">{c.cpa}</td>
-					<td className="num text-muted-foreground py-2 text-right">{c.meta}</td>
+					<MetricCells m={n} currency={currency} />
 				</tr>
 				{isOpen && n.children.map(child => renderRow(child, depth + 1))}
 			</Fragment>
@@ -205,7 +313,42 @@ export function CampaignTree({
 							))}
 						</tr>
 					</thead>
-					<tbody>{tree.map(n => renderRow(n, 0))}</tbody>
+					<tbody>
+						{tree.map(n => renderRow(n, 0))}
+						{archived && (
+							<>
+								<tr
+									className="hover:bg-accent/50 cursor-pointer border-b last:border-0"
+									onClick={() => toggle(ARCHIVED_GROUP)}
+								>
+									<th scope="row" className="py-2 pr-3 text-left font-normal">
+										<span className="flex items-start gap-1.5">
+											<button
+												type="button"
+												aria-expanded={open.has(ARCHIVED_GROUP)}
+												aria-label={`${open.has(ARCHIVED_GROUP) ? "Recolher" : "Expandir"} campanhas arquivadas ou excluídas`}
+												onClick={e => {
+													e.stopPropagation();
+													toggle(ARCHIVED_GROUP);
+												}}
+												className="hover:bg-accent -my-1 grid size-7 shrink-0 place-items-center rounded-md"
+											>
+												<ChevronRightIcon
+													className={cn(
+														"size-4 transition-transform",
+														open.has(ARCHIVED_GROUP) && "rotate-90",
+													)}
+												/>
+											</button>
+											<ArchivedTitle count={archived.nodes.length} />
+										</span>
+									</th>
+									<MetricCells m={archived.totals} currency={currency} />
+								</tr>
+								{open.has(ARCHIVED_GROUP) && archived.nodes.map(n => renderRow(n, 1))}
+							</>
+						)}
+					</tbody>
 					<tfoot>
 						<tr className="border-t-2 font-semibold">
 							<th scope="row" className="py-2 pr-3 text-left">
@@ -262,6 +405,50 @@ export function CampaignTree({
 						toggle={toggle}
 					/>
 				))}
+				{archived && (
+					<li className="bg-card/40 rounded-lg border">
+						<button
+							type="button"
+							className="flex w-full items-start gap-2 p-3 text-left"
+							aria-expanded={open.has(ARCHIVED_GROUP)}
+							onClick={() => toggle(ARCHIVED_GROUP)}
+						>
+							<ChevronRightIcon
+								className={cn(
+									"mt-0.5 size-4 shrink-0 transition-transform",
+									open.has(ARCHIVED_GROUP) && "rotate-90",
+								)}
+							/>
+							<span className="min-w-0 flex-1">
+								<ArchivedTitle count={archived.nodes.length} />
+								<span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+									<span className="text-muted-foreground">Gasto</span>
+									<span className="num text-right">
+										{formatMoney(archived.totals.spend, currency)}
+									</span>
+									<span className="text-muted-foreground">Receita</span>
+									<span className="num text-right">
+										{formatMoney(archived.totals.revenue, currency)}
+									</span>
+								</span>
+							</span>
+						</button>
+						{open.has(ARCHIVED_GROUP) && (
+							<ul className="flex flex-col gap-2 pr-2 pb-2">
+								{archived.nodes.map(n => (
+									<MobileNode
+										key={n.id}
+										node={n}
+										depth={1}
+										currency={currency}
+										open={open}
+										toggle={toggle}
+									/>
+								))}
+							</ul>
+						)}
+					</li>
+				)}
 				{unattributed && unattributed.purchases > 0 && (
 					<li className="text-muted-foreground rounded-lg border border-dashed p-3 text-sm">
 						Sem campanha identificada:{" "}
@@ -281,7 +468,7 @@ function MobileNode({
 	open,
 	toggle,
 }: {
-	node: TreeNode;
+	node: StructuredNode;
 	depth: number;
 	currency: string;
 	open: Set<string>;
@@ -304,7 +491,7 @@ function MobileNode({
 				)}
 				<span className="min-w-0 flex-1">
 					<span className="block truncate font-medium">{node.name}</span>
-					<span className="text-muted-foreground block text-xs">{LEVEL[node.level]}</span>
+					<NodeMeta n={node} />
 					<span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
 						<span className="text-muted-foreground">Gasto</span>
 						<span className="num text-right">{c.spend}</span>

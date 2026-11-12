@@ -20,7 +20,7 @@
     libera o som no Chrome; se mesmo assim sair mudo, o Vimeo mostra o botão de som dele. Tocar na capa
     antes de o pré-carregamento terminar mostra o carregamento; pronto, o próximo toque já cai no Vimeo.
 
-- **Fontes:** `next/font` serve Plus Jakarta Sans e Manrope do próprio domínio, só com os pesos usados.
+- **Fontes:** Plus Jakarta Sans e Manrope ficam em `src/app/fonts` (subconjunto latin, licença OFL) e o `next/font/local` as serve do próprio domínio. Nem o build nem o navegador acessam o Google Fonts.
 - **Cache:** `/_next/static/*` imutável por 1 ano; HTML e `.txt` do Next sempre revalidam; imagens com 1h.
 - **Compressão:** zstd/gzip no Caddy (HTML de ~16KB vira ~5KB).
 - **JS:** ~172KB comprimido, medido no Lighthouse (React + roteador do Next, o piso do App Router), todo `async` (não bloqueia a pintura).

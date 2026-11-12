@@ -1,24 +1,27 @@
 "use client";
 
-import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
+import { ChevronRightIcon, InfoIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { loadEventDetail } from "@/app/painel/eventos/actions";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { EventDetail } from "@/lib/dashboard/details";
 import type { EventRow } from "@/lib/dashboard/events";
 import { formatMoney } from "@/lib/dashboard/format";
 import { formatDateTime } from "@/lib/time";
-import { JsonBlock } from "./json-block";
+import { JourneyLink } from "./back-button";
+import { EventDetailDialog } from "./event-detail-dialog";
+import { OriginText } from "./origin-text";
 import { DeliveryStatus } from "./status-badge";
 
 export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: string }) {
 	const [open, setOpen] = useState(false);
 	const [detail, setDetail] = useState<EventDetail | null>(null);
+	const [selected, setSelected] = useState<EventRow | null>(null);
 	const [loading, startLoading] = useTransition();
 
 	function show(row: EventRow) {
 		setDetail(null);
+		setSelected(row);
 		setOpen(true);
 		startLoading(async () => setDetail(await loadEventDetail(row.id)));
 	}
@@ -30,7 +33,6 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 			</p>
 		);
 
-	const origin = (r: EventRow) => [r.utmSource, r.utmCampaign].filter(Boolean).join(" · ") || "—";
 	const value = (r: EventRow) => (r.value === null ? "—" : formatMoney(r.value, r.currency ?? "BRL"));
 
 	return (
@@ -46,11 +48,25 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 							<th scope="col" className="py-2 pr-3 font-medium">
 								Evento
 							</th>
+							<th scope="col" className="py-2 pr-3 font-medium">
+								Visitante
+							</th>
 							<th scope="col" className="py-2 pr-3 text-right font-medium">
 								Valor
 							</th>
 							<th scope="col" className="py-2 pr-3 font-medium">
-								Origem
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span className="inline-flex cursor-help items-center gap-1">
+											Origem <InfoIcon className="size-3" />
+										</span>
+									</TooltipTrigger>
+									<TooltipContent className="max-w-64">
+										UTM do evento. Sem UTM, o site de onde a pessoa veio na primeira
+										visita com origem externa (Google, Instagram...). Sem nenhum dos dois,
+										Direto.
+									</TooltipContent>
+								</Tooltip>
 							</th>
 							<th scope="col" className="py-2 pr-3 font-medium">
 								Local
@@ -74,9 +90,12 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 									{formatDateTime(r.createdAt, timeZone)}
 								</td>
 								<td className="py-2 pr-3 font-medium">{r.eventName}</td>
+								<td className="py-2 pr-3">
+									<VisitorLink id={r.trckUserId} />
+								</td>
 								<td className="num py-2 pr-3 text-right">{value(r)}</td>
-								<td className="text-muted-foreground max-w-56 truncate py-2 pr-3">
-									{origin(r)}
+								<td className="max-w-56 truncate py-2 pr-3">
+									<OriginText origin={r.origin} />
 								</td>
 								<td className="text-muted-foreground max-w-40 truncate py-2 pr-3">
 									{r.place ?? "—"}
@@ -104,18 +123,18 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 			{/* Celular */}
 			<ul className="flex flex-col gap-2 md:hidden">
 				{rows.map(r => (
-					<li key={r.id}>
+					<li key={r.id} className="bg-card/40 rounded-lg border">
 						<button
 							onClick={() => show(r)}
-							className="bg-card/40 flex w-full items-start justify-between gap-3 rounded-lg border p-3 text-left"
+							className="flex w-full items-start justify-between gap-3 p-3 pb-2 text-left"
 						>
 							<span className="min-w-0">
 								<span className="block font-medium">{r.eventName}</span>
 								<span className="num text-muted-foreground block text-xs">
 									{formatDateTime(r.createdAt, timeZone)}
 								</span>
-								<span className="text-muted-foreground block truncate text-xs">
-									{origin(r)}
+								<span className="block truncate text-xs">
+									<OriginText origin={r.origin} />
 								</span>
 							</span>
 							<span className="flex shrink-0 flex-col items-end gap-1">
@@ -123,66 +142,38 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 								<DeliveryStatus status={r.metaStatus} />
 							</span>
 						</button>
+						<div className="flex items-center gap-1.5 px-3 pb-2 text-xs">
+							<span className="text-muted-foreground">Visitante</span>
+							<VisitorLink id={r.trckUserId} />
+						</div>
 					</li>
 				))}
 			</ul>
 
-			<Dialog open={open} onOpenChange={setOpen}>
-				<DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">
-					<DialogHeader>
-						<DialogTitle>{detail?.eventName ?? "Evento"}</DialogTitle>
-						<DialogDescription>
-							O que foi enviado e o que cada destino respondeu.
-						</DialogDescription>
-					</DialogHeader>
-					{loading || !detail ? (
-						<div className="text-muted-foreground grid place-items-center py-16">
-							<LoaderCircleIcon className="size-5 animate-spin" />
-						</div>
-					) : (
-						<div className="flex min-w-0 flex-col gap-4">
-							<dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-								<dt className="text-muted-foreground">Quando</dt>
-								<dd className="num">{formatDateTime(detail.createdAt, timeZone)}</dd>
-								<dt className="text-muted-foreground">event_id</dt>
-								<dd className="num break-all">{detail.eventId}</dd>
-								<dt className="text-muted-foreground">Visitante</dt>
-								<dd className="num break-all">{detail.trckUserId}</dd>
-								<dt className="text-muted-foreground">Página</dt>
-								<dd className="break-all">{detail.eventSourceUrl ?? "—"}</dd>
-								<dt className="text-muted-foreground">IP</dt>
-								<dd className="num">{detail.ip ?? "—"}</dd>
-								<dt className="text-muted-foreground">Navegador</dt>
-								<dd className="text-xs break-all">{detail.userAgent ?? "—"}</dd>
-							</dl>
-							<Tabs defaultValue="meta-payload" className="min-w-0 gap-3">
-								<TabsList className="h-10 w-max max-w-full overflow-x-auto">
-									<TabsTrigger value="meta-payload">Meta · enviado</TabsTrigger>
-									<TabsTrigger value="meta-response">Meta · resposta</TabsTrigger>
-									<TabsTrigger value="ga4">GA4</TabsTrigger>
-								</TabsList>
-								<TabsContent value="meta-payload">
-									<JsonBlock
-										value={detail.payloadMeta}
-										empty="Payload não registrado (sem pixel ativo ou expirado após 14 dias)."
-									/>
-								</TabsContent>
-								<TabsContent value="meta-response">
-									<JsonBlock value={detail.responseMeta} />
-								</TabsContent>
-								<TabsContent value="ga4" className="flex flex-col gap-2">
-									<p className="text-muted-foreground text-xs">
-										Eventos do site vão ao GA4 pela gtag no navegador; o servidor só envia
-										a compra (Measurement Protocol).
-									</p>
-									<JsonBlock value={detail.payloadGa4} />
-									{detail.responseGa4 !== null && <JsonBlock value={detail.responseGa4} />}
-								</TabsContent>
-							</Tabs>
-						</div>
-					)}
-				</DialogContent>
-			</Dialog>
+			<EventDetailDialog
+				open={open}
+				onOpenChange={setOpen}
+				detail={detail}
+				loading={loading}
+				timeZone={timeZone}
+				origin={selected?.origin}
+			/>
 		</>
+	);
+}
+
+/** ID do visitante que abre a jornada dele (sem abrir o detalhe do evento). */
+function VisitorLink({ id }: { id: string }) {
+	return (
+		<JourneyLink
+			href={`/painel/visitante/${encodeURIComponent(id)}`}
+			title="Ver a jornada deste visitante"
+			aria-label={`Ver a jornada do visitante ${id}`}
+			onClick={e => e.stopPropagation()}
+			className="num text-muted-foreground hover:text-primary inline-flex min-h-9 items-center gap-0.5 text-xs underline-offset-4 hover:underline"
+		>
+			{id}
+			<ChevronRightIcon className="size-3.5 shrink-0" aria-hidden />
+		</JourneyLink>
 	);
 }

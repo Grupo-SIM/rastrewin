@@ -17,7 +17,51 @@ export interface MpItem {
 export interface MpBody {
 	client_id: string;
 	timestamp_micros?: number;
+	consent: { ad_user_data: "GRANTED"; ad_personalization: "GRANTED" };
+	user_location?: { city?: string; region_id?: string; country_id: string };
+	ip_override?: string;
+	device?: { category: "mobile" | "tablet" | "desktop" };
 	events: { name: string; params: Record<string, unknown> }[];
+}
+
+/** Visita ligada à venda: de onde e em que aparelho (o MP não deduz isso do client_id na web). */
+export interface MpVisit {
+	city?: string | null;
+	/** UF no Brasil (geo do painel) */
+	region?: string | null;
+	country?: string | null;
+	ip?: string | null;
+	userAgent?: string | null;
+}
+
+export function deviceCategory(userAgent: string): "mobile" | "tablet" | "desktop" {
+	if (/iPad|Tablet|Android(?!.*Mobile)/i.test(userAgent)) return "tablet";
+	if (/Mobi|iPhone|iPod|Android/i.test(userAgent)) return "mobile";
+	return "desktop";
+}
+
+/**
+ * Sem localização/dispositivo, a compra do MP aparece no GA4 como "(not set)". user_location
+ * (ISO 3166: country_id "BR", region_id "BR-SP") tem precedência; sem geo, ip_override.
+ */
+export function visitContext(
+	visit: MpVisit | null | undefined,
+): Pick<MpBody, "user_location" | "ip_override" | "device"> {
+	if (!visit) return {};
+	const country = visit.country?.trim().toUpperCase();
+	const region = visit.region?.trim().toUpperCase();
+	const out: Pick<MpBody, "user_location" | "ip_override" | "device"> = {};
+	if (country && /^[A-Z]{2}$/.test(country)) {
+		out.user_location = {
+			country_id: country,
+			...(visit.city ? { city: visit.city } : {}),
+			...(region && /^[A-Z0-9]{1,3}$/.test(region) ? { region_id: `${country}-${region}` } : {}),
+		};
+	} else if (visit.ip) {
+		out.ip_override = visit.ip;
+	}
+	if (visit.userAgent) out.device = { category: deviceCategory(visit.userAgent) };
+	return out;
 }
 
 /** O MP aceita eventos de até 72 h atrás; usamos 71 h de margem. */
@@ -38,6 +82,7 @@ export function buildMpBody(input: {
 	value: number;
 	currency: string;
 	items?: MpItem[];
+	visit?: MpVisit | null;
 	debug?: boolean;
 	now?: Date;
 }): MpBody {
@@ -58,6 +103,9 @@ export function buildMpBody(input: {
 	return {
 		client_id: input.clientId ?? syntheticClientId(input.transactionId),
 		...(ts ? { timestamp_micros: ts.getTime() * 1000 } : {}),
+		...visitContext(input.visit),
+		// LGPD: o MP só é chamado para quem aceitou marketing no banner (ver deliver.ts).
+		consent: { ad_personalization: "GRANTED", ad_user_data: "GRANTED" },
 		events: [{ name: input.name, params }],
 	};
 }
