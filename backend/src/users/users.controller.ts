@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post } from "@nestjs/common";
 import { IsEmail, IsIn, IsObject, IsOptional, IsString, MinLength } from "class-validator";
 import { generateOtpCode } from "../auth/phone.util";
-import { checkoutUrlFor, expireIfPastDue, PLAN_IDS } from "../plans";
+import { checkoutUrlFor, checkoutUrlWithPrefill, expireIfPastDue, PLAN_IDS } from "../plans";
 import { PrismaService } from "../prisma/prisma.service";
 import { sanitizeTracking } from "../track/tracking";
 import { toPublicUser } from "./user.view";
@@ -49,7 +49,10 @@ export class UsersController {
 				},
 				where: { id: existing.id },
 			});
-			return { ...toPublicUser(user), checkoutUrl };
+			return {
+				...toPublicUser(user),
+				checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl,
+			};
 		}
 
 		const user = await this.prisma.user.upsert({
@@ -65,7 +68,7 @@ export class UsersController {
 			},
 			where: { email },
 		});
-		return { ...toPublicUser(user), checkoutUrl };
+		return { ...toPublicUser(user), checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl };
 	}
 
 	@Get(":id")
@@ -73,7 +76,7 @@ export class UsersController {
 		const user = await this.prisma.user.findUnique({ where: { id } });
 		if (!user) throw new NotFoundException("Usuário não encontrado");
 		const status = await expireIfPastDue(this.prisma, user);
-		return { ...toPublicUser({ ...user, status }), checkoutUrl: checkoutUrlFor(user.plan) };
+		return { ...toPublicUser({ ...user, status }), checkoutUrl: checkoutUrlWithPrefill(user.plan, user) };
 	}
 
 	/** Gera (ou reaproveita) o código que o usuário precisa mandar pro WhatsApp do rastrewin
