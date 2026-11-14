@@ -61,6 +61,24 @@ test("renovação: só com renewal === true (o contrato do SimIntPay não traz o
 	assert.equal(salesEventSchema.safeParse({ ...payload, renewal: "sim" }).success, false);
 });
 
+test("recusa do banner (tracking.consent = rejected): nada liga a venda ao visitante", () => {
+	const recusa = toPurchaseFields(
+		salesEventSchema.parse({ ...payload, tracking: { ...payload.tracking, consent: "rejected" } }),
+	);
+	assert.equal(recusa.consentRejected, true);
+	assert.equal(recusa.trckUserIdFromSrc, null);
+	assert.equal(recusa.fbc, null);
+	assert.equal(recusa.fbclid, null);
+	assert.equal(recusa.fbp, null);
+	for (const consent of ["granted", "", "REJECTED"]) {
+		const f = toPurchaseFields(
+			salesEventSchema.parse({ ...payload, tracking: { ...payload.tracking, consent } }),
+		);
+		assert.equal(f.consentRejected, false, consent);
+		assert.equal(f.trckUserIdFromSrc, "abc123def456ghi7");
+	}
+});
+
 test("src que não é trck_user_id não é usado para ligar a venda", () => {
 	const f = toPurchaseFields(salesEventSchema.parse({ ...payload, tracking: { src: "afiliado x!" } }));
 	assert.equal(f.src, "afiliado x!");

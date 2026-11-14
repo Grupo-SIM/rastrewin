@@ -139,10 +139,14 @@ export function toPurchaseFields(p: SalesEvent) {
 		utmSource: pick("utm_source"),
 		utmTerm: pick("utm_term"),
 	};
+	// LGPD: recusa do banner na visita da compra, informada pelo site no cadastro e repassada pelo
+	// backend. Vale mais que qualquer aceite antigo encontrado pelo src, e-mail ou telefone.
+	const consentRejected = pick("consent") === "rejected";
 	return {
-		fbc: pick("fbc") && FB_COOKIE.test(pick("fbc")!) ? pick("fbc") : null,
-		fbclid: pick("fbclid"),
-		fbp: pick("fbp") && FB_COOKIE.test(pick("fbp")!) ? pick("fbp") : null,
+		consentRejected,
+		fbc: !consentRejected && pick("fbc") && FB_COOKIE.test(pick("fbc")!) ? pick("fbc") : null,
+		fbclid: consentRejected ? null : pick("fbclid"),
+		fbp: !consentRejected && pick("fbp") && FB_COOKIE.test(pick("fbp")!) ? pick("fbp") : null,
 		hasUtm: Object.values(utm).some(Boolean),
 		isRenewal: p.renewal === true,
 		items,
@@ -156,8 +160,8 @@ export function toPurchaseFields(p: SalesEvent) {
 		src,
 		status: mapStatus(p.event),
 		transactionId: p.orderId,
-		/** trck_user_id só se o src tiver o formato do nosso ID */
-		trckUserIdFromSrc: src && TRCK_ID.test(src) ? src : null,
+		/** trck_user_id só se o src tiver o formato do nosso ID (e nunca com recusa do banner) */
+		trckUserIdFromSrc: !consentRejected && src && TRCK_ID.test(src) ? src : null,
 		utm,
 		value: (Math.round(p.amountCents) / 100).toFixed(2),
 	};

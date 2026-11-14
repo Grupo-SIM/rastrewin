@@ -62,6 +62,30 @@ export async function matchVisitor(
 	return { match: { by: null, found: false, reason }, visitor: null };
 }
 
+/** Campos da venda que vêm do visitante (ou do clique no anúncio). */
+const VISITOR_FIELDS = [
+	"trckUserId",
+	"fbc",
+	"fbclid",
+	"fbp",
+	"gaClientId",
+	"gaSessionId",
+	"geoCity",
+	"geoCountry",
+	"geoRegion",
+	"utmSource",
+	"utmMedium",
+	"utmCampaign",
+	"utmTerm",
+	"utmContent",
+] as const;
+
+const REJECTED_MATCH: MatchResult = {
+	by: null,
+	found: false,
+	reason: "recusou o banner de cookies na visita da compra",
+};
+
 /**
  * Grava/atualiza a compra (UPSERT por transaction_id, com precedência de status).
  * Retorna o id da compra e o status final.
@@ -74,12 +98,16 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 	const phHash = hashed(normPhone(event.phone));
 
 	return serviceDb().transaction(async tx => {
-		const { visitor, match } = await matchVisitor(tx, {
-			emHash,
-			phHash,
-			src: f.src,
-			trckUserId: f.trckUserIdFromSrc,
-		});
+		// Recusa do banner na visita da compra: a venda não se liga a nenhum visitante (nem a um aceite
+		// antigo achado pelo e-mail ou por um telefone compartilhado) e não vai à Meta nem ao GA4.
+		const { visitor, match } = f.consentRejected
+			? { match: REJECTED_MATCH, visitor: null }
+			: await matchVisitor(tx, {
+					emHash,
+					phHash,
+					src: f.src,
+					trckUserId: f.trckUserIdFromSrc,
+				});
 
 		// Último toque exato do checkout tem prioridade; senão, o que o visitante tinha.
 		const utm = f.hasUtm
@@ -166,7 +194,8 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 				.where(eq(purchases.id, existing.id));
 			return { match: existing.match as MatchResult, purchaseId: existing.id, status, visitor: null };
 		}
-		const keepOldMatch = !match.found && (existing.match as MatchResult | null)?.found;
+		const keepOldMatch =
+			!f.consentRejected && !match.found && (existing.match as MatchResult | null)?.found;
 
 		// Eventos seguintes (reembolso, chargeback...) costumam vir SEM tracking/email.
 		// Só troca um campo se o evento novo trouxer valor; senão mantém o que já estava gravado.
@@ -182,6 +211,10 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 			}
 		}
 		if (keepOldMatch) merged.match = purchases.match;
+		// Recusa: apaga a ligação e os dados de visitante que um evento anterior tenha gravado.
+		if (f.consentRejected) {
+			for (const key of VISITOR_FIELDS) merged[key] = null;
+		}
 
 		await tx
 			.update(purchases)
