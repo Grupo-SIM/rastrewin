@@ -28,7 +28,8 @@ The SimIntPay "sales API" (`Grupo-SIM/simintpay`: `docs/central-sales-api.md`):
 ## Backend behavior
 
 - **Abuse limits** (`backend/src/http/`): the webhook accepts 120 requests/min per IP, checked before the signature, so a flood never computes HMACs (a 429 is retried by SimIntPay). The privacy form (`/privacy/requests` and `/confirm`) accepts 5 per 10 min per IP. The IP is the LAST `X-Forwarded-For` entry, set by our Caddy; `X-Real-IP` is ignored because the backend proxy does not overwrite it (a forged value per request used to bypass the limit). Limits live in memory: one instance, reset on restart.
-- `purchase_approved` activates the plan chosen at sign-up, or extends it by one year. Idempotent by `orderId`. The first payment creates the password and emails it.
+- `purchase_approved` activates the plan chosen at sign-up, or extends it by one year. Idempotent by `orderId`, also for simultaneous notifications: the activation is one conditional `UPDATE` (only while the user does not have that `orderId` yet), so a second approval of the same order updates no row and creates no second password or e-mail. The first payment creates the password and emails it.
+- Sign-up `tracking.consent` (`granted`/`rejected`) carries the banner choice. `rejected` replaces the saved tracking entirely; the relay merges it with the checkout keys, and the track never sends that sale to Meta/GA4 (see business-rules).
 - A user with an ACTIVE plan who submits the sign-up form again keeps access: the profile is updated and a different plan is stored in `pendingPlan`, which becomes the plan only when the next `purchase_approved` arrives.
 - `purchase_refunded` and `chargeback` set the user whose last paid order is that `orderId` to `EXPIRED`. A refund of an older order, already replaced by a newer paid one, does not revoke.
 - Every valid event is then relayed to the track (`backend/src/track/track-relay.service.ts`):
