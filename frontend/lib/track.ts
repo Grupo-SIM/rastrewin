@@ -37,9 +37,29 @@ function cookie(name: string): string | null {
 	}
 }
 
-/** src (= trck_user_id), UTMs guardadas pelo t.js e cookies da Meta. Só o que existir. */
+/**
+ * Escolha feita no banner de cookies (cookie necessário _trck_consent, gravado pelo t.js no domínio
+ * raiz): "granted" = aceitou marketing, "rejected" = recusou. null = ainda não escolheu (ou script bloqueado).
+ */
+function readConsent(): "granted" | "rejected" | null {
+	try {
+		const c = JSON.parse(cookie("_trck_consent") ?? "null") as { m?: unknown } | null;
+		if (typeof c?.m === "boolean") return c.m ? "granted" : "rejected";
+	} catch {
+		/* cookie ausente ou inválido */
+	}
+	return null;
+}
+
+/**
+ * src (= trck_user_id), UTMs guardadas pelo t.js, cookies da Meta e a escolha do banner. Só o que existir.
+ * LGPD: quem recusou o banner manda SÓ a recusa. O backend troca por ela o que um cadastro anterior
+ * tinha gravado, e o track não liga a venda a nenhum aceite antigo (e-mail, telefone ou outro aparelho).
+ */
 export function readTracking(): Record<string, string> {
-	const out: Record<string, string> = {};
+	const consent = readConsent();
+	if (consent === "rejected") return { consent };
+	const out: Record<string, string> = consent ? { consent } : {};
 	const id = window.trck?.id ?? cookie("_trck");
 	if (id) out.src = id;
 	try {
@@ -67,7 +87,8 @@ export function withTracking(checkoutUrl: string): string {
 	try {
 		const url = new URL(checkoutUrl);
 		for (const [k, v] of Object.entries(readTracking())) {
-			if (!url.searchParams.has(k)) url.searchParams.set(k, v);
+			// A escolha do banner vai só no cadastro (backend); o checkout só conhece src, UTMs, fbc e fbp.
+			if (k !== "consent" && !url.searchParams.has(k)) url.searchParams.set(k, v);
 		}
 		return url.toString();
 	} catch {
