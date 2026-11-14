@@ -83,7 +83,7 @@ export class PaymentsController {
 	/** Libera (ou renova por +1 ano) o plano escolhido no cadastro. No primeiro pagamento
 	 * também cria a senha de acesso e envia por e-mail. */
 	private async activate(event: SalesEvent, user: User) {
-		// idempotência: o mesmo pedido (orderId) não processa duas vezes
+		// Pedido que já ativou alguém (reentrega depois de processado): nada a fazer.
 		const already = await this.prisma.user.findUnique({ where: { simpayOrderId: event.orderId } });
 		if (already) return;
 
@@ -94,7 +94,11 @@ export class PaymentsController {
 		// se renovar antes de vencer); se já tinha expirado, conta a partir de agora.
 		const base = user.expiresAt && user.expiresAt.getTime() > now.getTime() ? user.expiresAt : now;
 
-		await this.prisma.user.update({
+		// Idempotência atômica: o mesmo pedido (orderId) ativa uma vez só, mesmo com dois avisos
+		// ao mesmo tempo. O UPDATE só pega a linha se ela ainda não tem este orderId; o Postgres
+		// trava a linha e reavalia a condição, então o segundo aviso simultâneo atualiza 0 linhas
+		// e não gera outra senha nem outro e-mail.
+		const { count } = await this.prisma.user.updateMany({
 			data: {
 				expiresAt: new Date(base.getTime() + ONE_YEAR_MS),
 				paidAt: now,
@@ -104,8 +108,12 @@ export class PaymentsController {
 				...(user.pendingPlan ? { pendingPlan: null, plan: user.pendingPlan } : {}),
 				...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
 			},
-			where: { id: user.id },
+			where: {
+				id: user.id,
+				OR: [{ simpayOrderId: null }, { simpayOrderId: { not: event.orderId } }],
+			},
 		});
+		if (count === 0) return;
 
 		if (plainPassword) void this.email.sendWelcomeCredentials(user.email, user.name, plainPassword);
 	}
