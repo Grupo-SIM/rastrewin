@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ctaHref } from "@/lib/forward-origin";
 import { readUnlocked, saveUnlocked } from "@/lib/unlock-storage";
 import { UnlockCta } from "./unlock-cta";
 import { type UnlockReason, VslPlayer } from "./vsl-player";
@@ -28,6 +29,28 @@ export function VslSection({
 	useEffect(() => {
 		if (readUnlocked(videoId)) setUnlocked(true);
 	}, [videoId]);
+
+	// Botão: na interação, o link ganha a origem do anúncio (UTMs e fbclid, nunca com recusa no banner).
+	// Ouvinte delegado: o link continua um <a> comum.
+	useEffect(() => {
+		const onInteraction = (event: Event) => {
+			try {
+				const link = (event.target as Element | null)?.closest?.<HTMLAnchorElement>(
+					"a[data-vsl-cta]",
+				);
+				if (!link) return;
+				link.href = ctaHref(destinationUrl, window.location.search, document.cookie);
+			} catch {
+				// o botão sempre funciona, mesmo se a montagem do link falhar
+			}
+		};
+		const types = ["click", "auxclick", "contextmenu", "touchstart"];
+		for (const type of types)
+			document.addEventListener(type, onInteraction, { capture: true, passive: true });
+		return () => {
+			for (const type of types) document.removeEventListener(type, onInteraction, { capture: true });
+		};
+	}, [destinationUrl]);
 
 	const handleUnlock = (reason: UnlockReason) => {
 		setUnlocked(true);
