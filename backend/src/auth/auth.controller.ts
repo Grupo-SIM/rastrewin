@@ -3,13 +3,18 @@ import {
 	BadRequestException,
 	Body,
 	Controller,
+	HttpException,
+	HttpStatus,
 	Post,
 	Req,
 	UnauthorizedException,
 	UseGuards,
 } from "@nestjs/common";
 import { IsEmail, IsString, Length, Matches, MaxLength, MinLength } from "class-validator";
+import type { Request } from "express";
 import { EmailService } from "../email/email.service";
+import { rateLimitKey } from "../http/client-ip";
+import { createRateLimiter } from "../http/rate-limit";
 import { PrismaService } from "../prisma/prisma.service";
 import { toPublicUser } from "../users/user.view";
 import { AuthGuard } from "./auth.guard";
@@ -19,6 +24,15 @@ import { comparePassword, hashPassword } from "./password.util";
 const RESET_TTL_MS = 15 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 const MAX_ATTEMPTS = 5;
+
+/**
+ * Login: no máximo 10 tentativas por minuto por IP e por e-mail (janela deslizante, na memória).
+ * Segura rajadas (várias senhas testadas em sequência) sem travar quem erra a senha algumas vezes:
+ * passado o minuto, volta ao normal sozinho. Senha certa ou errada contam igual.
+ */
+const LOGIN_LIMIT = { max: 10, windowMs: 60 * 1000 };
+const loginByIp = createRateLimiter(LOGIN_LIMIT);
+const loginByEmail = createRateLimiter(LOGIN_LIMIT);
 
 function hashCode(email: string, code: string) {
 	return createHmac("sha256", process.env.JWT_SECRET ?? "")
@@ -63,8 +77,18 @@ export class AuthController {
 	) {}
 
 	@Post("login")
-	async login(@Body() dto: LoginDto) {
-		const user = await this.prisma.user.findUnique({ where: { email: dto.email.trim().toLowerCase() } });
+	async login(@Body() dto: LoginDto, @Req() req: Request) {
+		const email = dto.email.trim().toLowerCase();
+		// Os dois contadores andam juntos: o de IP segura uma máquina testando várias contas,
+		// o de e-mail segura uma conta atacada de vários lugares.
+		const ipOk = loginByIp.take(rateLimitKey(req));
+		const emailOk = loginByEmail.take(email);
+		if (!ipOk || !emailOk)
+			throw new HttpException(
+				"Muitas tentativas. Aguarde um minuto e tente de novo.",
+				HttpStatus.TOO_MANY_REQUESTS,
+			);
+		const user = await this.prisma.user.findUnique({ where: { email } });
 		if (!user?.password || !(await comparePassword(dto.password, user.password))) {
 			throw new UnauthorizedException("E-mail ou senha inválidos");
 		}
