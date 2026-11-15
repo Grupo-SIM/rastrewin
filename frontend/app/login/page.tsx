@@ -23,8 +23,14 @@ export default function Login() {
 			localStorage.setItem("userToken", token);
 			localStorage.setItem("userId", user.id);
 			router.push("/dashboard");
-		} catch {
-			setErr("E-mail ou senha inválidos.");
+		} catch (e) {
+			// 429 = muitas tentativas em pouco tempo (limite do backend); o resto é e-mail ou senha errados.
+			const tooMany = e instanceof Error && e.message.startsWith("429");
+			setErr(
+				tooMany
+					? "Muitas tentativas. Aguarde um minuto e tente de novo."
+					: "E-mail ou senha inválidos.",
+			);
 			setBusy(false);
 		}
 	}
