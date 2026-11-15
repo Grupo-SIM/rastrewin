@@ -21,6 +21,7 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
     - Comandos `trck(...)` do site feitos antes do aceite são descartados (não ficam em fila).
 - **Recusou:** continua assim. A compra dessa pessoa entra no Faturamento, mas **não** vai à Meta nem ao GA4. O painel mostra "Sem consentimento".
     - A recusa **da visita do cadastro** vale mais que um aceite antigo: o site informa a escolha no cadastro, o backend a repassa com a venda, e o track não liga a compra a nenhum visitante (nem pelo e-mail, nem por um telefone compartilhado, nem por outro aparelho que tenha aceitado).
+    - No Faturamento, essa venda mostra **"Banner recusado"** ao lado do status. Quem deixou o banner sem resposta não ganha esse rótulo: só a coluna Envio mostra "Sem consentimento".
 - **Mudou de ideia:** o link "Preferências de cookies" no rodapé reabre o banner.
     - Quem tinha aceitado e agora recusa tem a escolha registrada como **revogação**.
     - Os cookies de marketing do navegador são apagados, e os identificadores da Meta e do Google daquele visitante são apagados no track.
