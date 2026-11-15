@@ -9,6 +9,12 @@ GA4. A medição nunca pode afetar o player nem o botão: o envio fica em `try/c
 Sem aceite, o `t.js` descarta o `trck('video')`. O rodapé tem o link da política (rastrewin.com/privacidade) e o botão
 "Preferências de cookies" (`src/components/vsl/cookie-preferences.tsx`, chama `trck('consent', 'open')`).
 
+Eventos da Meta (`src/lib/meta-events.ts`, pelo `trck('track')`, só depois do aceite e só para a Meta): `VSLStart` (1º
+play), `VSLCTAUnlock` (liberação do botão, com `reason` `watched`, `ended` ou `error`; botão lembrado de visita anterior
+não conta) e `CTAClick` (`page_type: "vsl"`). O botão leva as UTMs e o `fbclid` da visita para a landing só na URL, sem
+gravar nada, e não leva com recusa no banner (`src/lib/forward-origin.ts`). Não remova a query do link: é ela que
+preserva a origem do anúncio de quem só aceita o banner na landing. Regras completas em `docs/business-rules.md`.
+
 ## Stack
 
 - Next.js 16 (App Router, `output: "standalone"`) + React 19 + TypeScript estrito (6.x, a última suportada pelo Next).
