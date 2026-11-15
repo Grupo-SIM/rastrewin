@@ -27,6 +27,7 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
 - **Mudou de ideia:** o link "Preferências de cookies" no rodapé reabre o banner.
     - Quem tinha aceitado e agora recusa tem a escolha registrada como **revogação**.
     - Os cookies de marketing do navegador são apagados, e os identificadores da Meta e do Google daquele visitante são apagados no track.
+    - As URLs que o track guardou dessa pessoa (página de entrada e páginas dos eventos) perdem a parte depois do `?` e do `#`, onde ficam o `fbclid`, o `gclid` e as UTMs. Fica só o endereço da página, que é o que as abas Páginas e Jornada mostram.
 - **Prova do consentimento** (LGPD art. 8º): cada escolha fica na tabela `consent_records` com:
     - um id aleatório da escolha;
     - a ação (aceite, recusa, personalizada ou revogação);

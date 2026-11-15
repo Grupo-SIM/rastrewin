@@ -1,7 +1,7 @@
 import "server-only";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { serviceDb } from "@/db";
-import { consentRecords, visitors } from "@/db/schema";
+import { consentRecords, eventsLog, visitors } from "@/db/schema";
 import type { ConsentInput } from "@/lib/tracking/schemas";
 
 /** Página sem query nem # (a query pode levar UTMs, fbclid ou dados pessoais). */
@@ -14,11 +14,18 @@ export function pagePathOf(pageUrl: string | null | undefined): string | null {
 	}
 }
 
+/** A mesma URL sem query nem # (em SQL; nulo continua nulo). */
+function withoutQuery(column: typeof visitors.landingUrl | typeof eventsLog.eventSourceUrl) {
+	return sql<string | null>`regexp_replace(${column}, '[?#].*$', '')`;
+}
+
 /**
  * Grava a escolha do banner (prova do consentimento) e aplica no visitante:
  * - aceitou: consent_marketing = true (os eventos seguintes vão à Meta/GA4);
  * - recusou/revogou: consent_marketing = false e os identificadores de marketing do visitante
- *   (fbc, fbp, ids do GA) são apagados, para não serem usados em nenhum envio.
+ *   (fbc, fbp, ids do GA) são apagados, para não serem usados em nenhum envio. As URLs gravadas
+ *   (landing_url do visitante e event_source_url dos eventos dele) perdem a query e o #, que levam
+ *   fbclid, gclid e UTMs; fica só domínio + caminho, o que as abas Páginas e Jornada usam.
  */
 export async function recordConsent(input: ConsentInput, origin: string) {
 	const db = serviceDb();
@@ -38,9 +45,24 @@ export async function recordConsent(input: ConsentInput, origin: string) {
 			.set({
 				consentAt: sql`now()`,
 				consentMarketing: input.marketing,
-				...(input.marketing ? {} : { fbc: null, fbp: null, gaClientId: null, gaSessionId: null }),
+				...(input.marketing
+					? {}
+					: {
+							fbc: null,
+							fbp: null,
+							gaClientId: null,
+							gaSessionId: null,
+							landingUrl: withoutQuery(visitors.landingUrl),
+						}),
 				updatedAt: sql`now()`,
 			})
 			.where(eq(visitors.trckUserId, input.trck_user_id));
+		if (input.marketing) return;
+		await tx
+			.update(eventsLog)
+			.set({ eventSourceUrl: withoutQuery(eventsLog.eventSourceUrl) })
+			.where(
+				and(eq(eventsLog.trckUserId, input.trck_user_id), sql`${eventsLog.eventSourceUrl} ~ '[?#]'`),
+			);
 	});
 }
