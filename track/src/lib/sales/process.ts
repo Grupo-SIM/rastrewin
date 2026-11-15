@@ -3,6 +3,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { serviceDb } from "@/db";
 import { purchases, visitors } from "@/db/schema";
 import { hashed, normEmail, normName, normPhone, splitFullName } from "@/lib/tracking/normalize";
+import { BANNER_REJECTED_REASON } from "./consent";
 import { nextStatus, postApprovalOnly, type SalesEvent, toPurchaseFields } from "./simintpay";
 
 type Tx = Parameters<Parameters<ReturnType<typeof serviceDb>["transaction"]>[0]>[0];
@@ -12,6 +13,8 @@ export interface MatchResult {
 	found: boolean;
 	by: "trck_user_id" | "email" | "phone" | null;
 	reason: string;
+	/** Recusa explícita do banner na visita da compra (painel: "Banner recusado"). */
+	consent?: "rejected";
 }
 
 /** Liga a venda ao visitante: 1º pelo trck_user_id (src), depois email, depois telefone. */
@@ -82,8 +85,9 @@ const VISITOR_FIELDS = [
 
 const REJECTED_MATCH: MatchResult = {
 	by: null,
+	consent: "rejected",
 	found: false,
-	reason: "recusou o banner de cookies na visita da compra",
+	reason: BANNER_REJECTED_REASON,
 };
 
 /**

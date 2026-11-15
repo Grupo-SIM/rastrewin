@@ -8,10 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { PurchaseDetail } from "@/lib/dashboard/details";
 import { formatMoney } from "@/lib/dashboard/format";
 import type { PurchaseRow } from "@/lib/dashboard/revenue";
+import { isBannerRejected } from "@/lib/sales/consent";
 import { formatDateTime } from "@/lib/time";
 import { JourneyLink } from "./back-button";
 import { JsonBlock } from "./json-block";
-import { DeliveryStatus, PurchaseStatus } from "./status-badge";
+import { BannerRejectedBadge, DeliveryStatus, PurchaseStatus } from "./status-badge";
 
 /** LGPD: a venda não está ligada a um visitante que aceitou marketing no banner. */
 const NO_CONSENT = "Não enviado: o comprador não aceitou marketing no banner (LGPD)";
@@ -94,7 +95,11 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 									{formatMoney(r.value, r.currency)}
 								</td>
 								<td className="py-2 pr-3">
-									<PurchaseStatus status={r.status} />
+									{/* Ao lado do status em tela larga; embaixo dele se faltar espaço (a tabela não estoura). */}
+									<span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 2xl:flex-nowrap">
+										<PurchaseStatus status={r.status} />
+										{r.bannerRejected && <BannerRejectedBadge />}
+									</span>
 								</td>
 								<td className="text-muted-foreground max-w-48 truncate py-2 pr-3">
 									{origin(r)}
@@ -154,6 +159,7 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 									{formatMoney(r.value, r.currency)}
 								</span>
 								<PurchaseStatus status={r.status} />
+								{r.bannerRejected && <BannerRejectedBadge />}
 							</span>
 						</button>
 					</li>
@@ -185,8 +191,9 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 									<dt className="text-muted-foreground">Pedido</dt>
 									<dd className="num break-all">{detail.transactionId}</dd>
 									<dt className="text-muted-foreground">Status</dt>
-									<dd>
+									<dd className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
 										<PurchaseStatus status={detail.status} />
+										{isBannerRejected(detail.match) && <BannerRejectedBadge />}
 									</dd>
 									<dt className="text-muted-foreground">Valor</dt>
 									<dd className="num">

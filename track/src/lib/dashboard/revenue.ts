@@ -1,5 +1,6 @@
 import "server-only";
 import { sql } from "drizzle-orm";
+import { BANNER_REJECTED_REASON } from "@/lib/sales/consent";
 import { ACTIVE_SALE, num, param, REFUNDED, rows, type SearchParams, withDashboard } from "./context";
 import { type DailyPoint, fillDays } from "./overview";
 import type { Period } from "./period";
@@ -31,6 +32,8 @@ export interface PurchaseRow {
 	utmSource: string | null;
 	utmCampaign: string | null;
 	matchedBy: string | null;
+	/** O comprador clicou em "Recusar" no banner na visita da compra (rótulo "Banner recusado"). */
+	bannerRejected: boolean;
 	/**
 	 * ok = enviado; erro = tentou e falhou; pendente = ainda não tentou (ou sem conta ativa);
 	 * renovacao = não vai à Meta/GA4; sem_consentimento = o comprador não aceitou marketing (LGPD), não vai.
@@ -134,6 +137,7 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 			sql`
       select p.id, p.transaction_id, coalesce(p.occurred_at, p.created_at) as date, p.product, p.value, p.currency, p.status,
              p.payment_method, p.utm_source, p.utm_campaign, p.match->>'by' as matched_by,
+             (p.match->>'consent' = 'rejected' or p.match->>'reason' = ${BANNER_REJECTED_REASON}) is true as banner_rejected,
              case when p.is_renewal then 'renovacao' when p.meta_sent_at is not null then 'ok' when p.marketing_consent is not true then 'sem_consentimento' when p.meta_attempts > 0 then 'erro' else 'pendente' end as meta_status,
              case when p.is_renewal then 'renovacao' when p.ga4_sent_at is not null then 'ok' when p.marketing_consent is not true then 'sem_consentimento' when p.ga4_attempts > 0 then 'erro' else 'pendente' end as ga4_status
       from purchases p where ${where}
@@ -168,6 +172,7 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 				pageSize: PAGE_SIZE,
 				q,
 				rows: list.map(x => ({
+					bannerRejected: x.banner_rejected === true,
 					currency: String(x.currency),
 					date: new Date(x.date as string).toISOString(),
 					ga4Status: x.ga4_status as PurchaseRow["ga4Status"],
