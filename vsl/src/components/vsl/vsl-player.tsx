@@ -4,6 +4,7 @@ import type Player from "@vimeo/player";
 import { LoaderCircle, Play } from "lucide-react";
 import Image from "next/image";
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
+import { vslEvent } from "@/lib/meta-events";
 import { dueForReport, reportVideo } from "@/lib/video-tracking";
 import {
 	canPreloadPlayer,
@@ -18,7 +19,8 @@ const TICK_MS = 250;
 /** Tocou na capa e o player não ficou pronto nesse tempo (rede travada, bloqueador): erro e libera o botão. */
 const LOAD_TIMEOUT_MS = 15_000;
 
-export type UnlockReason = "watched" | "error";
+/** watched = assistiu o tempo de liberação; ended = o vídeo terminou antes disso; error = o player falhou. */
+export type UnlockReason = "watched" | "ended" | "error";
 
 /**
  * - "idle": capa clicável, ainda sem player pronto embaixo (o toque cria ou espera o player).
@@ -237,6 +239,8 @@ export function VslPlayer({
 				// Tocou no play do Vimeo: a capa sai da frente.
 				player.on("play", () => {
 					clearLoadTimeout();
+					// Meta: início real do vídeo, uma vez por carregamento da página.
+					if (!startedRef.current) vslEvent("VSLStart", { video_id: `vimeo:${videoId}` });
 					startedRef.current = true;
 					setStarted(true);
 					setStatus("ready");
@@ -259,7 +263,7 @@ export function VslPlayer({
 					pausedRef.current = true;
 					stopTicking();
 					// Assistiu até o fim: libera mesmo que o vídeo seja mais curto que unlockAtSeconds.
-					unlock("watched");
+					unlock("ended");
 					report(true);
 				});
 				player.on("error", error => {
