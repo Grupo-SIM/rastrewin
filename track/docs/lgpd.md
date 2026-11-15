@@ -19,6 +19,7 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
     - o Pixel e o GA4 não são carregados;
     - o track não recebe evento nenhum.
     - Comandos `trck(...)` do site feitos antes do aceite são descartados (não ficam em fila).
+    - **Origem do anúncio entre a VSL e o rastrewin.com:** o botão da VSL leva as UTMs e o `fbclid` da visita **só na URL** (nada é gravado). No rastrewin.com, o `t.js` lê a URL só depois do aceite. Por isso quem deixou o banner sem resposta na VSL e aceita no rastrewin.com não perde a origem, e quem recusou não leva a origem adiante: com o cookie da escolha marcando recusa, o botão abre o rastrewin.com sem esses parâmetros.
 - **Recusou:** continua assim. A compra dessa pessoa entra no Faturamento, mas **não** vai à Meta nem ao GA4. O painel mostra "Sem consentimento".
     - A recusa **da visita do cadastro** vale mais que um aceite antigo: o site informa a escolha no cadastro, o backend a repassa com a venda, e o track não liga a compra a nenhum visitante (nem pelo e-mail, nem por um telefone compartilhado, nem por outro aparelho que tenha aceitado).
     - **Banner sem resposta:** nenhum evento sai do navegador (nem Pixel, nem API de Conversões). A compra segue a regra do aceite já existente: se aquele e-mail se cadastrou antes **aceitando** o banner (em outra visita ou aparelho), o backend mantém o rastreamento daquele cadastro e a compra vai à Meta com aquele aceite. Sem aceite anterior, a compra fica "Sem consentimento". A recusa explícita, ao contrário, sempre vale mais que o aceite antigo.
