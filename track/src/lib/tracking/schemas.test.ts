@@ -27,6 +27,22 @@ test("campos estranhos ou fora do formato são recusados", () => {
 	assert.equal(eventSchema.safeParse({ ...base, custom_data: { hack: 1 } }).success, false);
 });
 
+test("params dos eventos personalizados: limitados e sem sobrescrever comércio", () => {
+	const ok = eventSchema.safeParse({
+		...base,
+		event_name: "ScrollDepth",
+		params: { button: "comecar_hero", percent: 50, section: "hero" },
+	});
+	assert.equal(ok.success, true);
+	const bad = (params: unknown) => eventSchema.safeParse({ ...base, params }).success;
+	assert.equal(bad({ Section: "x" }), false); // chave fora do formato
+	assert.equal(bad({ section: "" }), false); // vazio
+	assert.equal(bad({ section: "x".repeat(101) }), false); // longo demais
+	assert.equal(bad({ value: 999 }), false); // não sobrescreve campo de comércio
+	assert.equal(bad({ nested: { a: 1 } }), false); // só texto ou número
+	assert.equal(bad(Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`p${i}`, i]))), false);
+});
+
 test("identify aceita vazio (o servidor gera o id) e normaliza vazios para null", () => {
 	const r = identifySchema.safeParse({ utm_source: "" });
 	assert.equal(r.success, true);

@@ -46,6 +46,8 @@ export interface CapiCustomData {
 	num_items?: number;
 	order_id?: string;
 	contents?: { id: string; quantity: number; item_price?: number }[];
+	/** Parâmetros dos eventos personalizados (ex.: section, percent, button, plan). */
+	[param: string]: unknown;
 }
 
 export interface CapiEvent {

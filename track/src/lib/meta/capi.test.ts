@@ -55,6 +55,17 @@ test("evento: action_source website, event_time em segundos, event_id e URL", ()
 	assert.deepEqual(e.custom_data, { currency: "BRL", value: 10 });
 });
 
+test("evento personalizado: parâmetros vão no custom_data", () => {
+	const e = buildEvent({
+		customData: { percent: 75 },
+		eventId: "evt-87654321",
+		eventName: "ScrollDepth",
+		person: { externalId: "abc123def456ghi7" },
+	});
+	assert.equal(e.event_name, "ScrollDepth");
+	assert.deepEqual(e.custom_data, { percent: 75 });
+});
+
 test("fbc a partir do fbclid: formato da Meta, maiúsculas preservadas, inválido = null", () => {
 	const at = new Date("2026-11-02T12:00:00.123Z");
 	assert.equal(fbcFromFbclid("IwAR2xYz_Ab-Cd", at), `fb.1.${at.getTime()}.IwAR2xYz_Ab-Cd`);

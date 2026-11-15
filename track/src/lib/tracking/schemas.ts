@@ -83,6 +83,26 @@ export const identifySchema = z.object({
 });
 export type IdentifyInput = z.infer<typeof identifySchema>;
 
+/** Campos de comércio do custom_data: os parâmetros personalizados não podem sobrescrevê-los. */
+const COMMERCE_KEYS = new Set([
+	"content_ids",
+	"content_name",
+	"content_type",
+	"currency",
+	"num_items",
+	"value",
+]);
+
+/**
+ * Parâmetros dos eventos personalizados (ex.: section, percent, button, plan): até 10, chave em
+ * minúsculas (a-z0-9_), valor texto curto ou número. Vão no custom_data da API de Conversões.
+ */
+const eventParams = z
+	.record(z.string().regex(/^[a-z][a-z0-9_]{0,39}$/), z.union([str(100).min(1), z.number().finite()]))
+	.refine(o => Object.keys(o).length <= 10, "no máximo 10 parâmetros")
+	.refine(o => Object.keys(o).every(k => !COMMERCE_KEYS.has(k)), "parâmetro reservado")
+	.optional();
+
 export const eventSchema = z.object({
 	custom_data: z
 		.object({
@@ -108,6 +128,7 @@ export const eventSchema = z.object({
 	fbp: fbCookie,
 	ga_client_id: optStr(100).refine(v => v === null || /^\d+\.\d+$/.test(v), "formato inválido"),
 	ga_session_id: optStr(40).refine(v => v === null || /^\d+$/.test(v), "formato inválido"),
+	params: eventParams,
 	trck_user_id: z.string().regex(TRCK_ID),
 	user_data: z.object(userData).optional(),
 	// Mesmas UTMs do identify: o evento pode chegar antes dele (os dois saem juntos no PageView).
