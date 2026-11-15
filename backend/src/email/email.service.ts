@@ -18,22 +18,26 @@ export class EmailService {
 		tls: { rejectUnauthorized: false },
 	});
 
+	/** Remetente com nome ("Rastrewin <endereço>"): endereço sozinho pesa contra no filtro de spam. */
+	private get from() {
+		return { address: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER ?? "", name: "Rastrewin" };
+	}
+
 	async sendWelcomeCredentials(to: string, name: string, password: string) {
 		const loginUrl = `${process.env.WEB_ORIGIN}/login`;
-		const safeName = escapeHtml(name.trim().split(/\s+/)[0] ?? "");
+		const firstName = name.trim().split(/\s+/)[0] ?? "";
+		const safeName = escapeHtml(firstName);
 		const safeEmail = escapeHtml(to);
 		const safePassword = escapeHtml(password);
 		const safeLoginUrl = escapeHtml(loginUrl);
 		try {
 			await this.transport.sendMail({
-				from: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER,
+				from: this.from,
 				html: `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 </head>
 <body style="margin:0;background:#fafbfc;-webkit-font-smoothing:antialiased">
 <div style="background:#fafbfc;padding:40px 16px;font-family:Manrope,system-ui,Arial,sans-serif;color:#08304c">
@@ -73,6 +77,24 @@ export class EmailService {
 </body>
 </html>`,
 				subject: "Seu acesso à Rastrewin",
+				text: [
+					"Rastrewin",
+					"",
+					"Pagamento confirmado",
+					"",
+					`Olá, ${firstName}! Seja bem-vindo.`,
+					"",
+					"Seu pagamento foi confirmado e sua conta já está ativa. Use os dados abaixo para entrar:",
+					"",
+					`E-mail: ${to}`,
+					`Senha: ${password}`,
+					"",
+					`Entrar: ${loginUrl}`,
+					"",
+					"Por segurança, recomendamos não compartilhar sua senha com ninguém.",
+					"",
+					"Você recebeu este e-mail porque se cadastrou na Rastrewin.",
+				].join("\n"),
 				to,
 			});
 		} catch (err) {
@@ -82,20 +104,19 @@ export class EmailService {
 	}
 
 	async sendPasswordResetCode(to: string, name: string, code: string) {
-		const safeName = escapeHtml(name.trim().split(/\s+/)[0] ?? "");
+		const firstName = name.trim().split(/\s+/)[0] ?? "";
+		const safeName = escapeHtml(firstName);
 		const safeCode = escapeHtml(code);
 		const gradient =
 			"linear-gradient(90deg,#26c0ff,#e600c2 20%,#ff4940 40%,#ffa130 60%,#ffc837 80%,#00cc3d)";
 		try {
 			await this.transport.sendMail({
-				from: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER,
+				from: this.from,
 				html: `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 </head>
 <body style="margin:0;background:#fafbfc;-webkit-font-smoothing:antialiased">
 <div style="background:#fafbfc;padding:40px 16px;font-family:Manrope,system-ui,Arial,sans-serif;color:#08304c">
@@ -126,6 +147,19 @@ export class EmailService {
 </body>
 </html>`,
 				subject: "Seu código para redefinir a senha",
+				text: [
+					"Rastrewin",
+					"",
+					"Redefinição de senha",
+					"",
+					`Olá, ${firstName}! Use o código abaixo para criar uma nova senha. Ele vale por 15 minutos.`,
+					"",
+					`Código: ${code}`,
+					"",
+					"Se você não pediu para redefinir a senha, ignore este e-mail. Sua senha atual continua a mesma.",
+					"",
+					"Você recebeu este e-mail porque alguém solicitou a redefinição de senha na Rastrewin.",
+				].join("\n"),
 				to,
 			});
 		} catch (err) {
@@ -148,7 +182,7 @@ export class EmailService {
 			"linear-gradient(90deg,#26c0ff,#e600c2 20%,#ff4940 40%,#ffa130 60%,#ffc837 80%,#00cc3d)";
 		try {
 			await this.transport.sendMail({
-				from: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER,
+				from: this.from,
 				html: `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
@@ -174,6 +208,19 @@ export class EmailService {
 </body>
 </html>`,
 				subject: isDelete ? "Confirme a exclusão dos seus dados" : "Confirme o acesso aos seus dados",
+				text: [
+					"Rastrewin",
+					"",
+					badge,
+					"",
+					intro,
+					"",
+					"Para confirmar que foi você, abra o link abaixo e confirme na página. Ele vale por 30 minutos e só pode ser usado uma vez.",
+					"",
+					link,
+					"",
+					"Se você não fez esse pedido, ignore este e-mail: nada acontece sem a confirmação.",
+				].join("\n"),
 				to,
 			});
 		} catch (err) {
