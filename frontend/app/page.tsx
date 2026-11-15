@@ -5,6 +5,7 @@ import { SiteIcon } from "@/components/SiteIcon";
 import { api, fmtRemaining, type User } from "@/lib/api";
 import { funnelEvent, useFunnelTracking } from "@/lib/funnel";
 import { isValidCpf, maskCpf, maskPhone } from "@/lib/mask";
+import { CHECKOUT_NOT_OPENED, signupErrorMessage } from "@/lib/signup-error";
 import { SITES as ALL_SITES } from "@/lib/sites";
 import { readTracking, trck, withTracking } from "@/lib/track";
 
@@ -175,7 +176,7 @@ export default function Landing() {
 				// Link de checkout inválido: o checkout não abre e não há InitiateCheckout.
 				checkoutTab?.close();
 				registrationStarted.current = false;
-				setErr("Não foi possível abrir o pagamento agora. Tente de novo em instantes.");
+				setErr(CHECKOUT_NOT_OPENED);
 				return;
 			}
 			// O checkout abre agora (aba nova ou esta mesma, se o popup foi bloqueado).
@@ -185,7 +186,9 @@ export default function Landing() {
 		} catch (e) {
 			checkoutTab?.close();
 			registrationStarted.current = false;
-			setErr(`Não foi possível concluir. A API está rodando? ${(e as Error).message}`);
+			// O cliente vê uma mensagem simples; o detalhe técnico fica só no console (suporte).
+			console.error("[cadastro]", e);
+			setErr(signupErrorMessage(e));
 		} finally {
 			setBusy(false);
 		}
