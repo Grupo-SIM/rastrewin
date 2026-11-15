@@ -22,7 +22,7 @@ const CONTROLADOR = {
 };
 // PERSONALIZAR: mantenha igual à "Versão do texto" do banner (painel do track › Configurações › Privacidade).
 const POLICY_VERSION = "1";
-const UPDATED_AT = "10 de novembro de 2026";
+const UPDATED_AT = "15 de novembro de 2026";
 
 interface Section {
 	title: string;
@@ -96,6 +96,7 @@ const SECTIONS: Section[] = [
 			"Inscrever você em sorteios, apurar vencedores e entrar em contato para a entrega de prêmios, incluindo o uso da chave PIX — execução de contrato.",
 			"Confirmar que o telefone cadastrado é seu e recuperar sua senha — prevenção a fraudes e segurança da conta (legítimo interesse, art. 7º, IX).",
 			"Medir de onde vêm as visitas e as compras, avaliar nossos anúncios e informar à Meta e ao Google as compras concluídas — consentimento (art. 7º, I), que você dá ou recusa no aviso de cookies e pode revogar a qualquer momento, sem prejuízo do uso do site.",
+			"Exibir o vídeo da página de apresentação pelo player do Vimeo — legítimo interesse (art. 7º, IX). O player é configurado para não gravar cookies de estatística do Vimeo.",
 			"Guardar a prova da sua escolha sobre cookies e atender seus pedidos de acesso e exclusão — cumprimento de obrigação legal (art. 7º, II, e art. 8º, §2º).",
 			"Cumprir obrigações legais, fiscais e regulatórias, e exercer direitos em processos judiciais, administrativos ou arbitrais — obrigação legal e exercício regular de direitos (art. 7º, II e VI).",
 			"Responder a dúvidas e solicitações enviadas por você — execução de contrato e legítimo interesse.",
@@ -121,6 +122,14 @@ const SECTIONS: Section[] = [
 				<b>Google (Google Analytics), só com o seu consentimento:</b> eventos de navegação, pelo seu
 				navegador, e a compra, pelo nosso servidor, com o identificador do próprio Google Analytics, a
 				localização aproximada e o tipo de aparelho. Não enviamos e-mail, telefone ou nome ao Google.
+			</>,
+			<>
+				<b>Vimeo, que exibe o vídeo da página de apresentação (vsl.rastrewin.com):</b> ao abrir a
+				página, o player do Vimeo é carregado e recebe, como todo conteúdo incorporado de outro site,
+				o seu endereço IP e o seu navegador. Isso acontece mesmo sem aceite no aviso de cookies,
+				porque é o que permite exibir o vídeo. Configuramos o player para não gravar cookies de
+				estatística nem de identificação do Vimeo no seu navegador. O Vimeo trata esses dados conforme
+				a política de privacidade dele.
 			</>,
 			"Gateway de pagamento: processa as cobranças e nos informa o resultado.",
 			"Provedor de e-mail (SMTP): envia credenciais de acesso, códigos de recuperação de senha e links de confirmação dos pedidos de privacidade.",
@@ -154,6 +163,13 @@ const SECTIONS: Section[] = [
 			head: ["Nome", "De quem", "Para quê", "Duração", "Categoria"],
 			rows: [
 				["_trck_consent", "Rastrewin", "Guardar a sua escolha sobre cookies", "1 ano", "Necessário"],
+				[
+					"__cf_bm, cf_clearance",
+					"Vimeo (via Cloudflare)",
+					"Proteger o player do vídeo contra acessos automatizados (robôs)",
+					"Curta, definida pelo Vimeo (o __cf_bm dura 30 minutos)",
+					"Necessário",
+				],
 				[
 					"userId, userToken (armazenamento local)",
 					"Rastrewin",
@@ -289,7 +305,7 @@ const SECTIONS: Section[] = [
 	},
 	{
 		body: [
-			"A Meta e o Google, quando você consente com os cookies de marketing e medição, e alguns provedores de infraestrutura podem armazenar ou processar dados fora do Brasil, inclusive nos Estados Unidos. Nesses casos, buscamos garantir um nível de proteção compatível com o da LGPD, por meio de cláusulas contratuais e de provedores que adotem padrões adequados de segurança e privacidade.",
+			"A Meta e o Google, quando você consente com os cookies de marketing e medição, o Vimeo, que exibe o vídeo de apresentação, e alguns provedores de infraestrutura podem armazenar ou processar dados fora do Brasil, inclusive nos Estados Unidos. Nesses casos, buscamos garantir um nível de proteção compatível com o da LGPD, por meio de cláusulas contratuais e de provedores que adotem padrões adequados de segurança e privacidade.",
 		],
 		title: "12. Transferência Internacional",
 	},
