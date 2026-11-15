@@ -66,6 +66,9 @@ export const VIMEO_CONTROLS_COLOR = "08304c";
  * a capa e acontece dentro do player, o único jeito de o iPhone liberar o som no 1º toque. O resto fica
  * escondido (exige plano pago do Vimeo): sem barra de progresso, sem pular para frente, sem logo.
  * `autoplay` só quando a página não pré-carrega (economia de dados, 2G) e a pessoa já tocou na capa.
+ * `dnt` (LGPD): o player não grava cookies (ex.: `vuid`) nem dados de sessão no navegador, porque ele abre
+ * antes da resposta ao banner. Efeito: as estatísticas do próprio Vimeo param de contar; a medição do
+ * vídeo é a aba Vídeos do track (`trck('video')`, só depois do aceite), que não depende disso.
  */
 export function vimeoEmbedUrl(videoId: string, { autoplay }: { autoplay: boolean }): string {
 	const params = new URLSearchParams({
@@ -78,6 +81,7 @@ export function vimeoEmbedUrl(videoId: string, { autoplay }: { autoplay: boolean
 		chromecast: "0",
 		color: VIMEO_CONTROLS_COLOR,
 		controls: "1",
+		dnt: "1",
 		fullscreen: "0",
 		keyboard: "0",
 		pip: "0",

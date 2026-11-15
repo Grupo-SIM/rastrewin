@@ -23,4 +23,9 @@ describe("vimeoEmbedUrl", () => {
 		expect(paramsOf(vimeoEmbedUrl("1243006876", { autoplay: false })).get("autoplay")).toBe("0");
 		expect(paramsOf(vimeoEmbedUrl("1243006876", { autoplay: true })).get("autoplay")).toBe("1");
 	});
+
+	it("não deixa o Vimeo gravar cookies nem dados de sessão (dnt)", () => {
+		expect(paramsOf(vimeoEmbedUrl("1243006876", { autoplay: false })).get("dnt")).toBe("1");
+		expect(paramsOf(vimeoEmbedUrl("1243006876", { autoplay: true })).get("dnt")).toBe("1");
+	});
 });
