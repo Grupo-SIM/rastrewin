@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { SiteIcon } from "@/components/SiteIcon";
 import { api, fmtRemaining, type User } from "@/lib/api";
+import { funnelEvent, useFunnelTracking } from "@/lib/funnel";
 import { isValidCpf, maskCpf, maskPhone } from "@/lib/mask";
 import { SITES as ALL_SITES } from "@/lib/sites";
 import { readTracking, trck, withTracking } from "@/lib/track";
@@ -78,6 +79,15 @@ const empty = { city: "", cpf: "", email: "", name: "", phone: "", pix: "", plan
 const pad = (n: number) => String(n).padStart(2, "0");
 const clock = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
+/** Checkout só abre para um link https válido (senão não há InitiateCheckout). */
+function isCheckoutUrl(url: string) {
+	try {
+		return new URL(url).protocol === "https:";
+	} catch {
+		return false;
+	}
+}
+
 export default function Landing() {
 	const [f, setF] = useState(empty);
 	const [busy, setBusy] = useState(false);
@@ -87,6 +97,10 @@ export default function Landing() {
 	const [lines, setLines] = useState<{ s: string; t: string }[]>([]);
 	// Fim da contagem só no navegador: calculado no servidor, a hora diferia da do cliente e quebrava a hidratação.
 	const [demoEnd, setDemoEnd] = useState<number | null>(null);
+	// Funil da Meta: SectionView e ScrollDepth (lib/funnel.ts).
+	useFunnelTracking();
+	// RegistrationStart: uma vez por tentativa de cadastro (volta a valer depois de um envio com erro).
+	const registrationStarted = useRef(false);
 
 	useEffect(() => {
 		setDemoEnd(Date.now() + DEMO_MS);
@@ -108,6 +122,10 @@ export default function Landing() {
 		const raw = e.target.value;
 		const v = k === "cpf" ? maskCpf(raw) : k === "phone" ? maskPhone(raw) : raw;
 		if (k === "cpf") setCpfErr("");
+		if (!registrationStarted.current) {
+			registrationStarted.current = true;
+			funnelEvent("RegistrationStart");
+		}
 		setF({ ...f, [k]: v });
 	};
 	function start(e: React.FormEvent) {
@@ -118,14 +136,17 @@ export default function Landing() {
 
 	async function submitAndCheckout(e: React.FormEvent) {
 		e.preventDefault();
-		if (!isValidCpf(f.cpf)) return void setCpfErr("CPF inválido.");
+		if (!isValidCpf(f.cpf)) {
+			registrationStarted.current = false;
+			return void setCpfErr("CPF inválido.");
+		}
 		setBusy(true);
 		setErr("");
 		// abre a aba já no clique (gesto do usuário), senão o navegador bloqueia o popup
 		// depois que a resposta da API chegar.
 		const checkoutTab = window.open("", "_blank");
-		// Rastreamento: identifica o lead já no envio (o t.js manda ao track). Lead e InitiateCheckout
-		// só saem depois que o cadastro for aceito, para tentativa que falhou não contar.
+		// Rastreamento: identifica o lead já no envio (o t.js manda ao track). CompleteRegistration só sai
+		// depois que o backend salvar o cadastro; InitiateCheckout, só quando o checkout abrir.
 		const plan = PLANS.find(p => p.id === f.plan);
 		const [firstName, ...rest] = f.name.trim().split(/\s+/);
 		trck("identify", {
@@ -139,21 +160,31 @@ export default function Landing() {
 				body: JSON.stringify({ ...f, tracking: readTracking() }),
 				method: "POST",
 			});
-			// Cadastro aceito = lead; em seguida vai ao checkout.
 			const planData = {
 				content_ids: plan ? [plan.id] : undefined,
 				content_name: plan?.name,
 				currency: "BRL",
 				value: plan?.value,
 			};
-			trck("track", "Lead", planData);
-			trck("track", "InitiateCheckout", planData);
+			// Cadastro salvo pelo backend. Na Meta é CompleteRegistration (substituiu o Lead);
+			// no GA4 continua generate_lead.
+			trck("track", "CompleteRegistration", { ...planData, ga4: "generate_lead" });
 			localStorage.setItem("userId", user.id);
 			const checkoutUrl = withTracking(user.checkoutUrl);
+			if (!isCheckoutUrl(checkoutUrl)) {
+				// Link de checkout inválido: o checkout não abre e não há InitiateCheckout.
+				checkoutTab?.close();
+				registrationStarted.current = false;
+				setErr("Não foi possível abrir o pagamento agora. Tente de novo em instantes.");
+				return;
+			}
+			// O checkout abre agora (aba nova ou esta mesma, se o popup foi bloqueado).
+			trck("track", "InitiateCheckout", planData);
 			if (checkoutTab) checkoutTab.location.href = checkoutUrl;
 			else window.location.href = checkoutUrl;
 		} catch (e) {
 			checkoutTab?.close();
+			registrationStarted.current = false;
 			setErr(`Não foi possível concluir. A API está rodando? ${(e as Error).message}`);
 		} finally {
 			setBusy(false);
@@ -198,7 +229,12 @@ export default function Landing() {
 							<span className="nav-hide">Já sou cliente</span>
 							<span className="m-only">Entrar</span>
 						</a>
-						<a href="#planos" className="btn-rainbow sm">
+						<a
+							href="#planos"
+							className="btn-rainbow sm"
+							data-cta="comecar_topo"
+							data-cta-section="cabecalho"
+						>
 							Começar
 						</a>
 					</div>
@@ -221,7 +257,9 @@ export default function Landing() {
 							onChange={e => setHeroEmail(e.target.value)}
 							aria-label="E-mail"
 						/>
-						<button className="btn-rainbow">Começar</button>
+						<button className="btn-rainbow" data-cta="comecar_hero" data-cta-section="hero">
+							Começar
+						</button>
 					</form>
 					<a href="#planos" className="plan-chip">
 						<span className="pro">Pro</span>
@@ -466,7 +504,13 @@ export default function Landing() {
 						Monitoramos dezenas de portais e redes em paralelo para que você acompanhe o status e
 						os vencedores de cada inscrição.
 					</p>
-					<a href="#planos" className="btn-dark" style={{ marginTop: 8 }}>
+					<a
+						href="#planos"
+						className="btn-dark"
+						style={{ marginTop: 8 }}
+						data-cta="comece_agora"
+						data-cta-section="resultado_ao_vivo"
+					>
 						Comece agora
 					</a>
 				</div>
@@ -475,6 +519,7 @@ export default function Landing() {
 			{/* PLANOS / CADASTRO */}
 			<section
 				id="planos"
+				data-funnel-section="planos"
 				className="section plans-sec"
 				style={{ paddingTop: 110, scrollMarginTop: 20 }}
 			>
@@ -567,14 +612,17 @@ export default function Landing() {
 					</div>
 				</div>
 				<div className="plans-card">
-					<form className="form-grid" onSubmit={submitAndCheckout}>
+					<form className="form-grid" onSubmit={submitAndCheckout} data-funnel-section="formulario">
 						<div className="plan-pick">
 							{PLANS.map(p => (
 								<button
 									type="button"
 									key={p.id}
 									className={`plan-opt ${f.plan === p.id ? "on" : ""}`}
-									onClick={() => setF({ ...f, plan: p.id })}
+									onClick={() => {
+										if (f.plan !== p.id) funnelEvent("PlanSelect", { plan: p.id });
+										setF({ ...f, plan: p.id });
+									}}
 								>
 									<span className="top">
 										<b>{p.name}</b>
@@ -664,7 +712,13 @@ export default function Landing() {
 							/>
 						</div>
 						{err && <div className="err">{err}</div>}
-						<button className="btn-rainbow" style={{ marginTop: 6 }} disabled={busy}>
+						<button
+							className="btn-rainbow"
+							style={{ marginTop: 6 }}
+							disabled={busy}
+							data-cta="continuar_pagamento"
+							data-cta-section="planos"
+						>
 							{busy ? "Abrindo pagamento..." : "Continuar para o pagamento"}
 						</button>
 					</form>
@@ -672,7 +726,7 @@ export default function Landing() {
 			</section>
 
 			{/* FAQ */}
-			<section className="section faq-sec">
+			<section className="section faq-sec" data-funnel-section="faq">
 				<h2 className="display">Perguntas frequentes</h2>
 				<div className="faq-list">
 					{FAQ.map(([q, a]) => (
