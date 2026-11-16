@@ -293,7 +293,7 @@ export default function Landing() {
 			</div>
 
 			{/* COMO FUNCIONA */}
-			<section className="section">
+			<section className="section" data-funnel-section="como_funciona">
 				<div className="sec-head">
 					<span className="eyebrow">Como funciona</span>
 					<h2 className="display">Três passos. Depois é com a IA.</h2>
@@ -313,7 +313,7 @@ export default function Landing() {
 			</section>
 
 			{/* AUTOMÁTICO */}
-			<section className="section feat stage-left">
+			<section className="section feat stage-left" data-funnel-section="automatico">
 				<div className="feat-copy">
 					<span
 						className="feat-tag"
@@ -389,7 +389,7 @@ export default function Landing() {
 			</section>
 
 			{/* PROBABILIDADES */}
-			<section className="section feat">
+			<section className="section feat" data-funnel-section="probabilidades">
 				<div className="feat-copy">
 					<span
 						className="feat-tag"
@@ -482,7 +482,7 @@ export default function Landing() {
 			</section>
 
 			{/* RESULTADO AO VIVO */}
-			<section className="scatter">
+			<section className="scatter" data-funnel-section="resultado_ao_vivo">
 				{SITES.map(([n, c], i) => (
 					<span
 						key={n}
