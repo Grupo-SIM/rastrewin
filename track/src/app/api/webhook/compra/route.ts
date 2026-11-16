@@ -8,10 +8,11 @@ import { rateLimitKey } from "@/lib/http/client-ip";
 import { json } from "@/lib/http/cors";
 import { createRateLimiter } from "@/lib/http/rate-limit";
 import { isErased, subjectHashes } from "@/lib/privacy/subject";
+import { deliverAddPaymentInfo } from "@/lib/sales/add-payment-info";
 import { deliverPurchase } from "@/lib/sales/deliver";
 import { upsertPurchase } from "@/lib/sales/process";
 import { verifySignature } from "@/lib/sales/signature";
-import { salesEventSchema } from "@/lib/sales/simintpay";
+import { ADD_PAYMENT_INFO_EVENTS, salesEventSchema } from "@/lib/sales/simintpay";
 import { getRuntimeConfig } from "@/lib/tracking/runtime-config";
 import { upsertVisitor } from "@/lib/tracking/visitors";
 
@@ -21,6 +22,7 @@ import { upsertVisitor } from "@/lib/tracking/visitors";
  * 4) assinatura HMAC (x-simintpay-signature) — inválida = 401 e NADA é gravado  5) validação Zod
  * Idempotente por eventId (webhook_events) e por transaction_id (purchases).
  * Responde rápido; Meta/GA4 são chamados depois da resposta (after) e reenviados se falharem.
+ * Pix gerado e cartão recusado também viram AddPaymentInfo na Meta (lib/sales/add-payment-info.ts).
  */
 
 const limiter = createRateLimiter({ burst: 60, perMinute: 120 });
@@ -105,6 +107,12 @@ export async function POST(request: Request) {
 					safeErrorMessage(e),
 				),
 			);
+			// Pix gerado / cartão recusado: AddPaymentInfo na Meta (uma vez por pedido, com aceite).
+			if (ADD_PAYMENT_INFO_EVENTS.includes(event.event)) {
+				await deliverAddPaymentInfo(result.purchaseId, event.event, new Date(event.occurredAt)).catch(
+					e => console.error("[webhook] falha no AddPaymentInfo", safeErrorMessage(e)),
+				);
+			}
 		});
 		return json({ matched: result.match.by, ok: true, status: result.status }, 200);
 	} catch (error) {

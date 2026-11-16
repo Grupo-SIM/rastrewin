@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+	addPaymentInfoSkipReason,
 	isRefunded,
 	isSaleActive,
 	mapStatus,
@@ -108,4 +109,34 @@ test("postApprovalOnly: depois da aprovação, só uma nova aprovação muda os 
 	// antes da aprovação (PIX gerado → aprovado) os dados seguem sendo preenchidos
 	assert.equal(postApprovalOnly(null, "pending"), false);
 	assert.equal(postApprovalOnly(undefined, "refunded"), false);
+});
+
+test("AddPaymentInfo: Pix gerado ou cartão recusado, uma vez por pedido, só com aceite e fora de renovação", () => {
+	const now = new Date("2026-11-16T12:00:00Z");
+	const ok = {
+		event: "pix_generated" as const,
+		isRenewal: false,
+		marketingConsent: true,
+		now,
+		occurredAt: new Date("2026-11-16T11:59:00Z"),
+		status: "pending",
+		trckUserId: "abc123def456ghi7",
+	};
+	assert.equal(addPaymentInfoSkipReason(ok), null);
+	assert.equal(addPaymentInfoSkipReason({ ...ok, event: "card_declined", status: "declined" }), null);
+	// outros avisos não geram AddPaymentInfo
+	for (const event of ["purchase_approved", "pix_expired", "purchase_refunded"] as const)
+		assert.notEqual(addPaymentInfoSkipReason({ ...ok, event }), null, event);
+	// Pix gerado depois de a venda já estar aprovada ou reembolsada (aviso atrasado): não envia
+	for (const status of ["approved", "refund_requested", "refunded", "chargeback"])
+		assert.equal(addPaymentInfoSkipReason({ ...ok, status }), "pedido já aprovado ou encerrado", status);
+	assert.equal(addPaymentInfoSkipReason({ ...ok, isRenewal: true }), "renovação");
+	// LGPD: sem aceite (ou recusa do banner, que deixa a venda sem visitante) não envia
+	assert.equal(addPaymentInfoSkipReason({ ...ok, marketingConsent: false }), "sem consentimento");
+	assert.equal(addPaymentInfoSkipReason({ ...ok, marketingConsent: null }), "sem consentimento");
+	assert.equal(addPaymentInfoSkipReason({ ...ok, trckUserId: null }), "sem consentimento");
+	assert.equal(
+		addPaymentInfoSkipReason({ ...ok, occurredAt: new Date("2026-11-08T11:00:00Z") }),
+		"fora do prazo",
+	);
 });

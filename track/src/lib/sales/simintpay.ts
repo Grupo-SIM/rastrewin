@@ -111,6 +111,35 @@ export function isRefunded(status: string) {
 	return status === "refunded" || status === "chargeback";
 }
 
+/** A Meta aceita event_time de até 7 dias atrás. */
+export const META_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
+
+/** Avisos do SimIntPay que viram AddPaymentInfo na Meta: a pessoa chegou a informar o pagamento. */
+export const ADD_PAYMENT_INFO_EVENTS: readonly SalesEventType[] = ["pix_generated", "card_declined"];
+
+/**
+ * Motivo para NÃO enviar AddPaymentInfo (null = envia). Uma vez por pedido, decidido depois de gravar
+ * o aviso: status já com a precedência aplicada (pedido aprovado ou reembolsado não volta a "pendente").
+ */
+export function addPaymentInfoSkipReason(input: {
+	event: SalesEventType;
+	status: string;
+	isRenewal: boolean;
+	marketingConsent: boolean | null;
+	trckUserId: string | null;
+	occurredAt: Date;
+	now?: Date;
+}): string | null {
+	if (!ADD_PAYMENT_INFO_EVENTS.includes(input.event)) return "não é Pix gerado nem cartão recusado";
+	if (input.isRenewal) return "renovação";
+	if (input.status !== "pending" && input.status !== "declined") return "pedido já aprovado ou encerrado";
+	// LGPD: só com aceite de marketing do visitante ligado à venda (o evento precisa do visitante).
+	if (input.marketingConsent !== true || !input.trckUserId) return "sem consentimento";
+	if ((input.now ?? new Date()).getTime() - input.occurredAt.getTime() > META_MAX_AGE_MS)
+		return "fora do prazo";
+	return null;
+}
+
 const FB_COOKIE = /^fb\.\d\.\d{10,13}\.[\w.-]+$/;
 
 export interface PurchaseItem {
