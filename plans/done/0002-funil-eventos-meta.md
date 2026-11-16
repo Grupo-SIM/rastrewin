@@ -24,4 +24,16 @@ A auditoria de 16/11/2026 (só leitura) mostrou o funil coberto de ponta a ponta
 
 ## Progresso
 
-- [x] 1 · [x] 2 · [x] 3 · [x] 4 · [x] 5 · [x] 6 · [x] 7 · [ ] 8 · [ ] 9
+- [x] 1 · [x] 2 · [x] 3 · [x] 4 · [x] 5 · [x] 6 · [x] 7 · [x] 8 · [ ] 9
+
+Código completo em 16/11/2026. **Pendente (não é código):** etapa 9, os públicos na Meta, criados um por um com aprovação do usuário, depois que backend, track, frontend e VSL estiverem no ar.
+
+## Validação isolada (16/11/2026)
+
+Postgres descartável em Docker, track, backend, landing e VSL locais; Meta/GA4 falsos (interceptação de fetch no track), Pixel, Vimeo (mesmo protocolo de postMessage, vídeo de 20 s) e checkout falsos no Playwright. Nada saiu da máquina.
+
+- Landing com aceite: e-mail do topo identificado (`/api/identify` com e-mail; eventos seguintes levam o e-mail); `SectionView` nas 7 seções e `ViewContent` (basico/pro/vip) uma vez cada, mesmo rolando duas vezes; link de checkout decorado (src, UTMs, fbc, fbp) sem `InitiateCheckout` automático; cadastro → `CompleteRegistration` + `InitiateCheckout`. 18 eventos no Pixel, os 18 na CAPI com o mesmo `event_id`.
+- Recusa: só `/api/config/public` e `/api/consent`; nenhum evento.
+- VSL com pulo de 4 s em vídeo de 20 s: `VSLProgress` 25/50/75 (15 s realmente assistidos, sem o 95), `VSLCTAUnlock ended`.
+- Webhook (SimIntPay assinado → backend → track): Pix gerado → `AddPaymentInfo` (`addpaymentinfo_ORDER-A`, content_ids pro); Pix repetido e Pix atrasado (pedido aprovado) → nada; aprovado → `Purchase` com content_ids pro; renovação (Pix e aprovação) → nada, `is_renewal`; recusa do banner → nada, "Banner recusado"; cartão recusado sem tracking no aviso (vale o do cadastro) → `AddPaymentInfo` vip, depois `Purchase` vip. `events_log` com o `AddPaymentInfo` e o GA4 marcado como não enviado.
+- Testes: track 153, VSL 64. Telas da política (seções 2 e 4, data) conferidas em 1280 e 375 px.
