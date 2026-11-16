@@ -15,6 +15,8 @@ const PLANS = [
 	{ desc: "até 5.000 sorteios/dia", id: "vip", name: "VIP", price: "R$ 1000/ano", value: 1000 },
 ];
 
+const PLAN_IDS = PLANS.map(p => p.id);
+
 const STEPS = [
 	{
 		bg: "radial-gradient(120% 90% at 100% 0%,#e3f0ff 0%,#f1f7ff 45%,rgba(241,247,255,0) 100%)",
@@ -98,8 +100,8 @@ export default function Landing() {
 	const [lines, setLines] = useState<{ s: string; t: string }[]>([]);
 	// Fim da contagem só no navegador: calculado no servidor, a hora diferia da do cliente e quebrava a hidratação.
 	const [demoEnd, setDemoEnd] = useState<number | null>(null);
-	// Funil da Meta: SectionView e ScrollDepth (lib/funnel.ts).
-	useFunnelTracking();
+	// Funil da Meta: SectionView, ScrollDepth, CTAClick e ViewContent (lib/funnel.ts).
+	useFunnelTracking(PLAN_IDS);
 	// RegistrationStart: uma vez por tentativa de cadastro (volta a valer depois de um envio com erro).
 	const registrationStarted = useRef(false);
 

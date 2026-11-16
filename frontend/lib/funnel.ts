@@ -17,6 +17,9 @@ export function funnelEvent(name: string, params: Params = {}) {
 
 const SCROLL_MARKS = [25, 50, 75, 90];
 
+/** ViewContent (evento padrão da Meta): sai junto com o SectionView desta seção, uma vez por visualização. */
+const VIEW_CONTENT_SECTION = "planos";
+
 /**
  * SectionView, ScrollDepth e CTAClick da landing page:
  * - CTAClick: clique num elemento com data-cta="<botão>" e data-cta-section="<seção>" (o nome do botão
@@ -24,9 +27,11 @@ const SCROLL_MARKS = [25, 50, 75, 90];
  * - SectionView (uma vez por visualização): cada elemento com data-funnel-section="<nome>" conta quando
  *   30% dele (ou 30% da tela, se ele for mais alto que ela) fica visível;
  * - ScrollDepth (uma vez por faixa e por visualização): a parte de baixo da tela passa de 25, 50, 75 e
- *   90% da altura da página.
+ *   90% da altura da página;
+ * - ViewContent (padrão da Meta, só Meta): quando a seção de planos conta como vista, com os planos
+ *   como content_ids (os mesmos do InitiateCheckout e da compra).
  */
-export function useFunnelTracking() {
+export function useFunnelTracking(planIds: string[]) {
 	useEffect(() => {
 		const seenSections = new Set<string>();
 		const observer = new IntersectionObserver(
@@ -39,6 +44,13 @@ export function useFunnelTracking() {
 					seenSections.add(section);
 					observer.unobserve(e.target);
 					funnelEvent("SectionView", { section });
+					if (section === VIEW_CONTENT_SECTION)
+						trck("track", "ViewContent", {
+							content_ids: planIds,
+							content_name: "Planos",
+							content_type: "product",
+							ga4: false,
+						});
 				}
 			},
 			{ threshold: Array.from({ length: 11 }, (_, i) => i / 10) },
@@ -75,5 +87,5 @@ export function useFunnelTracking() {
 			window.removeEventListener("scroll", onScroll);
 			if (frame) cancelAnimationFrame(frame);
 		};
-	}, []);
+	}, [planIds]);
 }
