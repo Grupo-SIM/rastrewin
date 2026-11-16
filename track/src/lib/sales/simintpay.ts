@@ -51,6 +51,12 @@ export const salesEventSchema = z
 		orderId: z.string().min(1).max(128),
 		paymentMethod: optStr(40),
 		phone: optStr(40),
+		/** Enviado pelo backend do rastrewin: plano do cadastro (basico, pro, vip), id do item principal. */
+		plan: z
+			.string()
+			.regex(/^[a-z0-9_-]{1,40}$/)
+			.nullish()
+			.catch(null),
 		/** Enviado pelo backend do rastrewin: recompra de quem já tinha pago (não vai à Meta/GA4). */
 		renewal: z.boolean().nullish(),
 		tracking: z.record(z.string(), z.string().max(500)).nullish(),
@@ -153,13 +159,22 @@ export interface PurchaseItem {
 export function toPurchaseFields(p: SalesEvent) {
 	const tracking = p.tracking ?? {};
 	const pick = (k: string) => (tracking[k]?.trim() ? tracking[k].trim().slice(0, 500) : null);
+	const principal = (p.items ?? []).find(it => it.tipo === "PRINCIPAL") ?? p.items?.[0];
+	// O plano do cadastro (basico, pro, vip), repassado pelo backend, é o id do item principal: o mesmo
+	// content_id do InitiateCheckout do site, para a Meta e o GA4 ligarem o funil ao mesmo produto.
+	const plan = p.plan ?? null;
 	const items: PurchaseItem[] = (p.items ?? []).map((it, i) => ({
-		id: it.offerId ?? it.titulo ?? `${p.linkId ?? "item"}-${i + 1}`,
+		id:
+			(plan && it === principal ? plan : null) ??
+			it.offerId ??
+			it.titulo ??
+			`${p.linkId ?? "item"}-${i + 1}`,
 		name: it.titulo ?? "Produto",
 		price: it.valor ?? 0,
 		type: it.tipo ?? null,
 	}));
-	const principal = (p.items ?? []).find(it => it.tipo === "PRINCIPAL") ?? p.items?.[0];
+	if (!items.length && plan)
+		items.push({ id: plan, name: "Produto", price: Math.round(p.amountCents) / 100, type: null });
 	const src = pick("src");
 	const utm = {
 		utmCampaign: pick("utm_campaign"),

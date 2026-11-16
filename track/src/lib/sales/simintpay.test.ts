@@ -140,3 +140,26 @@ test("AddPaymentInfo: Pix gerado ou cartão recusado, uma vez por pedido, só co
 		"fora do prazo",
 	);
 });
+
+test("plano do cadastro vira o id do item principal (mesmo content_id do InitiateCheckout)", () => {
+	const semPlano = toPurchaseFields(salesEventSchema.parse(payload));
+	assert.deepEqual(
+		semPlano.items.map(i => i.id),
+		["Livro", "bump1"],
+	);
+	const comPlano = toPurchaseFields(salesEventSchema.parse({ ...payload, plan: "pro" }));
+	assert.deepEqual(
+		comPlano.items.map(i => [i.id, i.name]),
+		[
+			["pro", "Livro"],
+			["bump1", "Bônus"],
+		],
+	);
+	// sem itens no aviso: um item só, com o plano e o valor da venda
+	const semItens = toPurchaseFields(salesEventSchema.parse({ ...payload, items: null, plan: "vip" }));
+	assert.deepEqual(semItens.items, [{ id: "vip", name: "Produto", price: 27, type: null }]);
+	// plano inválido é ignorado, sem derrubar o aviso
+	const invalido = salesEventSchema.parse({ ...payload, plan: "Plano X!" });
+	assert.equal(invalido.plan, null);
+	assert.equal(toPurchaseFields(invalido).items[0].id, "Livro");
+});
