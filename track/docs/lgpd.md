@@ -102,6 +102,7 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
 ## 3. Minimização: o que vai para a Meta e o Google
 
 - **Meta (Conversions API):**
+    - Eventos do site (navegação, cadastro, checkout, marcos do vídeo) e, pelo servidor, a geração do Pix ou o cartão recusado (`AddPaymentInfo`) e a compra (`Purchase`). Os dois do servidor seguem a mesma regra de aceite da compra.
     - Vão em **SHA-256**: email, telefone, nome, sobrenome, cidade, estado, país e o id do visitante (`external_id`).
     - Vão **sem hash**, porque a Meta exige assim: IP, navegador (user agent), `fbp` e `fbc`, que são identificadores da própria Meta.
     - Um teste automático (`src/lib/meta/capi.test.ts`) garante que nenhum email, telefone, nome ou cidade sai em claro.
