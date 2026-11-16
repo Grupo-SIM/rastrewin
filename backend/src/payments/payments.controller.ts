@@ -79,7 +79,11 @@ export class PaymentsController {
 		if (event.event === "purchase_approved" && user) await this.activate(event, user);
 		if (event.event === "purchase_refunded" || event.event === "chargeback") await this.revoke(event);
 
-		this.track.relay(raw, { renewal, savedTracking: user?.tracking });
+		// Plano do cadastro (o escolhido agora, se já era cliente): id do produto na Meta e no GA4,
+		// igual ao do InitiateCheckout do site.
+		const plan =
+			RENEWAL_CHECK_EVENTS.has(event.event) && user ? (user.pendingPlan ?? user.plan) : undefined;
+		this.track.relay(raw, { plan, renewal, savedTracking: user?.tracking });
 		return { ok: true };
 	}
 
