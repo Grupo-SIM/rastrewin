@@ -24,9 +24,20 @@ A auditoria de 16/11/2026 (só leitura) mostrou o funil coberto de ponta a ponta
 
 ## Progresso
 
-- [x] 1 · [x] 2 · [x] 3 · [x] 4 · [x] 5 · [x] 6 · [x] 7 · [x] 8 · [ ] 9
+- [x] 1 · [x] 2 · [x] 3 · [x] 4 · [x] 5 · [x] 6 · [x] 7 · [x] 8 · [x] 9
 
-Código completo em 16/11/2026. **Pendente (não é código):** etapa 9, os públicos na Meta, criados um por um com aprovação do usuário, depois que backend, track, frontend e VSL estiverem no ar.
+Código completo em 16/11/2026, no ar no mesmo dia (conferido de fora). Etapa 9 concluída em 16/11/2026, com aprovação do usuário: públicos criados na conta CA #001 (269366881996053), pixel 2115421989106027, com histórico do pixel:
+
+| Público                       | ID                 | Regra                                                                                                 |
+| ----------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
+| RW · Compradores 180d         | 120272647277140362 | `Purchase` 180 dias                                                                                   |
+| RW · Pix gerado sem compra 7d | 120272647278170362 | `AddPaymentInfo` 7 dias, menos `Purchase` 180 dias                                                    |
+| RW · Checkout sem compra 14d  | 120272647280990362 | `InitiateCheckout` 14 dias, menos `Purchase` 180 dias                                                 |
+| RW · Cadastro sem compra 30d  | 120272647281670362 | `CompleteRegistration` 30 dias, menos `Purchase` 180 dias                                             |
+| RW · VSL 75% sem cadastro 30d | 120272647284290362 | `VSLProgress` com `percent` 75 em 30 dias, menos `CompleteRegistration` 30 dias e `Purchase` 180 dias |
+| RW · Visitantes VSL 30d       | 120272647288830362 | URL com `vsl.rastrewin.com`, 30 dias                                                                  |
+
+Os públicos só servem para anúncios a partir de 100 pessoas. Público semelhante de compradores: depois de umas 100 compras.
 
 ## Validação isolada (16/11/2026)
 
