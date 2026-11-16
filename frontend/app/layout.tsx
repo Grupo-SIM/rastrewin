@@ -31,11 +31,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 	return (
 		<html lang="pt-BR" className={`${jakarta.variable} ${manrope.variable} ${serif.variable}`}>
 			{/* Rastreamento (track.rastrewin.com): PageView, visitante e Pixel/GA4. Ver lib/track.ts.
-			    Direto no <head>, igual ao snippet do painel, para o t.js baixar junto com a página. */}
+			    Direto no <head>, igual ao snippet do painel, para o t.js baixar junto com a página.
+			    data-no-auto: o InitiateCheckout sai só pelo código da landing (checkout aberto de fato);
+			    clicar em "Renovar assinatura" na área do cliente não conta como checkout de aquisição. */}
 			{TRACK_URL && (
 				<head>
 					<script id="trck-stub">{TRCK_STUB}</script>
-					<script async src={`${TRACK_URL}/t.js`} />
+					<script async src={`${TRACK_URL}/t.js`} data-no-auto="" />
 				</head>
 			)}
 			<body>{children}</body>
