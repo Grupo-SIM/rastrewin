@@ -24,6 +24,8 @@ const ONE_YEAR_MS = 365 * 24 * 3600 * 1000;
 /** Trava contra inundação da rota pública. Bem acima do volume real (o SimIntPay manda 1 evento por
  * mudança de venda); ao estourar responde 429 e o SimIntPay reenvia depois. */
 const webhookLimiter = createRateLimiter({ max: 120, windowMs: 60 * 1000 });
+/** Eventos de um pedido novo (antes ou na aprovação), em que vale saber se é recompra. */
+const RENEWAL_CHECK_EVENTS = new Set(["purchase_approved", "pix_generated", "card_declined"]);
 
 /**
  * Webhook de vendas do SimIntPay (API de vendas, assinada). Rota pública:
@@ -68,10 +70,11 @@ export class PaymentsController {
 			: null;
 		// Recompra/renovação = já tinha um pedido pago antes. Calculado ANTES de ativar.
 		// (simpayOrderId e não paidAt: um novo cadastro zera o paidAt, mas nunca o simpayOrderId.)
-		const renewal =
-			event.event === "purchase_approved"
-				? !!user?.simpayOrderId && user.simpayOrderId !== event.orderId
-				: undefined;
+		// Também no Pix gerado e no cartão recusado, que viram AddPaymentInfo na Meta só fora de renovação.
+		// Nunca nos eventos depois da compra: o reembolso de um pedido antigo não pode virar "renovação".
+		const renewal = RENEWAL_CHECK_EVENTS.has(event.event)
+			? !!user?.simpayOrderId && user.simpayOrderId !== event.orderId
+			: undefined;
 
 		if (event.event === "purchase_approved" && user) await this.activate(event, user);
 		if (event.event === "purchase_refunded" || event.event === "chargeback") await this.revoke(event);
