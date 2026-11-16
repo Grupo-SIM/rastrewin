@@ -22,7 +22,8 @@ import { upsertVisitor } from "@/lib/tracking/visitors";
  * 4) assinatura HMAC (x-simintpay-signature) — inválida = 401 e NADA é gravado  5) validação Zod
  * Idempotente por eventId (webhook_events) e por transaction_id (purchases).
  * Responde rápido; Meta/GA4 são chamados depois da resposta (after) e reenviados se falharem.
- * Pix gerado e cartão recusado também viram AddPaymentInfo na Meta (lib/sales/add-payment-info.ts).
+ * Pix gerado, cartão recusado e a aprovação (se o pedido ainda não teve) também viram AddPaymentInfo
+ * na Meta, antes do Purchase (lib/sales/add-payment-info.ts).
  */
 
 const limiter = createRateLimiter({ burst: 60, perMinute: 120 });
@@ -101,18 +102,19 @@ export async function POST(request: Request) {
 					trckUserId: result.visitor.trckUserId,
 				}).catch(e => console.error("[webhook] falha ao atualizar visitante", safeErrorMessage(e)));
 			}
+			// Pix gerado, cartão recusado ou aprovação de pedido que ainda não teve um: AddPaymentInfo na
+			// Meta (uma vez por pedido, com aceite). Antes do Purchase, para a aprovação seguir a ordem do funil.
+			if (ADD_PAYMENT_INFO_EVENTS.includes(event.event)) {
+				await deliverAddPaymentInfo(result.purchaseId, event.event, new Date(event.occurredAt)).catch(
+					e => console.error("[webhook] falha no AddPaymentInfo", safeErrorMessage(e)),
+				);
+			}
 			await deliverPurchase(result.purchaseId).catch(e =>
 				console.error(
 					"[webhook] falha no envio (o reenvio automático tenta de novo)",
 					safeErrorMessage(e),
 				),
 			);
-			// Pix gerado / cartão recusado: AddPaymentInfo na Meta (uma vez por pedido, com aceite).
-			if (ADD_PAYMENT_INFO_EVENTS.includes(event.event)) {
-				await deliverAddPaymentInfo(result.purchaseId, event.event, new Date(event.occurredAt)).catch(
-					e => console.error("[webhook] falha no AddPaymentInfo", safeErrorMessage(e)),
-				);
-			}
 		});
 		return json({ matched: result.match.by, ok: true, status: result.status }, 200);
 	} catch (error) {

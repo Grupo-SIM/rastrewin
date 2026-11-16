@@ -125,7 +125,7 @@ test("AddPaymentInfo: Pix gerado ou cartão recusado, uma vez por pedido, só co
 	assert.equal(addPaymentInfoSkipReason(ok), null);
 	assert.equal(addPaymentInfoSkipReason({ ...ok, event: "card_declined", status: "declined" }), null);
 	// outros avisos não geram AddPaymentInfo
-	for (const event of ["purchase_approved", "pix_expired", "purchase_refunded"] as const)
+	for (const event of ["pix_expired", "purchase_refunded", "chargeback", "refund_requested"] as const)
 		assert.notEqual(addPaymentInfoSkipReason({ ...ok, event }), null, event);
 	// Pix gerado depois de a venda já estar aprovada ou reembolsada (aviso atrasado): não envia
 	for (const status of ["approved", "refund_requested", "refunded", "chargeback"])
@@ -162,4 +162,29 @@ test("plano do cadastro vira o id do item principal (mesmo content_id do Initiat
 	const invalido = salesEventSchema.parse({ ...payload, plan: "Plano X!" });
 	assert.equal(invalido.plan, null);
 	assert.equal(toPurchaseFields(invalido).items[0].id, "Livro");
+});
+
+test("AddPaymentInfo na aprovação: cartão de primeira (ou Pix fora de ordem), com a venda ativa", () => {
+	const now = new Date("2026-11-16T12:00:00Z");
+	const aprovado = {
+		event: "purchase_approved" as const,
+		isRenewal: false,
+		marketingConsent: true,
+		now,
+		occurredAt: new Date("2026-11-16T11:59:59Z"),
+		status: "approved",
+		trckUserId: "abc123def456ghi7",
+	};
+	assert.equal(addPaymentInfoSkipReason(aprovado), null);
+	assert.equal(addPaymentInfoSkipReason({ ...aprovado, status: "refund_requested" }), null);
+	// aprovação que chega com a venda já reembolsada (reentrega atrasada): não envia
+	for (const status of ["refunded", "chargeback", "pending", "declined"])
+		assert.equal(addPaymentInfoSkipReason({ ...aprovado, status }), "venda não está ativa", status);
+	// mesmas regras do Pix: renovação, sem aceite, fora do prazo
+	assert.equal(addPaymentInfoSkipReason({ ...aprovado, isRenewal: true }), "renovação");
+	assert.equal(addPaymentInfoSkipReason({ ...aprovado, marketingConsent: false }), "sem consentimento");
+	assert.equal(
+		addPaymentInfoSkipReason({ ...aprovado, occurredAt: new Date("2026-11-08T11:00:00Z") }),
+		"fora do prazo",
+	);
 });

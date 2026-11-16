@@ -9,18 +9,25 @@ import { itemsOf, saleCustomData, salePerson, saleSourceUrl } from "./deliver";
 import { addPaymentInfoSkipReason, type SalesEventType } from "./simintpay";
 
 /*
- * AddPaymentInfo (evento padrão da Meta) quando o SimIntPay avisa "Pix gerado" ou "cartão recusado":
- * a pessoa chegou a informar o pagamento. Sai pelo servidor (CAPI), só para a Meta (não vai ao GA4),
- * uma vez por pedido: o event_id addpaymentinfo_<pedido> é único em events_log, que também mostra o
- * evento no painel (Eventos e jornada do visitante). Mesmos dados de correspondência do Purchase.
+ * AddPaymentInfo (evento padrão da Meta) quando o SimIntPay avisa "Pix gerado", "cartão recusado" ou a
+ * aprovação de um pedido que ainda não teve AddPaymentInfo (cartão aprovado de primeira, ou Pix cujo
+ * aviso de "gerado" chegou depois): a pessoa chegou a informar o pagamento. Sai pelo servidor (CAPI),
+ * só para a Meta (não vai ao GA4), uma vez por pedido: o event_id addpaymentinfo_<pedido> é único em
+ * events_log, que também mostra o evento no painel (Eventos e jornada do visitante). Mesmos dados de
+ * correspondência do Purchase. Na aprovação, sai ANTES do Purchase, com horário 1 s antes dele.
  * Uma tentativa só, como os eventos do site; a falha fica registrada na resposta da Meta do evento.
  */
+
+/** Na aprovação, o AddPaymentInfo fica 1 s antes do Purchase (a Meta vê a ordem do funil). */
+const BEFORE_APPROVAL_MS = 1000;
 
 export async function deliverAddPaymentInfo(
 	purchaseId: number,
 	webhookEvent: SalesEventType,
-	occurredAt: Date,
+	noticeAt: Date,
 ): Promise<string> {
+	const occurredAt =
+		webhookEvent === "purchase_approved" ? new Date(noticeAt.getTime() - BEFORE_APPROVAL_MS) : noticeAt;
 	const db = serviceDb();
 	const [p] = await db.select().from(purchases).where(eq(purchases.id, purchaseId));
 	if (!p) return "venda não encontrada";

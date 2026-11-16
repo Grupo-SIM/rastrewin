@@ -120,12 +120,23 @@ export function isRefunded(status: string) {
 /** A Meta aceita event_time de até 7 dias atrás. */
 export const META_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 
-/** Avisos do SimIntPay que viram AddPaymentInfo na Meta: a pessoa chegou a informar o pagamento. */
-export const ADD_PAYMENT_INFO_EVENTS: readonly SalesEventType[] = ["pix_generated", "card_declined"];
+/**
+ * Avisos do SimIntPay que viram AddPaymentInfo na Meta: a pessoa chegou a informar o pagamento.
+ * O SimIntPay não avisa "cartão informado": o cartão aprovado de primeira só manda purchase_approved,
+ * então a aprovação também gera o AddPaymentInfo quando o pedido ainda não teve um (o id
+ * addpaymentinfo_<pedido> garante um por pedido). Isso cobre também o Pix cujo pix_generated chega
+ * depois da aprovação.
+ */
+export const ADD_PAYMENT_INFO_EVENTS: readonly SalesEventType[] = [
+	"pix_generated",
+	"card_declined",
+	"purchase_approved",
+];
 
 /**
  * Motivo para NÃO enviar AddPaymentInfo (null = envia). Uma vez por pedido, decidido depois de gravar
  * o aviso: status já com a precedência aplicada (pedido aprovado ou reembolsado não volta a "pendente").
+ * Na aprovação, a venda precisa estar ativa; nos outros avisos, o pedido ainda não pode estar aprovado.
  */
 export function addPaymentInfoSkipReason(input: {
 	event: SalesEventType;
@@ -138,7 +149,11 @@ export function addPaymentInfoSkipReason(input: {
 }): string | null {
 	if (!ADD_PAYMENT_INFO_EVENTS.includes(input.event)) return "não é Pix gerado nem cartão recusado";
 	if (input.isRenewal) return "renovação";
-	if (input.status !== "pending" && input.status !== "declined") return "pedido já aprovado ou encerrado";
+	if (input.event === "purchase_approved") {
+		if (!isSaleActive(input.status)) return "venda não está ativa";
+	} else if (input.status !== "pending" && input.status !== "declined") {
+		return "pedido já aprovado ou encerrado";
+	}
 	// LGPD: só com aceite de marketing do visitante ligado à venda (o evento precisa do visitante).
 	if (input.marketingConsent !== true || !input.trckUserId) return "sem consentimento";
 	if ((input.now ?? new Date()).getTime() - input.occurredAt.getTime() > META_MAX_AGE_MS)
