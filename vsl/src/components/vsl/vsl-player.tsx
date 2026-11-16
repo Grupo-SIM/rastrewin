@@ -4,7 +4,7 @@ import type Player from "@vimeo/player";
 import { LoaderCircle, Play } from "lucide-react";
 import Image from "next/image";
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
-import { vslEvent } from "@/lib/meta-events";
+import { progressMarksReached, vslEvent } from "@/lib/meta-events";
 import { dueForReport, reportVideo } from "@/lib/video-tracking";
 import {
 	canPreloadPlayer,
@@ -71,6 +71,8 @@ export function VslPlayer({
 	const maxPositionRef = useRef(0);
 	const videoTitleRef = useRef<string | null>(null);
 	const lastReportAtRef = useRef(0);
+	/** Marcos do VSLProgress (Meta) já enviados neste carregamento da página. */
+	const progressMarksRef = useRef(new Set<number>());
 	const unlockedRef = useRef(unlocked);
 	const onUnlockRef = useRef(onUnlock);
 	const [status, setStatus] = useState<Status>("idle");
@@ -117,6 +119,19 @@ export function VslPlayer({
 		[title, unlockAtSeconds, videoId],
 	);
 
+	/** Meta: VSLProgress em 25/50/75/95% do vídeo, pelo tempo realmente assistido. Nunca afeta o player. */
+	const sendProgressMarks = useCallback(() => {
+		const sent = progressMarksRef.current;
+		for (const percent of progressMarksReached(
+			progressRef.current.watchedSeconds,
+			durationRef.current,
+			sent,
+		)) {
+			sent.add(percent);
+			vslEvent("VSLProgress", { percent, video_id: `vimeo:${videoId}` });
+		}
+	}, [videoId]);
+
 	// Saiu da página ou trocou de aba: manda o progresso até ali.
 	useEffect(() => {
 		const onHide = () => {
@@ -145,9 +160,10 @@ export function VslPlayer({
 			progressRef.current = advanceWatchProgress(progressRef.current, position, elapsedSeconds);
 			if (!unlockedRef.current && progressRef.current.watchedSeconds >= unlockAtSeconds)
 				unlock("watched");
+			sendProgressMarks();
 			if (dueForReport(Date.now(), lastReportAtRef.current)) report();
 		}, TICK_MS);
-	}, [report, unlock, unlockAtSeconds]);
+	}, [report, sendProgressMarks, unlock, unlockAtSeconds]);
 
 	/** Descarta o player atual (o iframe sai da página). */
 	const discardPlayer = useCallback(() => {

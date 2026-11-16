@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { vslEvent } from "./meta-events";
+import { progressMarksReached, vslEvent } from "./meta-events";
 
 describe("vslEvent", () => {
 	afterEach(() => {
@@ -34,5 +34,21 @@ describe("vslEvent", () => {
 			},
 		});
 		expect(() => vslEvent("VSLStart")).not.toThrow();
+	});
+});
+
+describe("progressMarksReached", () => {
+	it("marcos pelo tempo assistido, cada um uma vez", () => {
+		expect(progressMarksReached(0, 300, new Set())).toEqual([]);
+		expect(progressMarksReached(74, 300, new Set())).toEqual([]);
+		expect(progressMarksReached(75, 300, new Set())).toEqual([25]);
+		expect(progressMarksReached(230, 300, new Set([25]))).toEqual([50, 75]);
+		expect(progressMarksReached(285, 300, new Set([25, 50, 75]))).toEqual([95]);
+		expect(progressMarksReached(300, 300, new Set([25, 50, 75, 95]))).toEqual([]);
+	});
+
+	it("sem duração conhecida, nenhum marco", () => {
+		expect(progressMarksReached(100, 0, new Set())).toEqual([]);
+		expect(progressMarksReached(100, Number.NaN, new Set())).toEqual([]);
 	});
 });
