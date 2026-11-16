@@ -4,13 +4,14 @@ Página de VSL (título, subtítulo, vídeo vertical do Vimeo, botão com delay 
 https://rastrewin.com. Fica em **vsl.rastrewin.com**. Conteúdo **estático**: sem backend e sem banco. A única coleta é
 o script do track (`t.js`, ver `src/config/track.ts`), que mostra o banner de consentimento (LGPD) e, **só depois do aceite**, registra o visitante, a origem do anúncio e o PageView, e o
 progresso do vídeo que o player manda ao track pelo comando `trck('video')` (`src/lib/video-tracking.ts`: no play, a cada
-15 s tocando, na pausa, no fim e ao sair da página). Esse progresso vai só para a aba Vídeos do painel, nunca à Meta ou ao
-GA4. A medição nunca pode afetar o player nem o botão: o envio fica em `try/catch`, e a regra de liberar o botão é separada.
+15 s tocando, na pausa, no fim e ao sair da página). Esse progresso detalhado vai só para a aba Vídeos do painel, nunca à
+Meta ou ao GA4; à Meta vão só os marcos do `VSLProgress` (abaixo). A medição nunca pode afetar o player nem o botão: o envio fica em `try/catch`, e a regra de liberar o botão é separada.
 Sem aceite, o `t.js` descarta o `trck('video')`. O rodapé tem o link da política (rastrewin.com/privacidade) e o botão
 "Preferências de cookies" (`src/components/vsl/cookie-preferences.tsx`, chama `trck('consent', 'open')`).
 
 Eventos da Meta (`src/lib/meta-events.ts`, pelo `trck('track')`, só depois do aceite e só para a Meta): `VSLStart` (1º
-play), `VSLCTAUnlock` (liberação do botão, com `reason` `watched`, `ended` ou `error`; botão lembrado de visita anterior
+play), `VSLProgress` (`percent` 25, 50, 75 e 95 da duração, pelo tempo REALMENTE assistido: pulos e repetições não contam;
+um de cada por carregamento da página; nada sem a duração conhecida), `VSLCTAUnlock` (liberação do botão, com `reason` `watched`, `ended` ou `error`; botão lembrado de visita anterior
 não conta) e `CTAClick` (`page_type: "vsl"`). O botão leva as UTMs e o `fbclid` da visita para a landing só na URL, sem
 gravar nada, e não leva com recusa no banner (`src/lib/forward-origin.ts`). Não remova a query do link: é ela que
 preserva a origem do anúncio de quem só aceita o banner na landing. Regras completas em `docs/business-rules.md`.
