@@ -20,4 +20,4 @@ O plano 0002 criou o `AddPaymentInfo` no Pix gerado (`pix_generated`) e no cart�
 
 ## Progresso
 
-- [x] 1 · [x] 2 · [ ] 3 · [ ] 4
+- [x] 1 · [x] 2 · [ ] 3 · [x] 4
