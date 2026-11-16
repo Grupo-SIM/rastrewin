@@ -20,4 +20,22 @@ O plano 0002 criou o `AddPaymentInfo` no Pix gerado (`pix_generated`) e no cart�
 
 ## Progresso
 
-- [x] 1 · [x] 2 · [ ] 3 · [x] 4
+- [x] 1 · [x] 2 · [x] 3 · [x] 4
+
+Código completo em 16/11/2026. Deploy: só o track, sem migração.
+
+## Validação isolada (16/11/2026)
+
+Postgres descartável em Docker, track e backend locais, Meta falsa (nada saiu da máquina). Compradores criados pela API (visitante com aceite no track e cadastro no backend); avisos do SimIntPay assinados mandados ao backend, que repassa ao track.
+
+| Cenário                                   | Meta recebeu                                                              |
+| ----------------------------------------- | ------------------------------------------------------------------------- |
+| Cartão aprovado de primeira               | `AddPaymentInfo` (`addpaymentinfo_ORD-C1`, pro) 1 s antes do `Purchase`   |
+| Reentrega da mesma aprovação              | nada                                                                      |
+| Pix gerado → aprovado                     | `AddPaymentInfo` no Pix gerado; na aprovação, só `Purchase`               |
+| Pix aprovado antes do aviso de gerado     | `AddPaymentInfo` 1 s antes do `Purchase`; o aviso atrasado não manda nada |
+| Cartão recusado → aprovado (mesmo pedido) | `AddPaymentInfo` na recusa; na aprovação, só `Purchase`                   |
+| Renovação no cartão                       | nada                                                                      |
+| Banner recusado, cartão aprovado          | nada                                                                      |
+
+Testes do track: 154.
