@@ -133,7 +133,12 @@ export default function Landing() {
 	};
 	function start(e: React.FormEvent) {
 		e.preventDefault();
-		if (heroEmail) setF(x => ({ ...x, email: heroEmail }));
+		if (heroEmail) {
+			setF(x => ({ ...x, email: heroEmail }));
+			// Identifica o visitante já aqui (os eventos seguintes saem com o e-mail). Pelo t.js: sem
+			// aceite no banner, nada é enviado.
+			trck("identify", { email: heroEmail.trim() });
+		}
 		document.getElementById("planos")?.scrollIntoView({ behavior: "smooth", block: "start" });
 	}
 

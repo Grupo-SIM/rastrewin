@@ -24,4 +24,4 @@ A auditoria de 16/11/2026 (só leitura) mostrou o funil coberto de ponta a ponta
 
 ## Progresso
 
-- [x] 1 · [x] 2 · [x] 3 · [ ] 4 · [ ] 5 · [ ] 6 · [ ] 7 · [ ] 8 · [ ] 9
+- [x] 1 · [x] 2 · [x] 3 · [x] 4 · [ ] 5 · [ ] 6 · [ ] 7 · [ ] 8 · [ ] 9

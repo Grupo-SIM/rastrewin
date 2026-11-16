@@ -22,7 +22,7 @@ const CONTROLADOR = {
 };
 // PERSONALIZAR: mantenha igual à "Versão do texto" do banner (painel do track › Configurações › Privacidade).
 const POLICY_VERSION = "1";
-const UPDATED_AT = "15 de novembro de 2026";
+const UPDATED_AT = "16 de novembro de 2026";
 
 interface Section {
 	title: string;
@@ -82,8 +82,8 @@ const SECTIONS: Section[] = [
 				pagamento), a origem da visita (parâmetros de campanha, como utm_source, e o identificador do
 				clique em anúncios da Meta), o quanto você assistiu do vídeo de apresentação, o endereço IP e
 				o navegador (usados para estimar cidade e estado e para a plataforma de anúncios reconhecer a
-				visita) e, quando você se cadastra, e-mail, telefone e nome, para ligar a compra à visita que
-				a originou.
+				visita) e, quando você informa seu e-mail no site ou se cadastra, e-mail, telefone e nome,
+				para ligar a compra à visita que a originou.
 			</>,
 		],
 		title: "2. Dados que Coletamos",
@@ -112,11 +112,11 @@ const SECTIONS: Section[] = [
 		],
 		list: [
 			<>
-				<b>Meta (Facebook e Instagram), só com o seu consentimento:</b> eventos de navegação e de
-				compra, pelo Pixel no seu navegador e pela Conversions API no nosso servidor. E-mail,
-				telefone, nome, cidade e estado são enviados embaralhados (hash SHA-256), nunca em texto. O
-				IP, o navegador e os identificadores da própria Meta (cookies _fbp e _fbc) seguem como são,
-				porque a Meta precisa deles para reconhecer a visita.
+				<b>Meta (Facebook e Instagram), só com o seu consentimento:</b> eventos de navegação, de
+				pagamento (como a geração do Pix) e de compra, pelo Pixel no seu navegador e pela Conversions
+				API no nosso servidor. E-mail, telefone, nome, cidade e estado são enviados embaralhados (hash
+				SHA-256), nunca em texto. O IP, o navegador e os identificadores da própria Meta (cookies _fbp
+				e _fbc) seguem como são, porque a Meta precisa deles para reconhecer a visita.
 			</>,
 			<>
 				<b>Google (Google Analytics), só com o seu consentimento:</b> eventos de navegação, pelo seu
