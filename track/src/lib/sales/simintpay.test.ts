@@ -5,6 +5,7 @@ import {
 	isRefunded,
 	isSaleActive,
 	mapStatus,
+	metaPaymentMethod,
 	nextStatus,
 	postApprovalOnly,
 	salesEventSchema,
@@ -187,4 +188,15 @@ test("AddPaymentInfo na aprovação: cartão de primeira (ou Pix fora de ordem),
 		addPaymentInfoSkipReason({ ...aprovado, occurredAt: new Date("2026-11-08T11:00:00Z") }),
 		"fora do prazo",
 	);
+});
+
+test("payment_method do AddPaymentInfo: pix ou credit_card, a partir do meio informado pelo SimIntPay", () => {
+	assert.equal(metaPaymentMethod("PIX"), "pix");
+	assert.equal(metaPaymentMethod("CREDIT_CARD"), "credit_card");
+	assert.equal(metaPaymentMethod(" credit_card "), "credit_card");
+	// outro meio ou sem meio: o campo não vai à Meta
+	for (const method of ["BOLETO", "", "  ", null, undefined]) assert.equal(metaPaymentMethod(method), null);
+	// o meio do aviso chega à venda (toPurchaseFields) e é dele que o AddPaymentInfo parte
+	const pix = salesEventSchema.parse({ ...payload, paymentMethod: "PIX" });
+	assert.equal(metaPaymentMethod(toPurchaseFields(pix).paymentMethod), "pix");
 });

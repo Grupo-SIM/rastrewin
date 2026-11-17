@@ -6,7 +6,7 @@ import { safeErrorMessage } from "@/lib/errors";
 import { buildEvent, sendToPixels } from "@/lib/meta/capi";
 import { getRuntimeConfig } from "@/lib/tracking/runtime-config";
 import { itemsOf, saleCustomData, salePerson, saleSourceUrl } from "./deliver";
-import { addPaymentInfoSkipReason, type SalesEventType } from "./simintpay";
+import { addPaymentInfoSkipReason, metaPaymentMethod, type SalesEventType } from "./simintpay";
 
 /*
  * AddPaymentInfo (evento padrão da Meta) quando o SimIntPay avisa "Pix gerado", "cartão recusado" ou a
@@ -14,7 +14,8 @@ import { addPaymentInfoSkipReason, type SalesEventType } from "./simintpay";
  * aviso de "gerado" chegou depois): a pessoa chegou a informar o pagamento. Sai pelo servidor (CAPI),
  * só para a Meta (não vai ao GA4), uma vez por pedido: o event_id addpaymentinfo_<pedido> é único em
  * events_log, que também mostra o evento no painel (Eventos e jornada do visitante). Mesmos dados de
- * correspondência do Purchase. Na aprovação, sai ANTES do Purchase, com horário 1 s antes dele.
+ * correspondência do Purchase, mais o meio de pagamento (`payment_method`: pix ou credit_card, para os
+ * públicos). Na aprovação, sai ANTES do Purchase, com horário 1 s antes dele.
  * Uma tentativa só, como os eventos do site; a falha fica registrada na resposta da Meta do evento.
  */
 
@@ -47,7 +48,11 @@ export async function deliverAddPaymentInfo(
 	if (!visitor) return "visitante não encontrado";
 
 	const eventId = `addpaymentinfo_${p.transactionId}`;
-	const customData = saleCustomData(p, itemsOf(p));
+	const paymentMethod = metaPaymentMethod(p.paymentMethod);
+	const customData = {
+		...saleCustomData(p, itemsOf(p)),
+		...(paymentMethod ? { payment_method: paymentMethod } : {}),
+	};
 	const eventSourceUrl = saleSourceUrl(visitor, config.allowedOrigins);
 	const [row] = await db
 		.insert(eventsLog)

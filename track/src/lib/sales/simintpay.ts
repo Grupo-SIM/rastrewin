@@ -161,6 +161,20 @@ export function addPaymentInfoSkipReason(input: {
 	return null;
 }
 
+/**
+ * Meio de pagamento do AddPaymentInfo para a Meta (`custom_data.payment_method`), a partir do que o
+ * SimIntPay informa no aviso: `pix` ou `credit_card` (os públicos "Pix gerado sem compra" e "Cartão
+ * recusado sem compra" filtram por ele). Outro meio ou sem meio: o campo não é enviado.
+ */
+const META_PAYMENT_METHODS: Record<string, "pix" | "credit_card"> = {
+	CREDIT_CARD: "credit_card",
+	PIX: "pix",
+};
+
+export function metaPaymentMethod(method: string | null | undefined): "pix" | "credit_card" | null {
+	return META_PAYMENT_METHODS[method?.trim().toUpperCase() ?? ""] ?? null;
+}
+
 const FB_COOKIE = /^fb\.\d\.\d{10,13}\.[\w.-]+$/;
 
 export interface PurchaseItem {
