@@ -5,6 +5,7 @@ import {
 	HttpCode,
 	HttpException,
 	HttpStatus,
+	Logger,
 	Post,
 	type RawBodyRequest,
 	Req,
@@ -18,7 +19,7 @@ import { rateLimitKey } from "../http/client-ip";
 import { createRateLimiter } from "../http/rate-limit";
 import { PrismaService } from "../prisma/prisma.service";
 import { TrackRelayService } from "../track/track-relay.service";
-import { isValidSignature, parseSalesEvent, type SalesEvent } from "./simintpay";
+import { acknowledgedOnlyEvent, isValidSignature, parseSalesEvent, type SalesEvent } from "./simintpay";
 
 const ONE_YEAR_MS = 365 * 24 * 3600 * 1000;
 /** Trava contra inundação da rota pública. Bem acima do volume real (o SimIntPay manda 1 evento por
@@ -35,11 +36,15 @@ const RENEWAL_CHECK_EVENTS = new Set(["purchase_approved", "pix_generated", "car
  *
  * - purchase_approved: libera (ou estende por +1 ano) o plano escolhido no cadastro.
  * - purchase_refunded / chargeback: revoga o acesso da compra reembolsada.
+ * - subscription_activated (oferta anual): só confirmado; o purchase_approved do mesmo pagamento
+ *   é que libera o plano. Não vai ao track.
  * - demais eventos: só são repassados ao track.
- * Todo evento válido é repassado ao track.rastrewin.com depois de processado (TrackRelayService).
+ * Todo evento de venda válido é repassado ao track.rastrewin.com depois de processado (TrackRelayService).
  */
 @Controller("payments")
 export class PaymentsController {
+	private readonly logger = new Logger(PaymentsController.name);
+
 	constructor(
 		private readonly prisma: PrismaService,
 		private readonly email: EmailService,
@@ -61,6 +66,11 @@ export class PaymentsController {
 			raw = JSON.parse(req.rawBody!.toString("utf8"));
 		} catch {
 			throw new BadRequestException("JSON inválido");
+		}
+		const ackOnly = acknowledgedOnlyEvent(raw);
+		if (ackOnly) {
+			this.logger.log(`${ackOnly} confirmado sem efeito (o purchase_approved libera o plano)`);
+			return { ignored: ackOnly, ok: true };
 		}
 		const event = parseSalesEvent(raw);
 		if (!event) throw new BadRequestException("Payload inválido");
