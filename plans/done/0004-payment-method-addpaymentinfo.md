@@ -26,8 +26,8 @@ Na `6e36c87`, o `AddPaymentInfo` (servidor, webhook do SimIntPay) leva o mesmo `
 - [x] Etapa 1
 - [x] Etapa 2
 - [x] Etapa 3
-- [ ] Etapa 4
-- [ ] Etapa 5
+- [x] Etapa 4
+- [ ] Etapa 5 (parcial: público de Pix aplicado; cartão recusado aguarda decisão)
 
 ## Validação isolada (16/11/2026)
 
@@ -46,3 +46,10 @@ Postgres 18 descartável, track (`next dev`) com a Meta falsa, backend `node dis
 | 9. Meta de volta, reentrega da aprovação                       | nada (uma tentativa por pedido)                                          |
 
 No banco: um único `addpaymentinfo_<pedido>` em `events_log` para cada um dos 4 pedidos, e `Purchase` enviado nos 4. O `Purchase` não leva `payment_method` (fora do escopo). Pendente: revisão do usuário antes do push e do deploy.
+
+## Produção (16–17/11/2026)
+
+- Push com autorização e deploy do track pelo usuário (`a332251`, CD às 01:08 UTC de 17/11).
+- Confirmado no painel: `AddPaymentInfo` do pedido `446b0e8d…` (Pix de 16/11, 22:29) com `"payment_method": "pix"` e resposta da Meta `events_received: 1` (status 200). O mesmo no Pix de teste de 17/11, 13:00 (pedido `811fd514…`, checkout de assinatura), ligado ao visitante pelo `src` e sem `Purchase`.
+- Público **RW · Pix gerado sem compra 7d** (`120272647278170362`): regra atualizada em 17/11/2026 com aprovação do usuário (`AddPaymentInfo` e `payment_method = pix`, 7 dias; menos `Purchase`, 180 dias) e lida de volta.
+- **Pendente:** o público **RW · Cartão recusado sem compra 7d** (`payment_method = credit_card`) ficou para uma decisão separada do usuário.

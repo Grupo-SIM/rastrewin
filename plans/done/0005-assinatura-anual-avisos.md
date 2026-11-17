@@ -24,7 +24,7 @@ Cada ciclo pago continua chegando como `purchase_approved` (pedido novo), que o 
 - [x] Etapa 1
 - [x] Etapa 2
 - [x] Etapa 3
-- [ ] Etapa 4
+- [x] Etapa 4
 
 ## Validação isolada (17/11/2026)
 
@@ -46,3 +46,14 @@ Postgres 18 descartável, track com a Meta falsa e backend desta branch, com avi
 | 17. Aviso desconhecido (`foo_bar`)                                                                        | 400            | não                      | nada                   | —                                          |
 
 No track: os 3 primeiros ciclos com `Purchase` e um `AddPaymentInfo`; as 3 renovações (`is_renewal`) sem `Purchase` nem `AddPaymentInfo`; nenhum `subscription_activated` gravado. GA4 não configurado no ambiente isolado (não testado). A prorrogação é de 365 dias (comportamento anterior): num ano bissexto, cai um dia antes da data do ano seguinte.
+
+## Produção (17/11/2026)
+
+- Push e deploy do backend feitos pelo usuário (`f2303bd`; imagem do CD às 16:27 UTC; Deploy Stack no Komodo às 16:28 e 16:30 UTC, depois da imagem).
+- Teste em produção com "Assinar" (Pix do 1º ciclo, não pago; pedido `811fd514…`): checkout de oferta com os dados preenchidos e `src`/UTMs no `tracking`; transação Pendente no SimIntPay; pedido ligado pelo `src`; `AddPaymentInfo` com `payment_method: pix` e `events_received: 1`; sem `Purchase`.
+- O `subscription_activated` em produção só será visto no primeiro pagamento real de assinatura.
+
+## Pendências fora do código (decisão do usuário)
+
+- Avisar na landing e na política que o cartão é cobrado automaticamente todo ano.
+- Botão "Renovar assinatura" do painel do cliente: confirmar com o SimIntPay o link certo (a tela `?renovar`), para não criar uma segunda assinatura.
