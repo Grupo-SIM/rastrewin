@@ -13,7 +13,6 @@ import {
 } from "@nestjs/common";
 import type { User } from "@prisma/client";
 import type { Request } from "express";
-import { generatePassword, hashPassword } from "../auth/password.util";
 import { EmailService } from "../email/email.service";
 import { rateLimitKey } from "../http/client-ip";
 import { createRateLimiter } from "../http/rate-limit";
@@ -34,7 +33,8 @@ const RENEWAL_CHECK_EVENTS = new Set(["purchase_approved", "pix_generated", "car
  * Cadastrar no SimIntPay, na plataforma rastrewin: WEBHOOK_URL = essa rota e
  * WEBHOOK_SECRET = SIMPAY_WEBHOOK_SECRET deste backend.
  *
- * - purchase_approved: libera (ou estende por +1 ano) o plano escolhido no cadastro.
+ * - purchase_approved: libera (ou estende por +1 ano) o plano escolhido no cadastro; no primeiro pagamento,
+ *   manda o e-mail para o cliente criar a senha.
  * - purchase_refunded / chargeback: revoga o acesso da compra reembolsada.
  * - subscription_activated (oferta anual): só confirmado; o purchase_approved do mesmo pagamento
  *   é que libera o plano. Não vai ao track.
@@ -98,41 +98,53 @@ export class PaymentsController {
 	}
 
 	/** Libera (ou renova por +1 ano) o plano escolhido no cadastro. No primeiro pagamento
-	 * também cria a senha de acesso e envia por e-mail. */
+	 * manda o e-mail para o cliente criar a senha (a senha nunca viaja por e-mail). */
 	private async activate(event: SalesEvent, user: User) {
 		// Pedido que já ativou alguém (reentrega depois de processado): nada a fazer.
 		const already = await this.prisma.user.findUnique({ where: { simpayOrderId: event.orderId } });
 		if (already) return;
+		// Aviso mais antigo que o último pagamento já processado: é a reentrega de um pedido anterior
+		// (já substituído por uma renovação). Estender de novo daria um ano de graça a cada reentrega.
+		if (user.paidAt && Date.parse(event.occurredAt) < user.paidAt.getTime()) {
+			this.logger.warn(`Aviso ${event.eventId} anterior ao último pagamento: ignorado`);
+			return;
+		}
 
-		const isFirstActivation = !user.password;
-		const plainPassword = isFirstActivation ? generatePassword() : undefined;
+		const isFirstActivation = !user.password && !user.simpayOrderId;
 		const now = new Date();
 		// renovação de plano ainda ativo estende a partir do vencimento atual (não perde dias
 		// se renovar antes de vencer); se já tinha expirado, conta a partir de agora.
 		const base = user.expiresAt && user.expiresAt.getTime() > now.getTime() ? user.expiresAt : now;
 
-		// Idempotência atômica: o mesmo pedido (orderId) ativa uma vez só, mesmo com dois avisos
-		// ao mesmo tempo. O UPDATE só pega a linha se ela ainda não tem este orderId; o Postgres
-		// trava a linha e reavalia a condição, então o segundo aviso simultâneo atualiza 0 linhas
-		// e não gera outra senha nem outro e-mail.
-		const { count } = await this.prisma.user.updateMany({
-			data: {
-				expiresAt: new Date(base.getTime() + ONE_YEAR_MS),
-				paidAt: now,
-				simpayOrderId: event.orderId,
-				status: "ACTIVE",
-				// Troca de plano de quem já era ativo: vale a partir deste pagamento.
-				...(user.pendingPlan ? { pendingPlan: null, plan: user.pendingPlan } : {}),
-				...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
-			},
-			where: {
-				id: user.id,
-				OR: [{ simpayOrderId: null }, { simpayOrderId: { not: event.orderId } }],
-			},
+		// Idempotência atômica, na mesma transação: o mesmo evento (eventId) e o mesmo pedido (orderId) ativam
+		// uma vez só, mesmo com dois avisos ao mesmo tempo. O UPDATE só pega a linha se ela ainda não tem este
+		// orderId; o Postgres trava a linha e reavalia a condição, então o segundo aviso simultâneo atualiza 0
+		// linhas e não envia outro e-mail.
+		const activated = await this.prisma.$transaction(async tx => {
+			const fresh = await tx.processedEvent.createMany({
+				data: [{ eventId: event.eventId }],
+				skipDuplicates: true,
+			});
+			if (fresh.count === 0) return false;
+			const { count } = await tx.user.updateMany({
+				data: {
+					expiresAt: new Date(base.getTime() + ONE_YEAR_MS),
+					paidAt: now,
+					simpayOrderId: event.orderId,
+					status: "ACTIVE",
+					// Troca de plano de quem já era ativo: vale a partir deste pagamento.
+					...(user.pendingPlan ? { pendingPlan: null, plan: user.pendingPlan } : {}),
+				},
+				where: {
+					id: user.id,
+					OR: [{ simpayOrderId: null }, { simpayOrderId: { not: event.orderId } }],
+				},
+			});
+			return count > 0;
 		});
-		if (count === 0) return;
+		if (!activated) return;
 
-		if (plainPassword) void this.email.sendWelcomeCredentials(user.email, user.name, plainPassword);
+		if (isFirstActivation) void this.email.sendWelcomeSetup(user.email, user.name);
 	}
 
 	/** Reembolso ou chargeback do pedido que liberou o plano: perde o acesso na hora.

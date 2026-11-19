@@ -1,33 +1,49 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post } from "@nestjs/common";
-import { IsEmail, IsIn, IsObject, IsOptional, IsString, MinLength } from "class-validator";
-import { generateOtpCode } from "../auth/phone.util";
+import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
+import { IsEmail, IsIn, IsObject, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
+import type { Request } from "express";
+import { authenticate, AuthGuard, type RequestAuth } from "../auth/auth.guard";
+import { generateOtpCode, normalizePhone } from "../auth/phone.util";
+import { rateLimitKey } from "../http/client-ip";
+import { createRateLimiter, enforce } from "../http/rate-limit";
 import { checkoutUrlFor, checkoutUrlWithPrefill, expireIfPastDue, PLAN_IDS } from "../plans";
 import { PrismaService } from "../prisma/prisma.service";
 import { sanitizeTracking } from "../track/tracking";
+import { IsBrPhone, IsCpf } from "./validators";
 import { toPublicUser } from "./user.view";
 
 class RegisterDto {
-	@IsString() @MinLength(2) name: string;
-	@IsEmail() email: string;
-	@IsString() @MinLength(11) cpf: string;
-	@IsString() @MinLength(8) phone: string;
-	@IsString() @MinLength(2) city: string;
-	@IsString() @MinLength(3) pix: string;
+	@IsString() @MinLength(2) @MaxLength(120) name: string;
+	@IsEmail() @MaxLength(254) email: string;
+	@IsCpf() @MaxLength(14) cpf: string;
+	@IsBrPhone() @MaxLength(20) phone: string;
+	@IsString() @MinLength(2) @MaxLength(80) city: string;
+	@IsString() @MinLength(3) @MaxLength(140) pix: string;
 	@IsIn(PLAN_IDS) plan: string;
 	/** Origem do visitante (t.js): src = trck_user_id, utm_*, fbc, fbp. Filtrado por sanitizeTracking. */
 	@IsOptional() @IsObject() tracking?: Record<string, unknown>;
 }
 
+/** Cadastro cria conta e dispara o checkout: poucos por IP, e o mesmo IP não troca dados de várias contas. */
+const registerLimiter = createRateLimiter({ max: 10, windowMs: 10 * 60 * 1000 });
+const otpLimiter = createRateLimiter({ max: 10, windowMs: 60 * 1000 });
+
 @Controller("users")
 export class UsersController {
 	constructor(private readonly prisma: PrismaService) {}
 
-	/** Cadastro: salva os dados como PENDING e devolve o link de checkout. A liberação do plano
-	 * (e a senha de acesso) só acontece quando o webhook de pagamento confirmar (ver PaymentsController).
-	 * Quem já tem plano ATIVO não perde o acesso ao enviar o formulário de novo: os dados são
-	 * atualizados e o plano escolhido fica em pendingPlan até o pagamento ser aprovado. */
+	/**
+	 * Cadastro: salva os dados como PENDING e devolve o link de checkout. A liberação do plano
+	 * (e a criação da senha) só acontece quando o webhook de pagamento confirmar (ver PaymentsController).
+	 *
+	 * O e-mail não é prova de nada aqui (a rota é pública), então:
+	 *  - Conta de quem NUNCA pagou: o cadastro pode ser reenviado (corrigir dado, trocar de plano).
+	 *  - Conta de quem JÁ pagou (tem senha ou pedido): só mexe quem está logado nela. Sem login, nada é
+	 *    alterado e a resposta pede o login. Sem isso, qualquer um trocava o Pix e o telefone de um cliente.
+	 * A resposta nunca traz dados da conta nem o id.
+	 */
 	@Post()
-	async register(@Body() dto: RegisterDto) {
+	async register(@Body() dto: RegisterDto, @Req() req: Request) {
+		enforce(registerLimiter, rateLimitKey(req), "Muitas tentativas de cadastro. Tente de novo em alguns minutos.");
 		const checkoutUrl = checkoutUrlFor(dto.plan);
 		if (!checkoutUrl) throw new BadRequestException("Checkout não configurado para este plano");
 		const { tracking: rawTracking, ...data } = dto;
@@ -37,11 +53,21 @@ export class UsersController {
 		const tracking = sanitizeTracking(rawTracking);
 
 		const existing = await this.prisma.user.findUnique({ where: { email } });
+		const everPaid = !!existing && (!!existing.password || !!existing.simpayOrderId);
+		if (existing && everPaid) {
+			const auth = await authenticate(this.prisma, req);
+			if (auth?.sub !== existing.id) return { loginRequired: true };
+		}
+		// Telefone novo: a verificação por WhatsApp não vale para o número antigo.
+		const phoneChanged = !!existing && normalizePhone(existing.phone) !== normalizePhone(data.phone);
+		const phoneReset = phoneChanged ? { otpCode: null, phoneVerified: false } : {};
+
 		if (existing && (await expireIfPastDue(this.prisma, existing)) === "ACTIVE") {
 			const { plan, ...profile } = data;
 			const user = await this.prisma.user.update({
 				data: {
 					...profile,
+					...phoneReset,
 					city,
 					email,
 					pendingPlan: plan === existing.plan ? null : plan,
@@ -49,16 +75,14 @@ export class UsersController {
 				},
 				where: { id: existing.id },
 			});
-			return {
-				...toPublicUser(user),
-				checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl,
-			};
+			return { checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl };
 		}
 
 		const user = await this.prisma.user.upsert({
 			create: { ...data, city, email, status: "PENDING", ...(tracking ? { tracking } : {}) },
 			update: {
 				...data,
+				...phoneReset,
 				city,
 				email,
 				paidAt: null,
@@ -68,13 +92,15 @@ export class UsersController {
 			},
 			where: { email },
 		});
-		return { ...toPublicUser(user), checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl };
+		return { checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl };
 	}
 
-	@Get(":id")
-	async get(@Param("id") id: string) {
-		const user = await this.prisma.user.findUnique({ where: { id } });
-		if (!user) throw new NotFoundException("Usuário não encontrado");
+	/** O próprio usuário (identificado pelo token, nunca por um id na URL). */
+	@Get("me")
+	@UseGuards(AuthGuard)
+	async me(@Req() req: { auth: RequestAuth }) {
+		const user = await this.prisma.user.findUnique({ where: { id: req.auth.sub } });
+		if (!user) throw new BadRequestException("Usuário não encontrado");
 		const status = await expireIfPastDue(this.prisma, user);
 		return { ...toPublicUser({ ...user, status }), checkoutUrl: checkoutUrlWithPrefill(user.plan, user) };
 	}
@@ -82,10 +108,13 @@ export class UsersController {
 	/** Gera (ou reaproveita) o código que o usuário precisa mandar pro WhatsApp do rastrewin
 	 * para validar o telefone. Idempotente enquanto não verificado, pra não mudar o código
 	 * a cada tela aberta. */
-	@Post(":id/otp")
-	async requestOtp(@Param("id") id: string) {
+	@Post("me/otp")
+	@UseGuards(AuthGuard)
+	async requestOtp(@Req() req: { auth: RequestAuth }) {
+		enforce(otpLimiter, req.auth.sub);
+		const id = req.auth.sub;
 		const user = await this.prisma.user.findUnique({ where: { id } });
-		if (!user) throw new NotFoundException("Usuário não encontrado");
+		if (!user) throw new BadRequestException("Usuário não encontrado");
 		if (user.phoneVerified) return { code: null, phoneVerified: true };
 		const code = user.otpCode ?? generateOtpCode();
 		if (!user.otpCode) await this.prisma.user.update({ data: { otpCode: code }, where: { id } });

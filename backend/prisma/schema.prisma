@@ -28,7 +28,12 @@ model User {
   otpCode            String? // código que o usuário precisa mandar pro WhatsApp do rastrewin
   resetCodeHash      String? // HMAC do código de 6 dígitos enviado por e-mail na recuperação de senha
   resetCodeExpiresAt DateTime?
-  resetAttempts      Int       @default(0)
+  resetAttempts      Int       @default(0) // erros de código na janela de 1 h (resetWindowStart); NÃO zera ao pedir código novo
+  resetWindowStart   DateTime? // início da janela de 1 h que conta resetAttempts
+  tokenVersion       Int       @default(0) // sobe ao trocar/redefinir a senha: derruba todos os JWT já emitidos
+  totpSecret         String? // segredo TOTP (2FA) do admin; só vale com totpEnabled
+  totpEnabled        Boolean   @default(false)
+  totpLastStep       Int? // último passo de 30 s aceito (um código não vale duas vezes)
   createdAt          DateTime  @default(now())
   entries            Entry[]
 }
@@ -108,4 +113,11 @@ model PrivacyRequest {
   createdAt   DateTime  @default(now())
 
   @@index([email, createdAt])
+}
+
+/// Eventos de venda do SimIntPay que já liberaram um plano. Uma reentrega antiga (pedido já substituído por
+/// uma renovação) não pode estender o plano de novo.
+model ProcessedEvent {
+  eventId     String   @id
+  processedAt DateTime @default(now())
 }

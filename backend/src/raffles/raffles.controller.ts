@@ -1,5 +1,17 @@
-import { Controller, Get, NotFoundException, Param, Post, Query } from "@nestjs/common";
+import {
+	Controller,
+	ForbiddenException,
+	Get,
+	NotFoundException,
+	Param,
+	Post,
+	Query,
+	Req,
+	UseGuards,
+} from "@nestjs/common";
 import { Raffle } from "@prisma/client";
+import { AuthGuard, type RequestAuth } from "../auth/auth.guard";
+import { createRateLimiter, enforce } from "../http/rate-limit";
 import { maskedUser, normalize, participantAt, uniqueWinnerName, userIndex } from "../mock";
 import { expireIfPastDue, planLimit } from "../plans";
 import { PrismaService } from "../prisma/prisma.service";
@@ -10,13 +22,15 @@ const MAX_LOOKBACK_MS = 36 * 3600 * 1000;
 /** Quantos ganhadores recentes entram na checagem de "não repetir ganhador". */
 const RECENT_WINNERS = 20_000;
 
-export function toPublic(r: Raffle, entered: boolean) {
+/** `mine`: o usuário logado é o ganhador. O id do ganhador nunca sai daqui (com ele, outro cliente leria os dados dele). */
+export function toPublic(r: Raffle, entered: boolean, userId: string) {
 	const nowMs = Date.now();
 	const ended = r.endsAt.getTime() <= nowMs;
 	// o contador para de crescer quando o sorteio termina
 	const elapsed = Math.max(0, Math.min(nowMs, r.endsAt.getTime()) - r.createdAt.getTime());
 	return {
 		ended,
+		mine: ended && !!r.winnerName && r.winnerUserId === userId,
 		endsAt: r.endsAt.toISOString(),
 		entered,
 		id: r.id,
@@ -29,7 +43,7 @@ export function toPublic(r: Raffle, entered: boolean) {
 		startsAt: r.createdAt.toISOString(),
 		title: r.title,
 		winnerName: ended ? r.winnerName : null,
-		winnerUserId: ended ? r.winnerUserId : null,
+		winnerUserId: null,
 	};
 }
 
@@ -94,15 +108,20 @@ export function ensureWinners(prisma: PrismaService) {
 	});
 }
 
+/** As rotas escrevem no banco (agenda e ganhadores) a cada chamada: só logado, com limite por usuário. */
+const readLimiter = createRateLimiter({ max: 120, windowMs: 60 * 1000 });
+const searchLimiter = createRateLimiter({ max: 30, windowMs: 60 * 1000 });
+
+@UseGuards(AuthGuard)
 @Controller("raffles")
 export class RafflesController {
 	constructor(private readonly prisma: PrismaService) {}
 
 	/** Usuário ativo + janela do dia (`since`, ISO; o front manda a meia-noite do usuário) + filtro base do plano. */
-	private async scope(userId?: string, since?: string) {
+	private async scope(userId: string, since?: string) {
+		enforce(readLimiter, userId);
 		await materializeSchedule(this.prisma);
 		await ensureWinners(this.prisma);
-		if (!userId) return null;
 		const user = await this.prisma.user.findUnique({
 			select: { expiresAt: true, id: true, plan: true, status: true },
 			where: { id: userId },
@@ -122,8 +141,8 @@ export class RafflesController {
 
 	/** Contagens do dia (barato: só COUNT). Todos = em andamento + encerrados; "ganhei" inclui qualquer dia. */
 	@Get("summary")
-	async summary(@Query("userId") userId?: string, @Query("since") since?: string) {
-		const sc = await this.scope(userId, since);
+	async summary(@Req() req: { auth: RequestAuth }, @Query("since") since?: string) {
+		const sc = await this.scope(req.auth.sub, since);
 		if (!sc) return { ended: 0, open: 0, total: 0, won: 0 };
 		const [open, ended, won] = await Promise.all([
 			this.prisma.raffle.count({ where: { ...sc.base, endsAt: { gt: sc.now } } }),
@@ -140,14 +159,14 @@ export class RafflesController {
 	 */
 	@Get()
 	async list(
-		@Query("userId") userId?: string,
+		@Req() req: { auth: RequestAuth },
 		@Query("since") since?: string,
 		@Query("tab") tab = "all",
 		@Query("offset") offset = "0",
 		@Query("limit") limit = "24",
 	) {
 		const empty = { items: [], nextOffset: null as number | null, total: 0 };
-		const sc = await this.scope(userId, since);
+		const sc = await this.scope(req.auth.sub, since);
 		if (!sc) return empty;
 		const o = Math.max(0, Number(offset) || 0);
 		const l = Math.min(200, Math.max(1, Number(limit) || 24));
@@ -188,7 +207,7 @@ export class RafflesController {
 			rows = [...a, ...b];
 		}
 		const next = o + rows.length;
-		return { items: rows.map(r => toPublic(r, true)), nextOffset: next < total ? next : null, total };
+		return { items: rows.map(r => toPublic(r, true, sc.user.id)), nextOffset: next < total ? next : null, total };
 	}
 
 	/**
@@ -206,6 +225,18 @@ export class RafflesController {
 		return byIndex;
 	}
 
+	/** A lista de participantes é coisa de quem tem plano ativo. */
+	private async activeUserId(userId: string) {
+		enforce(readLimiter, userId);
+		const user = await this.prisma.user.findUnique({
+			select: { expiresAt: true, id: true, status: true },
+			where: { id: userId },
+		});
+		if (!user || (await expireIfPastDue(this.prisma, user)) !== "ACTIVE")
+			throw new ForbiddenException("Plano inativo");
+		return user.id;
+	}
+
 	/** Posição e nome do usuário logado dentro da lista deste sorteio. */
 	private meIn(layout: Map<number, { id: string; name: string }>, userId?: string) {
 		if (!userId) return null;
@@ -215,11 +246,12 @@ export class RafflesController {
 
 	@Get(":id/participants")
 	async participants(
+		@Req() req: { auth: RequestAuth },
 		@Param("id") id: string,
 		@Query("offset") offset = "0",
 		@Query("limit") limit = "30",
-		@Query("userId") userId?: string,
 	) {
+		const userId = await this.activeUserId(req.auth.sub);
 		const r = await this.prisma.raffle.findUnique({ where: { id } });
 		if (!r) throw new NotFoundException();
 		const o = Math.max(0, Number(offset) || 0);
@@ -235,10 +267,12 @@ export class RafflesController {
 
 	/** Busca por nome na lista do sorteio (primeiras 5.000 posições + a posição do usuário). */
 	@Get(":id/participants/search")
-	async search(@Param("id") id: string, @Query("q") q = "", @Query("userId") userId?: string) {
+	async search(@Req() req: { auth: RequestAuth }, @Param("id") id: string, @Query("q") q = "") {
+		const userId = await this.activeUserId(req.auth.sub);
+		enforce(searchLimiter, userId);
 		const r = await this.prisma.raffle.findUnique({ where: { id } });
 		if (!r) throw new NotFoundException();
-		const needle = normalize(q.trim());
+		const needle = normalize(q.trim().slice(0, 60));
 		if (needle.length < 2) return { results: [] };
 		const layout = await this.layout(r.seed);
 		const results: { index: number; name: string; me: boolean }[] = [];
@@ -258,7 +292,8 @@ export class RafflesController {
 
 	/** "Buscando sorteios...": só garante que a agenda e os ganhadores estão em dia (a lista vem de GET /raffles). */
 	@Post("discover")
-	async discover() {
+	async discover(@Req() req: { auth: RequestAuth }) {
+		enforce(readLimiter, req.auth.sub);
 		await materializeSchedule(this.prisma);
 		await ensureWinners(this.prisma);
 		return [];

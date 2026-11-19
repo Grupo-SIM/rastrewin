@@ -20,9 +20,23 @@ function clean(value: string | undefined): string | null {
 	return isIP(ip) ? ip : null;
 }
 
+/** IPv6: cada cliente recebe um /64 inteiro, então o limite vale para o /64 (senão bastaria trocar o final do endereço). */
+function ipv6Prefix(ip: string): string {
+	const [head = "", tail = ""] = ip.split("%")[0].split("::");
+	const h = head ? head.split(":") : [];
+	const t = tail ? tail.split(":") : [];
+	const groups = ip.includes("::") ? [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t] : h;
+	return `${groups
+		.slice(0, 4)
+		.map(g => Number.parseInt(g || "0", 16).toString(16))
+		.join(":")}::/64`;
+}
+
 /** Chave do limite. Sem IP confiável, todos dividem um balde ("unknown"): restritivo, nunca permissivo. */
 export function rateLimitKey(req: Request): string {
 	const xff = req.headers["x-forwarded-for"];
 	const last = (Array.isArray(xff) ? xff.join(",") : (xff ?? "")).split(",").at(-1);
-	return clean(last) ?? clean(req.socket?.remoteAddress) ?? "unknown";
+	const ip = clean(last) ?? clean(req.socket?.remoteAddress);
+	if (!ip) return "unknown";
+	return isIP(ip) === 6 ? ipv6Prefix(ip) : ip;
 }
