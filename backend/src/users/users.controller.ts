@@ -1,3 +1,4 @@
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
 import { IsEmail, IsIn, IsObject, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 import type { Request } from "express";
@@ -21,6 +22,17 @@ class RegisterDto {
 	@IsIn(PLAN_IDS) plan: string;
 	/** Origem do visitante (t.js): src = trck_user_id, utm_*, fbc, fbp. Filtrado por sanitizeTracking. */
 	@IsOptional() @IsObject() tracking?: Record<string, unknown>;
+	/** Código que o navegador recebeu no cadastro anterior: prova que é a mesma pessoa reenviando o formulário. */
+	@IsOptional() @IsString() @MaxLength(100) registrationToken?: string;
+}
+
+const sha256 = (v: string) => createHash("sha256").update(v).digest("hex");
+
+function sameToken(hash: string | null, token: string | undefined) {
+	if (!hash || !token) return false;
+	const a = Buffer.from(hash);
+	const b = Buffer.from(sha256(token));
+	return a.length === b.length && timingSafeEqual(a, b);
 }
 
 /** Cadastro cria conta e dispara o checkout: poucos por IP, e o mesmo IP não troca dados de várias contas. */
@@ -36,7 +48,9 @@ export class UsersController {
 	 * (e a criação da senha) só acontece quando o webhook de pagamento confirmar (ver PaymentsController).
 	 *
 	 * O e-mail não é prova de nada aqui (a rota é pública), então:
-	 *  - Conta de quem NUNCA pagou: o cadastro pode ser reenviado (corrigir dado, trocar de plano).
+	 *  - Conta de quem NUNCA pagou: só quem tem o `registrationToken` (o navegador que fez o cadastro) a altera, para
+	 *    corrigir dado ou trocar de plano. Sem ele nada é gravado: a resposta traz só o link de checkout, montado
+	 *    com os dados ENVIADOS (nunca os da conta, que são de outra pessoa).
 	 *  - Conta de quem JÁ pagou (tem senha ou pedido): só mexe quem está logado nela. Sem login, nada é
 	 *    alterado e a resposta pede o login. Sem isso, qualquer um trocava o Pix e o telefone de um cliente.
 	 * A resposta nunca traz dados da conta nem o id.
@@ -46,7 +60,7 @@ export class UsersController {
 		enforce(registerLimiter, rateLimitKey(req), "Muitas tentativas de cadastro. Tente de novo em alguns minutos.");
 		const checkoutUrl = checkoutUrlFor(dto.plan);
 		if (!checkoutUrl) throw new BadRequestException("Checkout não configurado para este plano");
-		const { tracking: rawTracking, ...data } = dto;
+		const { tracking: rawTracking, registrationToken, ...data } = dto;
 		const email = data.email.trim().toLowerCase();
 		const city = data.city.trim();
 		// Sem rastreamento novo (script bloqueado, por exemplo), mantém o que já estava gravado.
@@ -57,6 +71,10 @@ export class UsersController {
 		if (existing && everPaid) {
 			const auth = await authenticate(this.prisma, req);
 			if (auth?.sub !== existing.id) return { loginRequired: true };
+		}
+		if (existing && !everPaid && !sameToken(existing.registrationTokenHash, registrationToken)) {
+			const submitted = { cpf: data.cpf, email, name: data.name, phone: data.phone };
+			return { checkoutUrl: checkoutUrlWithPrefill(dto.plan, submitted) ?? checkoutUrl };
 		}
 		// Telefone novo: a verificação por WhatsApp não vale para o número antigo.
 		const phoneChanged = !!existing && normalizePhone(existing.phone) !== normalizePhone(data.phone);
@@ -78,11 +96,23 @@ export class UsersController {
 			return { checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl };
 		}
 
+		// Quem já tem o código continua com ele (se a resposta se perdesse, um código trocado trancaria a pessoa
+		// fora do próprio cadastro); cadastro novo recebe um código novo, que o navegador guarda e reenvia.
+		const reuse = !!existing && sameToken(existing.registrationTokenHash, registrationToken);
+		const newToken = reuse && registrationToken ? registrationToken : randomBytes(32).toString("base64url");
 		const user = await this.prisma.user.upsert({
-			create: { ...data, city, email, status: "PENDING", ...(tracking ? { tracking } : {}) },
+			create: {
+				...data,
+				city,
+				email,
+				registrationTokenHash: sha256(newToken),
+				status: "PENDING",
+				...(tracking ? { tracking } : {}),
+			},
 			update: {
 				...data,
 				...phoneReset,
+				...(reuse ? {} : { registrationTokenHash: sha256(newToken) }),
 				city,
 				email,
 				paidAt: null,
@@ -92,7 +122,7 @@ export class UsersController {
 			},
 			where: { email },
 		});
-		return { checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl };
+		return { checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl, registrationToken: newToken };
 	}
 
 	/** O próprio usuário (identificado pelo token, nunca por um id na URL). */

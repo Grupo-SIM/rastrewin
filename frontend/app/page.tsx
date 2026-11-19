@@ -164,10 +164,23 @@ export default function Landing() {
 			phone: f.phone,
 		});
 		try {
-			const user = await api<{ checkoutUrl?: string; loginRequired?: boolean }>("/users", {
-				body: JSON.stringify({ ...f, tracking: readTracking() }),
-				method: "POST",
-			});
+			// Código do cadastro anterior deste navegador: com ele, reenviar o formulário corrige o cadastro pendente.
+			let registrationToken: string | undefined;
+			try {
+				registrationToken = localStorage.getItem("registrationToken") ?? undefined;
+			} catch {}
+			const user = await api<{ checkoutUrl?: string; loginRequired?: boolean; registrationToken?: string }>(
+				"/users",
+				{
+					body: JSON.stringify({ ...f, registrationToken, tracking: readTracking() }),
+					method: "POST",
+				},
+			);
+			if (user.registrationToken) {
+				try {
+					localStorage.setItem("registrationToken", user.registrationToken);
+				} catch {}
+			}
 			if (user.loginRequired || !user.checkoutUrl) {
 				// E-mail de quem já é cliente: dados e plano só mudam com login. Sem cadastro novo, sem checkout.
 				checkoutTab?.close();

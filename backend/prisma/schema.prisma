@@ -30,6 +30,7 @@ model User {
   resetCodeExpiresAt DateTime?
   resetAttempts      Int       @default(0) // erros de código na janela de 1 h (resetWindowStart); NÃO zera ao pedir código novo
   resetWindowStart   DateTime? // início da janela de 1 h que conta resetAttempts
+  registrationTokenHash String? // SHA-256 do código que o navegador recebe no cadastro; só quem o tem reenvia o cadastro de quem ainda não pagou
   tokenVersion       Int       @default(0) // sobe ao trocar/redefinir a senha: derruba todos os JWT já emitidos
   totpSecret         String? // segredo TOTP (2FA) do admin; só vale com totpEnabled
   totpEnabled        Boolean   @default(false)
