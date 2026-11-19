@@ -8,6 +8,14 @@ import type { Request } from "express";
  * X-Real-IP e cf-connecting-ip são ignorados: o Caddy do backend não os sobrescreve, então qualquer um
  * poderia inventar um valor novo a cada pedido e escapar do limite.
  * Seguro porque a porta 3011 não é publicada: só se chega ao backend pelo proxy (ou pela rede interna).
+ *
+ * Duas premissas que valem HOJE (confirmadas no DNS em 2026-11-19) e que precisam ser revistas se mudarem:
+ *  1. api.rastrewin.com aponta direto para a VPS. Se o proxy da Cloudflare for ligado, o "último IP" passa a ser
+ *     o da Cloudflare e todo mundo cai no mesmo balde: configure `trusted_proxies cloudflare` no Caddy e leia o
+ *     IP do cliente do cabeçalho que ele repassar, antes de ligar.
+ *  2. O backend também está na rede externa `proxy` do compose (o Caddy precisa dela). Outro container nessa
+ *     rede chega em backend:3011 sem passar pelo Caddy e pode inventar o X-Forwarded-For. Só ponha na rede
+ *     `proxy` containers de confiança.
  */
 
 function clean(value: string | undefined): string | null {
