@@ -18,6 +18,12 @@ export default function ForgotPassword() {
 	const [err, setErr] = useState("");
 	const [wait, setWait] = useState(0);
 
+	// Link do e-mail de boas-vindas (?email=): já vem com o e-mail preenchido.
+	useEffect(() => {
+		const fromLink = new URLSearchParams(window.location.search).get("email");
+		if (fromLink) setEmail(fromLink.slice(0, 254));
+	}, []);
+
 	useEffect(() => {
 		if (wait <= 0) return;
 		const t = setTimeout(() => setWait(w => w - 1), 1000);
@@ -75,8 +81,12 @@ export default function ForgotPassword() {
 		try {
 			await post("/auth/reset-password", { code, email: email.trim(), password });
 			setStep("done");
-		} catch {
-			setErr("Código inválido ou expirado. Volte e peça um novo código.");
+		} catch (e) {
+			setErr(
+				e instanceof Error && e.message.includes("menos comum")
+					? "Essa senha é muito comum. Escolha outra."
+					: "Código inválido ou expirado. Volte e peça um novo código.",
+			);
 		}
 		setBusy(false);
 	}

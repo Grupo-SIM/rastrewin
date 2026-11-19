@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Dropdown } from "@/components/Dropdown";
 import { Logo } from "@/components/Logo";
 import { SiteIcon } from "@/components/SiteIcon";
+import { TwoFactorModal } from "@/components/TwoFactorModal";
 import { UserPicker } from "@/components/UserPicker";
 import { api, fmtRemaining } from "@/lib/api";
 
@@ -72,7 +73,9 @@ const siteColor = (name: string) =>
 
 /** Baixa a lista de clientes filtrada como CSV (separador ;, compatível com Excel pt-BR). */
 function downloadClientsCsv(clients: AdminUser[]) {
-	const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+	// Nome, cidade e Pix vêm do cadastro público: uma célula que começa com = + - @ vira fórmula no Excel.
+	// O apóstrofo na frente a mantém como texto.
+	const esc = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replace(/"/g, '""')}"`;
 	const header = [
 		"Nome",
 		"E-mail",
@@ -161,6 +164,7 @@ export default function Admin() {
 	const [planFilter, setPlanFilter] = useState("all");
 	const [openWins, setOpenWins] = useState<string | null>(null);
 	const [error, setError] = useState("");
+	const [twoFaOpen, setTwoFaOpen] = useState(false);
 
 	// busca com atraso para não consultar o servidor a cada tecla
 	useEffect(() => {
@@ -268,14 +272,20 @@ export default function Admin() {
 
 	return (
 		<div className="app admin-page">
+			{twoFaOpen && <TwoFactorModal onClose={() => setTwoFaOpen(false)} />}
 			<div className="app-top">
 				<nav className="nav">
 					<a href="/dashboard">
 						<Logo badge="ADMIN" />
 					</a>
-					<a href="/dashboard" className="btn-outline">
-						← Dashboard
-					</a>
+					<div style={{ alignItems: "center", display: "flex", gap: 12 }}>
+						<button className="btn-outline" onClick={() => setTwoFaOpen(true)}>
+							2FA
+						</button>
+						<a href="/dashboard" className="btn-outline">
+							← Dashboard
+						</a>
+					</div>
 				</nav>
 			</div>
 			<main className="app-main admin-main">
@@ -591,14 +601,16 @@ export default function Admin() {
 										)}
 									</div>
 									<div className="acts">
-										<button
-											className="abtn t"
-											onClick={() =>
-												act(`/admin/raffles/${r.id}/end`, "POST", { inSeconds: 10 })
-											}
-										>
-											Encerrar em 10s
-										</button>
+										{process.env.NEXT_PUBLIC_ENABLE_TEST_TOOLS === "true" && (
+											<button
+												className="abtn t"
+												onClick={() =>
+													act(`/admin/raffles/${r.id}/end`, "POST", { inSeconds: 10 })
+												}
+											>
+												Encerrar em 10s
+											</button>
+										)}
 									</div>
 								</div>
 							);

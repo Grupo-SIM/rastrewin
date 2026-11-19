@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { SiteIcon } from "@/components/SiteIcon";
-import { api, fmtRemaining, type User } from "@/lib/api";
+import { api, fmtRemaining } from "@/lib/api";
 import { funnelEvent, useFunnelTracking } from "@/lib/funnel";
 import { isValidCpf, maskCpf, maskPhone } from "@/lib/mask";
 import { CHECKOUT_NOT_OPENED, signupErrorMessage } from "@/lib/signup-error";
@@ -164,10 +164,17 @@ export default function Landing() {
 			phone: f.phone,
 		});
 		try {
-			const user = await api<User & { checkoutUrl: string }>("/users", {
+			const user = await api<{ checkoutUrl?: string; loginRequired?: boolean }>("/users", {
 				body: JSON.stringify({ ...f, tracking: readTracking() }),
 				method: "POST",
 			});
+			if (user.loginRequired || !user.checkoutUrl) {
+				// E-mail de quem já é cliente: dados e plano só mudam com login. Sem cadastro novo, sem checkout.
+				checkoutTab?.close();
+				registrationStarted.current = false;
+				setErr("Este e-mail já tem cadastro. Entre na sua conta para renovar a assinatura ou trocar de plano.");
+				return;
+			}
 			const planData = {
 				content_ids: plan ? [plan.id] : undefined,
 				content_name: plan?.name,
@@ -177,7 +184,6 @@ export default function Landing() {
 			// Cadastro salvo pelo backend. Na Meta é CompleteRegistration (substituiu o Lead);
 			// no GA4 continua generate_lead.
 			trck("track", "CompleteRegistration", { ...planData, ga4: "generate_lead" });
-			localStorage.setItem("userId", user.id);
 			const checkoutUrl = withTracking(user.checkoutUrl);
 			if (!isCheckoutUrl(checkoutUrl)) {
 				// Link de checkout inválido: o checkout não abre e não há InitiateCheckout.

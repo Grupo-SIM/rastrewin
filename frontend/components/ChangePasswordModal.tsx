@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, TOKEN_KEY } from "@/lib/api";
 
 const field: React.CSSProperties = {
 	background: "#fff",
@@ -31,18 +31,21 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 		if (next === current) return setErr("A nova senha deve ser diferente da atual.");
 		setBusy(true);
 		try {
-			await api("/auth/change-password", {
-				admin: true,
+			const res = await api<{ token?: string }>("/auth/change-password", {
 				body: JSON.stringify({ currentPassword: current, newPassword: next }),
 				method: "POST",
 			});
+			// As outras sessões caem com a troca; esta segue com o token novo.
+			if (res.token) localStorage.setItem(TOKEN_KEY, res.token);
 			setDone(true);
 		} catch (e) {
 			const msg = (e as Error).message;
 			setErr(
 				msg.includes("Senha atual incorreta")
 					? "Senha atual incorreta."
-					: "Não foi possível alterar a senha. Tente de novo.",
+					: msg.includes("menos comum")
+						? "Essa senha é muito comum. Escolha outra."
+						: "Não foi possível alterar a senha. Tente de novo.",
 			);
 		}
 		setBusy(false);
