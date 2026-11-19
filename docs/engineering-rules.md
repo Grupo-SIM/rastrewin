@@ -27,6 +27,19 @@ Each workspace defines `check-types`. `backend` needs the Prisma client first (`
 - `track`: Drizzle migrations in `track/drizzle`, applied by `track/scripts/migrate.ts`.
 - Never run migrations, pushes or seeds against remote or shared databases without explicit authorization.
 
+## Security (backend, frontend)
+
+- **Identity comes from the token, never from the URL.** Customer routes (`/users/me`, `/users/me/otp`, `/raffles/*`, `/auth/change-password`) use `AuthGuard`; `/admin/*` uses `AdminGuard`. Both read the account from the database: the JWT (`HS256`, 7 days, `iss`/`aud`) only proves who and which `tokenVersion`; the role comes from the row. Changing or resetting the password bumps `tokenVersion` and drops every other session. Never add a route that takes a user id from the query or path to decide whose data to return.
+- **Responses are allow-lists.** `toPublicUser` (the user's own view) and `toAdminUser` list the fields that may leave; a new column never leaks by omission. The raffle winner id never goes out, only `mine`.
+- **Public routes have limits and size caps.** Every unauthenticated route has its own `createRateLimiter` (see `enforce`) on top of the global 300/min per IP in `main.ts`; DTOs set `@MaxLength` and formats, and `ValidationPipe` uses `forbidNonWhitelisted`. Webhook bodies are validated by hand (the Evolution shape varies).
+- **Reset codes:** at most 10 wrong codes per account per hour (`resetAttempts` is counted before comparing and is not reset by a new code), plus per-IP limits.
+- **Admin 2FA:** TOTP (`/auth/totp/setup`, `/auth/totp/enable`, button "2FA" in `/admin`); once on, login requires the code and a code is accepted once (`totpLastStep`). The seed never changes an existing admin password (`ADMIN_RESET_PASSWORD=true` once to reset it, which also clears the 2FA).
+- **Secrets:** `JWT_SECRET` (32+ chars), optional `RESET_CODE_SECRET` and `PRIVACY_TOKEN_SECRET` (without them the JWT secret is used, with a different prefix per use), `WHATSAPP_WEBHOOK_SECRET` (the WhatsApp webhook refuses everything without it; register the same value in Evolution as the `x-webhook-secret` header or `?token=`), `SIMPAY_WEBHOOK_SECRET`. SMTP TLS is always verified (`SMTP_TLS_SERVERNAME` when the certificate is for another hostname).
+- **Headers:** the API sets nosniff, frame-deny, HSTS and a `default-src 'none'` CSP; the frontend sets a CSP that allows only the track script and the Meta/GA4 hosts the track loads (`frontend/next.config.mjs`). No `X-Powered-By`.
+- **Client IP** for limits is the last `X-Forwarded-For` entry; that holds only while the API is not behind Cloudflare and only trusted containers share the `proxy` network (see `backend/src/http/client-ip.ts`).
+- **Test tools** (`POST /admin/raffles/:id/end` and its "Encerrar em 10s" button) are off in production unless `ENABLE_TEST_TOOLS=true` / `NEXT_PUBLIC_ENABLE_TEST_TOOLS=true`.
+- **Dependencies:** `bun audit` runs in CI as an informational job. Remaining findings are development tools (`committier`, `@nestjs/cli`) that never enter an image.
+
 ## Generated files
 
 `track/public/t.js` is generated from `track/src/tracker/trck.ts` (`tracker:build`, run by `predev` and `prebuild`). Do not edit it. `scripts/agent-hooks/block-generated-edits.ts` blocks such edits for Claude Code and Codex.
