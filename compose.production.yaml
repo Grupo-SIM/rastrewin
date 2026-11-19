@@ -9,6 +9,10 @@ services:
       - internal
       - proxy
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     labels:
       caddy: api.rastrewin.com
       caddy.import: cloudflare
@@ -23,6 +27,10 @@ services:
     networks:
       - proxy
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     labels:
       caddy: rastrewin.com
       caddy.import: cloudflare

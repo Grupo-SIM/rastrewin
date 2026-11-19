@@ -2,7 +2,7 @@
 # O contexto é a raiz do monorepo: docker build -f backend/Dockerfile .
 FROM oven/bun:1.4.4 AS bun
 
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
@@ -15,13 +15,15 @@ RUN bun install --frozen-lockfile --ignore-scripts --filter backend
 COPY backend backend
 RUN bun run --cwd backend generate && bun run --cwd backend build
 
-FROM node:20-slim
+FROM node:22-slim
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 # O runtime precisa do prisma e do tsx (devDependencies) para o db push e o seed-admin.
-COPY --from=build /app/node_modules node_modules
-COPY --from=build /app/backend backend
+COPY --from=build --chown=node:node /app/node_modules node_modules
+COPY --from=build --chown=node:node /app/backend backend
+# Sem root: um erro na API não vira acesso ao container inteiro.
+USER node
 EXPOSE 3011
 WORKDIR /app/backend
 # "db push" cria/sincroniza o schema (tabelas/colunas que faltam) sem apagar dados

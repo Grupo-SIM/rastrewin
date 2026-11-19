@@ -22,7 +22,7 @@ jobs:
 
       - name: Compute affected packages
         id: affected
-        uses: hyoretsu/gh-actions/detect-affected@main
+        uses: hyoretsu/gh-actions/detect-affected@c68f3fcff224162152254226d16b9b41368c3eed # main em 2026-11-19
         with:
           tasks: check-types build test
           base-sha: ${{ github.event.pull_request.base.sha }}
@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Build
-        uses: hyoretsu/gh-actions/build@main
+        uses: hyoretsu/gh-actions/build@c68f3fcff224162152254226d16b9b41368c3eed # main em 2026-11-19
         with:
           package: ${{ matrix.package }}
 
@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Check types
-        uses: hyoretsu/gh-actions/check-types@main
+        uses: hyoretsu/gh-actions/check-types@c68f3fcff224162152254226d16b9b41368c3eed # main em 2026-11-19
         with:
           package: ${{ matrix.package }}
 
@@ -79,3 +79,17 @@ jobs:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bunx turbo run test --filter '${{ matrix.package }}'
+
+  audit:
+    name: Audit / dependências
+    runs-on: ubuntu-latest
+    # Informativo por enquanto: ainda há avisos nas ferramentas de desenvolvimento. Troque por bloqueante
+    # (remova o continue-on-error) quando `bun audit --audit-level=high` voltar limpo.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun audit --audit-level=high
