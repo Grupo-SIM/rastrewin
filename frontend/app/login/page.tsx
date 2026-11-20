@@ -113,6 +113,7 @@ export default function Login() {
 											type="text"
 											inputMode="numeric"
 											autoComplete="one-time-code"
+											// biome-ignore lint/a11y/noAutofocus: o campo só surge depois que o servidor pede o código; o foco vai para o que acabou de aparecer
 											autoFocus
 											required
 											pattern="\d{6}"
