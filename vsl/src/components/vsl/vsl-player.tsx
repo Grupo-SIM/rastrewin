@@ -1,8 +1,6 @@
 "use client";
 
 import type Player from "@vimeo/player";
-import { LoaderCircle } from "lucide-react";
-import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { progressMarksReached, vslEvent } from "@/lib/meta-events";
 import { dueForReport, reportVideo } from "@/lib/video-tracking";
@@ -12,7 +10,7 @@ import { advanceWatchProgress, initialWatchProgress } from "@/lib/watch-progress
 const TICK_MS = 250;
 /**
  * O player não ficou pronto nesse tempo depois de a página abrir (rede travada, bloqueador): libera o botão
- * para não travar o funil. O player continua carregando e aparece se ficar pronto depois.
+ * para não travar o funil. O player continua carregando e funciona se ficar pronto depois.
  */
 const SLOW_LOAD_MS = 15_000;
 
@@ -32,31 +30,19 @@ const PLAYER_EVENTS = [
 /** watched = assistiu o tempo de liberação; ended = o vídeo terminou antes disso; error = o player falhou ou não carregou. */
 export type UnlockReason = "watched" | "ended" | "error";
 
-/**
- * - "loading": a capa do site no fundo, com o carregamento; o player do Vimeo carrega por cima, invisível.
- * - "ready": o player aparece com a capa e o play do próprio Vimeo, o único toque.
- * - "error": o vídeo não carregou.
- */
-type Status = "loading" | "ready" | "error";
+/** "ok": o player do Vimeo na tela (carregando ou pronto); "error": o vídeo não carregou. */
+type Status = "ok" | "error";
 
 interface VslPlayerProps {
 	videoId: string;
 	unlockAtSeconds: number;
-	posterSrc: string;
 	title: string;
 	/** Já liberado (ex.: visita anterior): não precisa mais contar o tempo. */
 	unlocked: boolean;
 	onUnlock: (reason: UnlockReason) => void;
 }
 
-export function VslPlayer({
-	videoId,
-	unlockAtSeconds,
-	posterSrc,
-	title,
-	unlocked,
-	onUnlock,
-}: VslPlayerProps) {
+export function VslPlayer({ videoId, unlockAtSeconds, title, unlocked, onUnlock }: VslPlayerProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const playerRef = useRef<Player | null>(null);
 	const tickRef = useRef<number | null>(null);
@@ -75,7 +61,7 @@ export function VslPlayer({
 	const progressMarksRef = useRef(new Set<number>());
 	const unlockedRef = useRef(unlocked);
 	const onUnlockRef = useRef(onUnlock);
-	const [status, setStatus] = useState<Status>("loading");
+	const [status, setStatus] = useState<Status>("ok");
 
 	useEffect(() => {
 		unlockedRef.current = unlocked;
@@ -169,7 +155,7 @@ export function VslPlayer({
 
 	/**
 	 * Liga a medição ao iframe do Vimeo, que já veio no HTML e carrega desde a abertura da página.
-	 * O player aparece quando fica pronto; até lá, a capa do site fica no fundo com o carregamento.
+	 * A capa e o play são os do próprio Vimeo, que aparecem quando o player fica pronto.
 	 */
 	useEffect(() => {
 		let active = true;
@@ -235,7 +221,6 @@ export function VslPlayer({
 								videoTitleRef.current = t || null;
 							})
 							.catch(() => {});
-						setStatus(current => (current === "error" ? current : "ready"));
 					})
 					.catch(() => {
 						if (active) fail();
@@ -259,35 +244,9 @@ export function VslPlayer({
 	return (
 		<div className="w-full">
 			<div className="bg-ink shadow-brand-lg relative aspect-[9/16] w-full overflow-hidden rounded-[1.75rem]">
-				{/* Capa do site no fundo: aparece na hora. A mesma imagem é a capa do vídeo no Vimeo, então a troca
-				    para o player não aparece. */}
-				<Image
-					src={posterSrc}
-					alt=""
-					aria-hidden="true"
-					fill
-					preload
-					fetchPriority="high"
-					sizes="(min-width: 640px) 400px, 100vw"
-					className="object-cover"
-				/>
-
-				{status === "loading" ? (
-					<span aria-hidden="true" className="absolute inset-0 grid place-items-center">
-						<span className="text-ink shadow-brand-lg grid size-20 place-items-center rounded-full border-[3px] border-transparent [background:linear-gradient(#fff,#fff)_padding-box,var(--rainbow)_border-box]">
-							<LoaderCircle className="size-8 animate-spin" />
-						</span>
-					</span>
-				) : null}
-
-				{/* Player do Vimeo: no HTML desde o início, invisível e fora do Tab até ficar pronto. */}
-				<div
-					ref={containerRef}
-					inert={status !== "ready"}
-					className={`absolute inset-0 transition-opacity duration-200 [&_iframe]:size-full ${
-						status === "ready" ? "opacity-100" : "opacity-0"
-					}`}
-				>
+				{/* Player do Vimeo: no HTML desde o início. A capa e o play são os do próprio Vimeo (a miniatura
+				    do vídeo, trocada no Vimeo); até ele carregar, o quadro fica na cor do fundo. */}
+				<div ref={containerRef} className="absolute inset-0 [&_iframe]:size-full">
 					<iframe
 						src={vimeoEmbedUrl(videoId)}
 						title={`Vídeo: ${title}`}

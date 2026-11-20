@@ -10,20 +10,12 @@ import { type UnlockReason, VslPlayer } from "./vsl-player";
 interface VslSectionProps {
 	videoId: string;
 	unlockAtSeconds: number;
-	posterSrc: string;
 	title: string;
 	ctaLabel: string;
 	destinationUrl: string;
 }
 
-export function VslSection({
-	videoId,
-	unlockAtSeconds,
-	posterSrc,
-	title,
-	ctaLabel,
-	destinationUrl,
-}: VslSectionProps) {
+export function VslSection({ videoId, unlockAtSeconds, title, ctaLabel, destinationUrl }: VslSectionProps) {
 	const [unlocked, setUnlocked] = useState(false);
 
 	// Lido depois da hidratação: o HTML estático sai sempre sem o botão.
@@ -80,7 +72,6 @@ export function VslSection({
 				<VslPlayer
 					videoId={videoId}
 					unlockAtSeconds={unlockAtSeconds}
-					posterSrc={posterSrc}
 					title={title}
 					unlocked={unlocked}
 					onUnlock={handleUnlock}

@@ -46,7 +46,6 @@ export default function Home() {
 				<VslSection
 					videoId={pageConfig.vimeoId}
 					unlockAtSeconds={pageConfig.unlockAtSeconds}
-					posterSrc={pageConfig.posterSrc}
 					title={copy.title}
 					ctaLabel={copy.cta}
 					destinationUrl={pageConfig.destinationUrl}

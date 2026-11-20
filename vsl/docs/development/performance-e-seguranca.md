@@ -2,25 +2,27 @@
 
 ## Performance
 
-- **Estático:** HTML pré-renderizado no build (título, subtítulo, capa e logo aparecem sem esperar JS).
+- **Estático:** HTML pré-renderizado no build (título, subtítulo e logo aparecem sem esperar JS).
 - **Um único play, o do próprio Vimeo:** o iframe do Vimeo (~550KB) vem no HTML e começa a carregar junto
-  com a página, para todos (inclusive com economia de dados ou 2G). Enquanto não fica pronto, ele fica
-  invisível e fora do Tab, por cima da capa do site (uma imagem, que aparece na hora), com o carregamento no
-  centro. Pronto, o player aparece com o play dele no centro: um toque e o vídeo começa. A capa do vídeo no
-  Vimeo é a mesma imagem da capa do site, então a troca não aparece. A biblioteca `@vimeo/player` (~8KB
-  comprimida) vem do próprio site quando a página fica ativa e só liga a medição ao iframe.
+  com a página, para todos (inclusive com economia de dados ou 2G). A capa é a miniatura do vídeo no próprio
+  Vimeo (trocada lá); o site não tem capa nem carregamento próprios. Até o Vimeo carregar (~2 a 4 s num celular
+  com 4G), o quadro fica na cor do fundo; depois aparecem a capa e o play do Vimeo: um toque e o vídeo começa.
+  A biblioteca `@vimeo/player` (~8KB comprimida) vem do próprio site quando a página fica ativa e só liga a
+  medição ao iframe.
 
     Por que assim (medido em 19/11/2026, celular intermediário simulado, 4G e CPU 4x): com a capa do site
     por cima e o player carregado só depois de a página abrir, quem tocava antes de o player ficar pronto
     precisava de um 2º toque (sempre 2 toques, vídeo andando em ~4 a 7 s). Com o iframe no HTML e o play do
-    Vimeo, é sempre 1 toque e o vídeo anda ~0,6 a 2 s antes. O play é o do Vimeo porque o iPhone só libera o
-    som quando o toque acontece dentro do documento do vídeo (um play pedido pela página sai mudo).
+    Vimeo, é sempre 1 toque e o vídeo anda ~0,6 a 2 s antes (em produção: 4,8 a 6,3 s, antes 6,8 a 30,8 s).
+    O play é o do Vimeo porque o iPhone só libera o som quando o toque acontece dentro do documento do vídeo
+    (um play pedido pela página sai mudo). A capa do site com um carregamento por cima foi retirada a pedido:
+    passava a sensação de que o vídeo ia começar sozinho; ela não mudava o tempo até o play.
 
     O player do Vimeo mostra só o play (`progress_bar=0`, `skipping_forward=0`, sem volume, tela cheia,
     qualidade, legendas, logo), na cor `--ink`. Pausar e continuar é tocar no vídeo, pelo próprio Vimeo.
 
     Se o player não ficar pronto em 15 s (rede travada, bloqueador), o botão é liberado (`VSLCTAUnlock` com
-    `reason: error`) e o player continua carregando: se ficar pronto depois, aparece normalmente. Erro do
+    `reason: error`) e o player continua carregando: se ficar pronto depois, funciona normalmente. Erro do
     próprio Vimeo mostra "Não foi possível carregar o vídeo" e também libera o botão.
 
 - **Fontes:** Plus Jakarta Sans e Manrope ficam em `src/app/fonts` (subconjunto latin, licença OFL) e o `next/font/local` as serve do próprio domínio. Nem o build nem o navegador acessam o Google Fonts.
@@ -37,10 +39,8 @@
 | Boas práticas  | 96 (aviso de cookie do iframe do player, que carrega com a página) |
 | SEO            | 63, de propósito (`noindex`)                                       |
 
-FCP 0,8s · LCP 2,8s (a capa) · TBT 0ms · CLS 0.
-Capa definitiva: **WebP 720×1280, 41KB** (a provisória medida acima tinha 59KB em JPG).
-A capa fica guardada no navegador por 1 ano (`next.config.ts`): para trocá-la, use um nome novo
-(`poster-v3.webp`), que o Zod do `page-config` exige.
+FCP 0,8s · LCP 2,8s (a capa da época) · TBT 0ms · CLS 0. Medição antiga: a página ainda tinha a capa própria,
+retirada em 19/11/2026 (hoje a capa é a miniatura do Vimeo, dentro do player).
 
 ## Segurança
 
@@ -69,7 +69,6 @@ perderia a venda.
 
 ### Acessibilidade do player
 
-- Até ficar pronto, o player fica `inert` (fora do Tab e do leitor de tela) e a capa é um botão
-  "Assistir ao vídeo". Pronto, o Tab chega ao play do Vimeo, embaixo da capa, e o quadro mostra o anel
-  de foco. Tocar na capa pelo teclado leva o foco ao player quando ele fica pronto; em erro, a "Tentar de novo".
-- Pausar, continuar e o carregamento durante o vídeo são os do próprio Vimeo.
+- O player do Vimeo é o único elemento do vídeo: o Tab chega direto ao play dele, e o iframe tem título
+  ("Vídeo: …"). Em erro, aparece "Não foi possível carregar o vídeo" com o botão "Tentar de novo".
+- Play, pausa, continuar e o carregamento durante o vídeo são os do próprio Vimeo.
