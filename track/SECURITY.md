@@ -1,7 +1,7 @@
 # Segurança — Rastrewin
 
 Resumo do modelo de segurança, do que foi auditado na Fase 8 (novembro de 2026) e do que precisa valer em produção.
-As regras para quem mexe no código estão no [CLAUDE.md](CLAUDE.md), seção "Segurança".
+As regras para quem mexe no código estão no [AGENTS.md](AGENTS.md), seção "Segurança".
 
 ## O que protegemos
 
@@ -63,7 +63,7 @@ Revisão do que entrou depois da Fase 8 (vídeos, aba Saúde e repasse do backen
 - `bun audit --prod` sem vulnerabilidades; o Next do track (16.4.4) está fora das faixas dos alertas;
 - o `X-Powered-By` já estava desligado.
 
-**Fora do track:** o `frontend` usa o Next 14.2.35, com alertas críticos que só têm correção a partir da 15.5.24. Fica para uma tarefa própria do frontend.
+**Fora do track:** o `frontend` usa o Next 14.2.35, com alertas críticos que só têm correção a partir da 15.5.24. Fica para uma tarefa própria do frontend. _Atualização (20/11/2026): resolvido, o frontend está no Next 16._
 
 ## Auditoria de novembro (3ª, 10/11/2026) — LGPD e entrada pelo backend
 
@@ -85,7 +85,7 @@ Revisão do que entrou depois da 2ª auditoria (consentimento, direitos do titul
 - a `ENCRYPTION_KEY` só é lida em módulos `server-only`; `NEXT_PUBLIC_` só com as URLs públicas da API e do track;
 - de fora, em `track.rastrewin.com`: 11 OK (https, CSP, `/painel` sem login → `/login`, sessão vazia, CORS, webhook sem GET, arquivos internos não servidos, `t.js` sem segredo).
 
-**Fora do escopo, pendente:** o login do backend (`POST /auth/login`, clientes e admins do rastrewin.com) não tem limite de tentativas.
+**Fora do escopo, pendente:** o login do backend (`POST /auth/login`, clientes e admins do rastrewin.com) não tem limite de tentativas. _Atualização (20/11/2026): resolvido, o login do backend tem limite por IP e por e-mail (por minuto e por hora)._
 
 ## Riscos aceitos
 

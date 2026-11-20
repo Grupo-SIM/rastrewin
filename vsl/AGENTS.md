@@ -91,7 +91,7 @@ Os labels do Compose configuram o caddy-docker-proxy central pela rede Docker ex
 
 ## Guias
 
-- [Estrutura do projeto](docs/development/project-scaffolding.md)
+- [Estrutura do projeto](../docs/development/project-scaffolding.md)
 - [Deploy (VM + Komodo + Caddy)](docs/development/deploy.md)
 - [Performance e segurança](docs/development/performance-e-seguranca.md)
 

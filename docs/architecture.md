@@ -4,8 +4,8 @@ Bun workspaces monorepo orchestrated by Turborepo (`turbo.jsonc`). Each project 
 
 | Workspace  | Stack                                        | Deploy                                                     |
 | ---------- | -------------------------------------------- | ---------------------------------------------------------- |
-| `backend`  | NestJS 10, Prisma 5, PostgreSQL              | GHCR image `rastrewin_backend`, `compose.production.yaml`  |
-| `frontend` | Next.js 14, React 18                         | GHCR image `rastrewin_frontend`, `compose.production.yaml` |
+| `backend`  | NestJS 11, Prisma 5, PostgreSQL              | GHCR image `rastrewin_backend`, `compose.production.yaml`  |
+| `frontend` | Next.js 16, React 18                         | GHCR image `rastrewin_frontend`, `compose.production.yaml` |
 | `track`    | Next.js 16, Drizzle, better-auth, PostgreSQL | GHCR image `rastrewin_track`, stack in `track/deploy/`     |
 | `vsl`      | Next.js 16, Tailwind 4, shadcn/ui, Vitest    | GHCR image `rastrewin_vsl`, stack in `vsl/compose.yml`     |
 
