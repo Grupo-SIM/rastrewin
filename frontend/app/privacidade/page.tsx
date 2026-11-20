@@ -22,7 +22,7 @@ const CONTROLADOR = {
 };
 // PERSONALIZAR: mantenha igual à "Versão do texto" do banner (painel do track › Configurações › Privacidade).
 const POLICY_VERSION = "1";
-const UPDATED_AT = "16 de novembro de 2026";
+const UPDATED_AT = "20 de novembro de 2026";
 
 interface Section {
 	title: string;
@@ -175,6 +175,13 @@ const SECTIONS: Section[] = [
 					"Rastrewin",
 					"Manter você conectado à sua conta",
 					"Até você sair",
+					"Necessário",
+				],
+				[
+					"registrationToken (armazenamento local)",
+					"Rastrewin",
+					"Reconhecer o cadastro feito neste navegador, para que só ele possa corrigir os dados antes do pagamento",
+					"Até você limpar os dados do navegador",
 					"Necessário",
 				],
 				[
