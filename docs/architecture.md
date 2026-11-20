@@ -20,4 +20,4 @@ Bun workspaces monorepo orchestrated by Turborepo (`turbo.jsonc`). Each project 
 
 ## Images
 
-All Dockerfiles use the repository root as build context: `docker build -f <project>/Dockerfile .`. Every image runs Node 24.22.1 (pinned tag, same version everywhere). Next.js standalone output is traced from the repository root, so each server starts at `<project>/server.js`.
+All Dockerfiles use the repository root as build context: `docker build -f <project>/Dockerfile .`. Every image runs Node 24.22.1 (pinned tag, same version everywhere) and has a `HEALTHCHECK`. Next.js standalone output is traced from the repository root, so each server starts at `<project>/server.js`.

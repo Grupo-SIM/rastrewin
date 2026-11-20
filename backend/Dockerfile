@@ -25,6 +25,9 @@ COPY --from=build --chown=node:node /app/backend backend
 # Sem root: um erro na API não vira acesso ao container inteiro.
 USER node
 EXPOSE 3011
+# start-period longo: antes de a API subir, o boot roda o db push e o seed-admin.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3011)+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 WORKDIR /app/backend
 # "db push" cria/sincroniza o schema (tabelas/colunas que faltam) sem apagar dados
 # existentes — o estado dos sorteios sobrevive a restart/redeploy. Sem --accept-data-loss
