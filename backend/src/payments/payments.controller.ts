@@ -82,9 +82,16 @@ export class PaymentsController {
 		// (simpayOrderId e não paidAt: um novo cadastro zera o paidAt, mas nunca o simpayOrderId.)
 		// Também no Pix gerado e no cartão recusado, que viram AddPaymentInfo na Meta só fora de renovação.
 		// Nunca nos eventos depois da compra: o reembolso de um pedido antigo não pode virar "renovação".
-		const renewal = RENEWAL_CHECK_EVENTS.has(event.event)
-			? !!user?.simpayOrderId && user.simpayOrderId !== event.orderId
-			: undefined;
+		// Nem num aviso de pedido ANTERIOR ao último pagamento (reentrega atrasada): só o último pedido fica
+		// guardado, então não dá para saber se aquele era a 1ª compra; sem o campo, o track mantém o que já tem.
+		const olderOrder =
+			!!user?.paidAt &&
+			user.simpayOrderId !== event.orderId &&
+			Date.parse(event.occurredAt) < user.paidAt.getTime();
+		const renewal =
+			RENEWAL_CHECK_EVENTS.has(event.event) && !olderOrder
+				? !!user?.simpayOrderId && user.simpayOrderId !== event.orderId
+				: undefined;
 
 		if (event.event === "purchase_approved" && user) await this.activate(event, user);
 		if (event.event === "purchase_refunded" || event.event === "chargeback") await this.revoke(event);
