@@ -128,12 +128,18 @@ function checkFrontend() {
 		pass(/POLICY_VERSION\s*=\s*["']\d+["']/.test(privacy)),
 	);
 	const markers = (privacy.match(/PERSONALIZAR|RASCUNHO/g) ?? []).length;
-	const noDpo = /ENCARREGADO\s*=\s*["']{2}/.test(privacy);
+	// Sem nome de encarregado vale, desde que haja o canal (e-mail); a LGPD pede um canal com o titular.
+	const noDpo =
+		/ENCARREGADO\s*=\s*["']{2}/.test(privacy) &&
+		!/CONTACT_EMAIL\s*=\s*["'][^"'@]+@[^"']+["']/.test(privacy);
 	record(
 		area,
 		"política de privacidade revisada (sem marcas de rascunho)",
 		pass(!markers && !noDpo, "atencao"),
-		[markers && `${markers} marcas PERSONALIZAR/RASCUNHO`, noDpo && "ENCARREGADO vazio"]
+		[
+			markers && `${markers} marcas PERSONALIZAR/RASCUNHO`,
+			noDpo && "sem encarregado e sem e-mail de canal",
+		]
 			.filter(Boolean)
 			.join("; ") || undefined,
 	);
