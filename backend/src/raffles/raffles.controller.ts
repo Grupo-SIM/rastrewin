@@ -15,12 +15,11 @@ import { createRateLimiter, enforce } from "../http/rate-limit";
 import { maskedUser, normalize, participantAt, uniqueWinnerName, userIndex } from "../mock";
 import { expireIfPastDue, planLimit } from "../plans";
 import { PrismaService } from "../prisma/prisma.service";
-import { materializeSchedule } from "../schedule";
 
 /** Janela máxima que a lista devolve (cobre qualquer fuso: o front pede desde a meia-noite do usuário). */
 const MAX_LOOKBACK_MS = 36 * 3600 * 1000;
 /** Quantos ganhadores recentes entram na checagem de "não repetir ganhador". */
-const RECENT_WINNERS = 20_000;
+export const RECENT_WINNERS = 20_000;
 
 /** `mine`: o usuário logado é o ganhador. O id do ganhador nunca sai daqui (com ele, outro cliente leria os dados dele). */
 export function toPublic(r: Raffle, entered: boolean, userId: string) {
@@ -120,8 +119,7 @@ export class RafflesController {
 	/** Usuário ativo + janela do dia (`since`, ISO; o front manda a meia-noite do usuário) + filtro base do plano. */
 	private async scope(userId: string, since?: string) {
 		enforce(readLimiter, userId);
-		await materializeSchedule(this.prisma);
-		await ensureWinners(this.prisma);
+		// A agenda e os ganhadores são gravados em segundo plano (RaffleScheduleWorker): a leitura só lê.
 		const user = await this.prisma.user.findUnique({
 			select: { expiresAt: true, id: true, plan: true, status: true },
 			where: { id: userId },
@@ -196,8 +194,10 @@ export class RafflesController {
 				this.prisma.raffle.count({ where: won }),
 			]);
 		} else {
-			const nOpen = await this.prisma.raffle.count({ where: open });
-			const nEnded = await this.prisma.raffle.count({ where: ended });
+			const [nOpen, nEnded] = await Promise.all([
+				this.prisma.raffle.count({ where: open }),
+				this.prisma.raffle.count({ where: ended }),
+			]);
 			total = nOpen + nEnded;
 			const fromOpen = Math.max(0, Math.min(l, nOpen - o));
 			const [a, b] = await Promise.all([
@@ -294,12 +294,11 @@ export class RafflesController {
 		return { results: results.sort((x, y) => x.index - y.index) };
 	}
 
-	/** "Buscando sorteios...": só garante que a agenda e os ganhadores estão em dia (a lista vem de GET /raffles). */
+	/** "Buscando sorteios...": a agenda e os ganhadores já são mantidos em segundo plano (RaffleScheduleWorker);
+	 * a rota fica por compatibilidade e não faz nada (a lista vem de GET /raffles). */
 	@Post("discover")
 	async discover(@Req() req: { auth: RequestAuth }) {
 		enforce(readLimiter, req.auth.sub);
-		await materializeSchedule(this.prisma);
-		await ensureWinners(this.prisma);
 		return [];
 	}
 }

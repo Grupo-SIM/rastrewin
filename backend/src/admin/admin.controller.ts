@@ -18,7 +18,7 @@ import { AdminGuard, type RequestAuth } from "../auth/auth.guard";
 import { uniqueWinnerName } from "../mock";
 import { planLimit } from "../plans";
 import { PrismaService } from "../prisma/prisma.service";
-import { ensureWinners, reservedNames } from "../raffles/raffles.controller";
+import { RECENT_WINNERS, reservedNames } from "../raffles/raffles.controller";
 import { toAdminUser } from "../users/user.view";
 
 class UpdateRaffleDto {
@@ -49,7 +49,6 @@ export class AdminController {
 	/** Sorteios em andamento (o que termina antes vem primeiro), paginados (`limit` até 100) e com busca por título ou site. */
 	@Get("raffles")
 	async list(@Query("q") q = "", @Query("offset") offset = "0", @Query("limit") limit = "50") {
-		await ensureWinners(this.prisma);
 		const term = q.trim().slice(0, 100);
 		const where = {
 			endsAt: { gt: new Date() }, // só os em andamento (a tela esconde os encerrados, então não podem ocupar a página)
@@ -263,8 +262,12 @@ export class AdminController {
 	@Post("raffles/:id/draw")
 	async draw(@Param("id") id: string) {
 		const r = await this.find(id);
+		// Só os ganhadores recentes, como no sorteio automático: todos os de sempre (milhões de linhas com o tempo)
+		// iriam inteiros para a memória a cada clique.
 		const taken = await this.prisma.raffle.findMany({
+			orderBy: { endsAt: "desc" },
 			select: { winnerName: true },
+			take: RECENT_WINNERS,
 			where: { NOT: { id }, winnerName: { not: null } },
 		});
 		// sorteio automático: só nomes do pool fictício, nunca um usuário real (esse só o admin escolhe, pelo PATCH)
