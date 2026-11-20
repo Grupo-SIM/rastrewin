@@ -4,7 +4,8 @@ import { z } from "zod";
  * Textos do banner de consentimento (LGPD). Estes são o PADRÃO: o painel (Configurações › Privacidade)
  * pode trocar qualquer campo, e o que ficar em branco volta para cá.
  *
- * PERSONALIZAR: revise os textos com o seu jurídico e com a linguagem do seu público.
+ * Revisados e aprovados pelo jurídico sem mudanças (registro em 20/11/2026). Mudou um texto aqui ou no painel?
+ * Passe pelo jurídico de novo.
  * Regras que a base segue (orientação da ANPD sobre cookies):
  * - dizer em linguagem simples o que é coletado, para quê e com quem é compartilhado;
  * - recusar precisa ser tão fácil quanto aceitar (botões com o mesmo destaque, na primeira tela);

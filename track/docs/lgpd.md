@@ -2,7 +2,7 @@
 
 Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastreamento da Rastrewin: track, `t.js`, rastrewin.com e VSL. Ele descreve o que o sistema faz e marca com **PERSONALIZAR** o que você precisa ajustar ao seu produto e ao seu público.
 
-> Não é parecer jurídico. Os textos são um rascunho honesto, com base na LGPD e no guia de cookies da ANPD. Revise a política e o banner com um advogado antes de publicar.
+> **Revisão jurídica (registrada em 20/11/2026):** o advogado aprovou sem mudanças a política de privacidade, os termos de uso, os textos do banner e os e-mails do sistema. O encarregado fica só como canal de e-mail (`contatosimintermediacoes@gmail.com`), sem nome de pessoa, por orientação dele. Mudou algum desses textos ou o uso dos dados? Passe pelo jurídico de novo.
 
 ## 1. Consentimento (banner de cookies)
 
@@ -140,7 +140,7 @@ A limpeza roda todo dia a partir das 03:15 (Brasília), dentro do app. O painel 
 
 Teste: `bun run test:retention` (Postgres descartável). Ele cria dados velhos e novos de cada tipo e confere que só os velhos são limpos.
 
-## 5. Política de privacidade (rascunho)
+## 5. Política de privacidade (revisada)
 
 A página fica em **rastrewin.com/privacidade** (`frontend/app/privacidade/page.tsx`) e descreve o que o sistema faz de fato:
 
@@ -157,19 +157,19 @@ Os Termos de Uso (seção 5) foram alinhados: antes falavam em "informações an
 
 ## Checklist do que personalizar antes de publicar
 
-| #   | O quê                                                  | Onde                                                                                                                                 |
-| --- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Razão social, CNPJ e endereço do controlador           | `CONTROLADOR` em `frontend/app/privacidade/page.tsx` (aparece na seção 1 quando preenchido)                                          |
-| 2   | Encarregado (DPO): nome, se houver, e o email do canal | `ENCARREGADO` e `CONTACT_EMAIL` na política **e** `CONTACT_EMAIL` em `frontend/app/privacidade/solicitacao/page.tsx`                 |
-| 3   | Versão e data da política                              | `POLICY_VERSION` e `UPDATED_AT` na política. A versão deve ser **igual** à "Versão do texto" do painel (Configurações › Privacidade) |
-| 4   | Link da política no banner                             | Painel do track › Configurações › Privacidade › `https://rastrewin.com/privacidade`                                                  |
-| 5   | Textos do banner                                       | Mesmo lugar (vazio = padrão)                                                                                                         |
-| 6   | Visual do banner                                       | CSS do site (`#trck-consent { --trck-… }`)                                                                                           |
-| 7   | Prazos de retenção (e a tabela da política)            | `RETENTION_DAYS` em `track/src/lib/maintenance/retention.ts` **e** seção 7 da política                                               |
-| 8   | Prazo de 5 anos das vendas                             | Confirmar com o contador                                                                                                             |
-| 9   | Promessa de apagar no GA4 "em até 15 dias"             | Cumprir pelo painel (Exclusões de dados) ou mudar o texto (política seção 10 e página de confirmação)                                |
-| 10  | Lista de provedores e países                           | Política, seções 4 e 12                                                                                                              |
-| 11  | Revisão jurídica do texto todo                         | Política, Termos, banner e emails                                                                                                    |
+| #   | O quê                                                  | Onde                                                                                                                                                                                             |
+| --- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Razão social, CNPJ e endereço do controlador           | `CONTROLADOR` em `frontend/app/privacidade/page.tsx` (aparece na seção 1 quando preenchido)                                                                                                      |
+| 2   | Encarregado (DPO): nome, se houver, e o email do canal | Feito: só o canal de e-mail, sem nome (orientação do jurídico, 20/11/2026). `ENCARREGADO` e `CONTACT_EMAIL` na política **e** `CONTACT_EMAIL` em `frontend/app/privacidade/solicitacao/page.tsx` |
+| 3   | Versão e data da política                              | `POLICY_VERSION` e `UPDATED_AT` na política. A versão deve ser **igual** à "Versão do texto" do painel (Configurações › Privacidade)                                                             |
+| 4   | Link da política no banner                             | Painel do track › Configurações › Privacidade › `https://rastrewin.com/privacidade`                                                                                                              |
+| 5   | Textos do banner                                       | Mesmo lugar (vazio = padrão)                                                                                                                                                                     |
+| 6   | Visual do banner                                       | CSS do site (`#trck-consent { --trck-… }`)                                                                                                                                                       |
+| 7   | Prazos de retenção (e a tabela da política)            | `RETENTION_DAYS` em `track/src/lib/maintenance/retention.ts` **e** seção 7 da política                                                                                                           |
+| 8   | Prazo de 5 anos das vendas                             | Confirmar com o contador                                                                                                                                                                         |
+| 9   | Promessa de apagar no GA4 "em até 15 dias"             | Cumprir pelo painel (Exclusões de dados) ou mudar o texto (política seção 10 e página de confirmação)                                                                                            |
+| 10  | Lista de provedores e países                           | Política, seções 4 e 12                                                                                                                                                                          |
+| 11  | Revisão jurídica do texto todo                         | Feito em 20/11/2026: aprovados sem mudanças. Política, Termos, banner e emails                                                                                                                   |
 
 ## Ordem para publicar
 
