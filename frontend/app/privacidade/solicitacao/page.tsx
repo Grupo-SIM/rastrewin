@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Logo } from "@/components/Logo";
 import { api } from "@/lib/api";
 
-// PERSONALIZAR: canal do encarregado de dados (o mesmo da política de privacidade).
+// Canal do encarregado de dados (o mesmo da política de privacidade).
 const CONTACT_EMAIL = "contatosimintermediacoes@gmail.com";
 
 type Kind = "ACCESS" | "DELETE";

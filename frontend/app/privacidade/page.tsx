@@ -6,21 +6,23 @@ import { Logo } from "@/components/Logo";
 export const metadata: Metadata = { title: "Política de Privacidade | Rastrewin" };
 
 /*
- * RASCUNHO-BASE da política (LGPD). Descreve o que o sistema faz de fato (banner, track, prazos);
- * revise com um advogado antes de publicar. Pontos a ajustar estão marcados com PERSONALIZAR.
+ * Política de privacidade (LGPD). Descreve o que o sistema faz de fato (banner, track, prazos).
+ * Revisada e aprovada pelo jurídico sem mudanças (registro em 20/11/2026). Ao mudar o texto, atualize UPDATED_AT;
+ * ao mudar o uso dos dados, suba POLICY_VERSION (e a do painel) e passe pelo jurídico de novo.
  * Guia do que foi construído: track/docs/lgpd.md.
  */
 
-// PERSONALIZAR: canal do encarregado (DPO). Se nomear um encarregado, preencha ENCARREGADO com o nome.
+// Canal do encarregado (DPO): só o e-mail, sem nome de pessoa, por orientação do jurídico. Para nomear alguém,
+// preencha ENCARREGADO com o nome.
 const CONTACT_EMAIL = "contatosimintermediacoes@gmail.com";
 const ENCARREGADO = "";
-// PERSONALIZAR: razão social, CNPJ e endereço do controlador (aparecem na seção 1 quando preenchidos).
+// Razão social, CNPJ e endereço do controlador (aparecem na seção 1).
 const CONTROLADOR = {
 	cnpj: "38.486.051/0001-48",
 	endereco: "Beco Neutel Maia, 21, Bosque, Rio Branco/AC, CEP 69900-430",
 	razaoSocial: "SIM INTERMEDIACOES LTDA",
 };
-// PERSONALIZAR: mantenha igual à "Versão do texto" do banner (painel do track › Configurações › Privacidade).
+// Mantenha igual à "Versão do texto" do banner (painel do track › Configurações › Privacidade).
 const POLICY_VERSION = "1";
 const UPDATED_AT = "20 de novembro de 2026";
 
