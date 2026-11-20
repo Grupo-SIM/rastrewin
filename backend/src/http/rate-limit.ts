@@ -20,7 +20,8 @@ export function createRateLimiter({ max, windowMs }: { max: number; windowMs: nu
 				return false;
 			}
 			recent.push(now);
-			if (previous) hits.delete(key); // reinsere no fim: o Map mantém a ordem de inserção (LRU simples)
+			if (previous)
+				hits.delete(key); // reinsere no fim: o Map mantém a ordem de inserção (LRU simples)
 			else if (hits.size >= MAX_KEYS) {
 				// Descarta só a chave mais antiga: quem inunda com IPs novos não apaga o contador dos outros.
 				const oldest = hits.keys().next().value;

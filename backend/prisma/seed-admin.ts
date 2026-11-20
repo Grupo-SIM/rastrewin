@@ -19,7 +19,10 @@ async function main() {
 	if (found && process.env.ADMIN_RESET_PASSWORD !== "true") {
 		// Sem throw: o seed roda antes do node no CMD, e um erro aqui derrubaria a API inteira.
 		if (found.role !== "ADMIN") console.error(`${found.email} existe e NÃO é admin: nada foi alterado`);
-		else console.log(`Admin já existe: ${found.email} (senha mantida; ADMIN_RESET_PASSWORD=true para resetar)`);
+		else
+			console.log(
+				`Admin já existe: ${found.email} (senha mantida; ADMIN_RESET_PASSWORD=true para resetar)`,
+			);
 		return;
 	}
 	const hash = await hashPassword(password);

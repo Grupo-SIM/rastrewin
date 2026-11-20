@@ -9,7 +9,7 @@ import { PhoneVerifyModal } from "@/components/PhoneVerifyModal";
 import { RaffleCard } from "@/components/RaffleCard";
 import { Tabs } from "@/components/Tabs";
 import { Toast, type ToastData } from "@/components/Toast";
-import { api, clearSession, TOKEN_KEY, type Raffle, type User } from "@/lib/api";
+import { api, clearSession, type Raffle, TOKEN_KEY, type User } from "@/lib/api";
 
 type Tab = "all" | "open" | "ended" | "won";
 interface Summary {
@@ -157,9 +157,7 @@ export default function Dashboard() {
 		const check = async () => {
 			if (document.visibilityState !== "visible") return;
 			try {
-				const page = await api<Page>(
-					`/raffles?since=${midnightIso()}&tab=ended&offset=0&limit=8`,
-				);
+				const page = await api<Page>(`/raffles?since=${midnightIso()}&tab=ended&offset=0&limit=8`);
 				const done = page.items.filter(r => r.winnerName);
 				if (notified.current === null) {
 					notified.current = new Set(done.map(r => r.id)); // não avisa o que já estava encerrado ao abrir

@@ -23,13 +23,18 @@ function securityHeaders(_req: Request, res: Response, next: NextFunction) {
 
 function globalRateLimit(req: Request, res: Response, next: NextFunction) {
 	if (globalLimiter.take(rateLimitKey(req))) return next();
-	res.status(429).json({ message: "Muitas requisições. Aguarde um pouco e tente de novo.", statusCode: 429 });
+	res.status(429).json({
+		message: "Muitas requisições. Aguarde um pouco e tente de novo.",
+		statusCode: 429,
+	});
 }
 
 async function bootstrap() {
 	const logger = new Logger("Bootstrap");
 	if ((process.env.JWT_SECRET?.trim().length ?? 0) < 32)
-		logger.warn("JWT_SECRET com menos de 32 caracteres: gere um com 48 bytes aleatórios (veja o .env.example)");
+		logger.warn(
+			"JWT_SECRET com menos de 32 caracteres: gere um com 48 bytes aleatórios (veja o .env.example)",
+		);
 	// rawBody: o webhook do SimIntPay é assinado sobre os bytes exatos do corpo (payments.controller.ts).
 	const app = await NestFactory.create(AppModule, { rawBody: true });
 	app.getHttpAdapter().getInstance().disable("x-powered-by");

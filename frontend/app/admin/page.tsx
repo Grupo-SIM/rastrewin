@@ -605,7 +605,9 @@ export default function Admin() {
 											<button
 												className="abtn t"
 												onClick={() =>
-													act(`/admin/raffles/${r.id}/end`, "POST", { inSeconds: 10 })
+													act(`/admin/raffles/${r.id}/end`, "POST", {
+														inSeconds: 10,
+													})
 												}
 											>
 												Encerrar em 10s

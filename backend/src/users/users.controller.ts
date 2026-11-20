@@ -9,8 +9,8 @@ import { createRateLimiter, enforce } from "../http/rate-limit";
 import { checkoutUrlFor, checkoutUrlWithPrefill, expireIfPastDue, PLAN_IDS } from "../plans";
 import { PrismaService } from "../prisma/prisma.service";
 import { sanitizeTracking } from "../track/tracking";
-import { IsBrPhone, IsCpf } from "./validators";
 import { toPublicUser } from "./user.view";
+import { IsBrPhone, IsCpf } from "./validators";
 
 class RegisterDto {
 	@IsString() @MinLength(2) @MaxLength(120) name: string;
@@ -57,7 +57,11 @@ export class UsersController {
 	 */
 	@Post()
 	async register(@Body() dto: RegisterDto, @Req() req: Request) {
-		enforce(registerLimiter, rateLimitKey(req), "Muitas tentativas de cadastro. Tente de novo em alguns minutos.");
+		enforce(
+			registerLimiter,
+			rateLimitKey(req),
+			"Muitas tentativas de cadastro. Tente de novo em alguns minutos.",
+		);
 		const checkoutUrl = checkoutUrlFor(dto.plan);
 		if (!checkoutUrl) throw new BadRequestException("Checkout não configurado para este plano");
 		const { tracking: rawTracking, registrationToken, ...data } = dto;
@@ -99,7 +103,8 @@ export class UsersController {
 		// Quem já tem o código continua com ele (se a resposta se perdesse, um código trocado trancaria a pessoa
 		// fora do próprio cadastro); cadastro novo recebe um código novo, que o navegador guarda e reenvia.
 		const reuse = !!existing && sameToken(existing.registrationTokenHash, registrationToken);
-		const newToken = reuse && registrationToken ? registrationToken : randomBytes(32).toString("base64url");
+		const newToken =
+			reuse && registrationToken ? registrationToken : randomBytes(32).toString("base64url");
 		const user = await this.prisma.user.upsert({
 			create: {
 				...data,
@@ -122,7 +127,10 @@ export class UsersController {
 			},
 			where: { email },
 		});
-		return { checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl, registrationToken: newToken };
+		return {
+			checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl,
+			registrationToken: newToken,
+		};
 	}
 
 	/** O próprio usuário (identificado pelo token, nunca por um id na URL). */

@@ -11,15 +11,7 @@ import {
 	UnauthorizedException,
 	UseGuards,
 } from "@nestjs/common";
-import {
-	IsEmail,
-	IsOptional,
-	IsString,
-	Length,
-	Matches,
-	MaxLength,
-	MinLength,
-} from "class-validator";
+import { IsEmail, IsOptional, IsString, Length, Matches, MaxLength, MinLength } from "class-validator";
 import type { Request } from "express";
 import { EmailService } from "../email/email.service";
 import { rateLimitKey } from "../http/client-ip";
@@ -121,10 +113,16 @@ export class AuthController {
 
 		if (user.totpEnabled && user.totpSecret) {
 			if (!dto.totp)
-				throw new UnauthorizedException({ message: "Informe o código do app autenticador", totpRequired: true });
+				throw new UnauthorizedException({
+					message: "Informe o código do app autenticador",
+					totpRequired: true,
+				});
 			const step = verifyTotp(user.totpSecret, dto.totp);
 			if (step === null || (user.totpLastStep !== null && step <= user.totpLastStep))
-				throw new UnauthorizedException({ message: "Código do autenticador inválido", totpRequired: true });
+				throw new UnauthorizedException({
+					message: "Código do autenticador inválido",
+					totpRequired: true,
+				});
 			await this.prisma.user.update({ data: { totpLastStep: step }, where: { id: user.id } });
 		}
 		const token = signToken({ sub: user.id, tv: user.tokenVersion });

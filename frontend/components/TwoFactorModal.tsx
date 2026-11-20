@@ -29,7 +29,11 @@ export function TwoFactorModal({ onClose }: { onClose: () => void }) {
 		try {
 			setSecret(await api("/auth/totp/setup", { method: "POST" }));
 		} catch (e) {
-			setErr((e as Error).message.includes("já está ativo") ? "O 2FA já está ativo." : "Não foi possível iniciar.");
+			setErr(
+				(e as Error).message.includes("já está ativo")
+					? "O 2FA já está ativo."
+					: "Não foi possível iniciar.",
+			);
 		}
 		setBusy(false);
 	}
@@ -78,7 +82,8 @@ export function TwoFactorModal({ onClose }: { onClose: () => void }) {
 				{done ? (
 					<>
 						<p style={{ color: "var(--mut)", fontSize: 15, textAlign: "center" }}>
-							Pronto. Nos próximos logins, além da senha, será pedido o código do app autenticador.
+							Pronto. Nos próximos logins, além da senha, será pedido o código do app
+							autenticador.
 						</p>
 						<button className="btn-dark" onClick={onClose}>
 							Fechar
@@ -87,8 +92,9 @@ export function TwoFactorModal({ onClose }: { onClose: () => void }) {
 				) : !secret ? (
 					<>
 						<p style={{ color: "var(--mut)", fontSize: 15 }}>
-							Esta conta vê o CPF e o Pix de todos os clientes. Com o 2FA, só a senha não basta para entrar.
-							Você vai precisar de um app autenticador (Google Authenticator, Authy, 1Password...).
+							Esta conta vê o CPF e o Pix de todos os clientes. Com o 2FA, só a senha não basta
+							para entrar. Você vai precisar de um app autenticador (Google Authenticator,
+							Authy, 1Password...).
 						</p>
 						{err && <div className="err">{err}</div>}
 						<button className="btn-dark" disabled={busy} onClick={start}>

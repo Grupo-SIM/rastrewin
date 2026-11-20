@@ -169,13 +169,14 @@ export default function Landing() {
 			try {
 				registrationToken = localStorage.getItem("registrationToken") ?? undefined;
 			} catch {}
-			const user = await api<{ checkoutUrl?: string; loginRequired?: boolean; registrationToken?: string }>(
-				"/users",
-				{
-					body: JSON.stringify({ ...f, registrationToken, tracking: readTracking() }),
-					method: "POST",
-				},
-			);
+			const user = await api<{
+				checkoutUrl?: string;
+				loginRequired?: boolean;
+				registrationToken?: string;
+			}>("/users", {
+				body: JSON.stringify({ ...f, registrationToken, tracking: readTracking() }),
+				method: "POST",
+			});
 			if (user.registrationToken) {
 				try {
 					localStorage.setItem("registrationToken", user.registrationToken);
@@ -185,7 +186,9 @@ export default function Landing() {
 				// E-mail de quem já é cliente: dados e plano só mudam com login. Sem cadastro novo, sem checkout.
 				checkoutTab?.close();
 				registrationStarted.current = false;
-				setErr("Este e-mail já tem cadastro. Entre na sua conta para renovar a assinatura ou trocar de plano.");
+				setErr(
+					"Este e-mail já tem cadastro. Entre na sua conta para renovar a assinatura ou trocar de plano.",
+				);
 				return;
 			}
 			const planData = {

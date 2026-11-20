@@ -33,7 +33,9 @@ function ipv6Prefix(ip: string): string {
 	const [head = "", tail = ""] = ip.split("%")[0].split("::");
 	const h = head ? head.split(":") : [];
 	const t = tail ? tail.split(":") : [];
-	const groups = ip.includes("::") ? [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t] : h;
+	const groups = ip.includes("::")
+		? [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t]
+		: h;
 	return `${groups
 		.slice(0, 4)
 		.map(g => Number.parseInt(g || "0", 16).toString(16))

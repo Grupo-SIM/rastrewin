@@ -30,10 +30,10 @@ export function toPublic(r: Raffle, entered: boolean, userId: string) {
 	const elapsed = Math.max(0, Math.min(nowMs, r.endsAt.getTime()) - r.createdAt.getTime());
 	return {
 		ended,
-		mine: ended && !!r.winnerName && r.winnerUserId === userId,
 		endsAt: r.endsAt.toISOString(),
 		entered,
 		id: r.id,
+		mine: ended && !!r.winnerName && r.winnerUserId === userId,
 		participants: r.baseCount + Math.floor(elapsed / 1500),
 		prize: r.prize,
 		seed: r.seed,
@@ -207,7 +207,11 @@ export class RafflesController {
 			rows = [...a, ...b];
 		}
 		const next = o + rows.length;
-		return { items: rows.map(r => toPublic(r, true, sc.user.id)), nextOffset: next < total ? next : null, total };
+		return {
+			items: rows.map(r => toPublic(r, true, sc.user.id)),
+			nextOffset: next < total ? next : null,
+			total,
+		};
 	}
 
 	/**
