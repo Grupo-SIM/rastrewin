@@ -59,9 +59,15 @@ function ignored(rel: string): boolean {
 function checkCitedPaths(docs: string[]) {
 	const missing = new Map<string, Set<string>>();
 	for (const file of docs) {
+		let templateSection = false;
 		for (const line of read(file).split("\n")) {
+			// Seção sobre o repositório-modelo (ex.: "## Template notes" do guia de scaffolding) descreve outro repo.
+			if (/^#{1,6}\s/.test(line)) templateSection = /template/i.test(line);
+			if (templateSection) continue;
 			// Linhas que citam outro repositório (ex.: Grupo-SIM/simintpay) falam de caminhos de lá.
 			if (/Grupo-SIM\/(?!rastrewin)/.test(line)) continue;
+			// "Create `arquivo`": instrução para criar um arquivo novo, que ainda não existe por definição.
+			if (/^\s*(Create|Crie)\s+`/.test(line)) continue;
 			for (const m of line.matchAll(/`([\w.@-]+(?:\/[\w.@[\]-]+)+\.[a-z]{1,5})`/g)) {
 				const cited = m[1];
 				// Pula domínios (track.rastrewin.com/t.js) e reticências (.../page.tsx).
@@ -86,9 +92,14 @@ function checkVersions(docs: string[]) {
 	const next = depVersion("frontend", "next");
 	const stale: string[] = [];
 	for (const file of docs) {
-		const text = read(file);
-		for (const m of text.matchAll(/Next(?:\.js)?\s+(\d+\.\d+\.\d+)/g))
-			if (next && m[1] !== next) stale.push(`${file}: "Next ${m[1]}" (instalado ${next})`);
+		// Seção com data no título (ex.: "Auditoria de novembro (2ª, 09/11/2026)") é registro de época.
+		let history = false;
+		for (const line of read(file).split("\n")) {
+			if (/^#{1,6}\s/.test(line)) history = /\d{2}\/\d{2}\/\d{4}/.test(line);
+			if (history) continue;
+			for (const m of line.matchAll(/Next(?:\.js)?\s+(\d+\.\d+\.\d+)/g))
+				if (next && m[1] !== next) stale.push(`${file}: "Next ${m[1]}" (instalado ${next})`);
+		}
 	}
 	const arch = readIf("docs/architecture.md");
 	const rows: [Workspace, string, string][] = [

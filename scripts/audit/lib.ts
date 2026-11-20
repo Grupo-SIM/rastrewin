@@ -48,11 +48,49 @@ export function walk(dir: string, filter: (rel: string) => boolean): string[] {
 export const isCode = (rel: string) =>
 	/\.(ts|tsx|mjs|js)$/.test(rel) && !/\.(test|spec)\.tsx?$/.test(rel) && !rel.includes("/public/");
 
-/** Remove comentários (// e /* *\/) mantendo as quebras de linha, para as buscas não acharem documentação. */
+/**
+ * Remove comentários (// e /* *\/) mantendo as quebras de linha, para as buscas não acharem documentação.
+ * Lê caractere a caractere: um "/*" dentro de um comentário // ou de uma string não abre bloco.
+ */
 export function stripComments(code: string): string {
-	return code
-		.replace(/\/\*[\s\S]*?\*\//g, c => c.replace(/[^\n]/g, ""))
-		.replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");
+	let out = "";
+	let state: "code" | "line" | "block" | "'" | '"' | "`" = "code";
+	for (let i = 0; i < code.length; i++) {
+		const c = code[i];
+		const next = code[i + 1];
+		if (state === "code") {
+			if (c === "/" && next === "/") state = "line";
+			else if (c === "/" && next === "*") {
+				state = "block";
+				i++;
+			} else {
+				if (c === "'" || c === '"' || c === "`") state = c;
+				out += c;
+			}
+			continue;
+		}
+		if (state === "line") {
+			if (c === "\n") {
+				state = "code";
+				out += c;
+			}
+			continue;
+		}
+		if (state === "block") {
+			if (c === "*" && next === "/") {
+				state = "code";
+				i++;
+			} else if (c === "\n") out += c;
+			continue;
+		}
+		// Dentro de string: só sai no mesmo delimitador sem escape.
+		out += c;
+		if (c === "\\") {
+			out += next ?? "";
+			i++;
+		} else if (c === state) state = "code";
+	}
+	return out;
 }
 
 /** Número da linha (1-based) de uma posição no texto. */

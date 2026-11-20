@@ -6,6 +6,18 @@ import path from "node:path";
 import { balanced, exists, lineOf, pass, read, record, stripComments, walk } from "./lib";
 
 const AREA = "Backend";
+
+/** Rotas públicas que dispensam limite próprio (o global de 300/min por IP continua valendo), com o motivo. */
+const PUBLIC_EXCEPTIONS: Record<string, string> = {
+	"GET /health": "só responde {ok:true}, para o HEALTHCHECK da imagem",
+};
+
+/** Risco aceito pelo time: registrado em docs/engineering-rules.md › Accepted risks. */
+function acceptedRisk(marker: RegExp): boolean {
+	const rules = exists("docs/engineering-rules.md") ? read("docs/engineering-rules.md") : "";
+	const line = rules.split("\n").find(l => l.startsWith("- **Accepted risks:**")) ?? "";
+	return marker.test(line);
+}
 const ROUTE_DECORATOR = /@(Get|Post|Put|Patch|Delete)\(\s*(?:["'`]([^"'`]*)["'`])?\s*\)/g;
 
 interface Route {
@@ -57,9 +69,10 @@ function checkRoutes() {
 		const where = `${r.file}:${r.line}`;
 		const limited = /\benforce\(|\.take\(/.test(r.body);
 		const userIdFromUrl = /@(Param|Query)\(\s*["'`](user_?id|userId|uid|accountId)["'`]/i.test(r.params);
+		const exception = PUBLIC_EXCEPTIONS[`${r.method} ${r.path}`];
 		const problems = [
 			!r.body && "corpo do método não pôde ser lido",
-			!r.guard && !limited && "rota pública sem limite próprio (enforce/.take)",
+			!r.guard && !limited && !exception && "rota pública sem limite próprio (enforce/.take)",
 			userIdFromUrl && "id de usuário vindo da URL (a identidade tem de vir do token)",
 		].filter(Boolean);
 		record(
@@ -70,7 +83,9 @@ function checkRoutes() {
 				? `${problems.join("; ")} — ${where}`
 				: r.guard
 					? `${r.guard}${limited ? " + limite" : ""}`
-					: "pública + limite próprio",
+					: exception
+						? `exceção: ${exception}`
+						: "pública + limite próprio",
 		);
 	}
 }
@@ -133,11 +148,16 @@ function checkMain() {
 		cors.trim() || "origin não encontrado",
 	);
 	const jwtEnforced = /JWT_SECRET[\s\S]{0,300}<\s*32[\s\S]{0,200}throw/.test(main);
+	const jwtAccepted = !jwtEnforced && acceptedRisk(/JWT_SECRET/);
 	record(
 		AREA,
 		"JWT_SECRET curto impede o boot",
-		pass(jwtEnforced, "atencao"),
-		jwtEnforced ? undefined : "com menos de 32 caracteres o boot só registra um aviso (logger.warn)",
+		pass(jwtEnforced || jwtAccepted, "atencao"),
+		jwtEnforced
+			? undefined
+			: jwtAccepted
+				? "risco aceito (docs/engineering-rules.md): só aviso no boot; mantenha o de produção com 32+"
+				: "com menos de 32 caracteres o boot só registra um aviso (logger.warn)",
 	);
 }
 
@@ -175,13 +195,16 @@ function checkIpAndSecrets() {
 
 	const plans = exists("backend/src/plans.ts") ? read("backend/src/plans.ts") : "";
 	const prefill = /cpf/i.test(plans) && /phone/i.test(plans);
+	const prefillAccepted = prefill && acceptedRisk(/CPF/);
 	record(
 		AREA,
 		"dados pessoais só saem pelas allow-lists (toPublicUser/toAdminUser)",
-		pass(!prefill, "atencao"),
-		prefill
-			? "checkoutUrl (/users/me e POST /users) leva CPF e telefone na query para o pré-preenchimento do checkout (backend/src/plans.ts)"
-			: undefined,
+		pass(!prefill || prefillAccepted, "atencao"),
+		prefillAccepted
+			? "risco aceito (docs/engineering-rules.md): checkoutUrl leva CPF e telefone para o SimIntPay abrir preenchido"
+			: prefill
+				? "checkoutUrl (/users/me e POST /users) leva CPF e telefone na query para o pré-preenchimento do checkout (backend/src/plans.ts)"
+				: undefined,
 	);
 }
 

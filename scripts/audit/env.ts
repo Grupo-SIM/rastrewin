@@ -3,6 +3,11 @@ import { exists, isCode, read, record, stripComments, walk, type Workspace, WORK
 
 const AREA = "Variáveis de ambiente";
 
+/** Variáveis do exemplo que o código ainda não lê de propósito, com o motivo (não contam como sobra). */
+const RESERVED: Partial<Record<Workspace, Record<string, string>>> = {
+	backend: { SIMPAY_INBOUND_TOKEN: "reservada para chamadas futuras à API do SimIntPay" },
+};
+
 /** Definidas pelo runtime/Next/Docker, não pelo .env. */
 const BUILTIN = new Set(["CI", "HOSTNAME", "NEXT_PHASE", "NEXT_RUNTIME", "NODE_ENV", "TZ"]);
 
@@ -88,12 +93,16 @@ export function checkEnv() {
 			missing.length ? `faltam: ${missing.join(", ")}` : `${reads.size} variáveis`,
 		);
 		const refs = infraRefs(ws);
-		const unused = [...docs].filter(v => !reads.has(v) && !refs.has(v)).sort();
+		const reserved = RESERVED[ws] ?? {};
+		const unused = [...docs].filter(v => !reads.has(v) && !refs.has(v) && !reserved[v]).sort();
+		const kept = Object.entries(reserved).filter(([v]) => docs.has(v) && !reads.has(v));
 		record(
 			AREA,
 			`${ws}: .env.example sem variável que ninguém lê`,
 			unused.length ? "atencao" : "ok",
-			unused.length ? `sem uso no código nem no compose: ${unused.join(", ")}` : undefined,
+			unused.length
+				? `sem uso no código nem no compose: ${unused.join(", ")}`
+				: kept.map(([v, why]) => `${v}: ${why}`).join("; ") || undefined,
 		);
 	}
 }

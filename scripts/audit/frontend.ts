@@ -95,7 +95,10 @@ function checkFrontend() {
 	checkBlankLinks(area, dirs);
 
 	const page = stripComments(readIf("frontend/app/page.tsx"));
-	const opens = [...page.matchAll(/window\.open\(([^)]*)\)/g)].filter(m => !/noopener/.test(m[1]));
+	// Vale noopener no window.open ou zerar o opener da aba logo depois (quando o código precisa da referência).
+	const opens = [...page.matchAll(/(?:const|let)\s+(\w+)\s*=\s*window\.open\(([^)]*)\)/g)].filter(
+		m => !/noopener/.test(m[2]) && !new RegExp(`\\b${m[1]}\\.opener\\s*=\\s*null`).test(page),
+	);
 	record(
 		area,
 		"window.open sem acesso de volta à página (noopener)",

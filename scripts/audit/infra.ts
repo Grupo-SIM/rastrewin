@@ -3,6 +3,13 @@ import { exists, pass, read, readIf, record } from "./lib";
 
 const AREA = "Infraestrutura";
 
+/** Dockerfile da imagem de cada serviço: o HEALTHCHECK pode estar nela, e não no compose. */
+const DOCKERFILE: Record<string, string> = {
+	backend: "backend/Dockerfile",
+	frontend: "frontend/Dockerfile",
+	"vsl-rastrewin": "vsl/Dockerfile",
+};
+
 /** Blocos de serviço de um compose (indentação de 2 espaços sob `services:`). */
 function services(compose: string): { name: string; body: string }[] {
 	const section = compose.split(/^services:\s*$/m)[1]?.split(/^\S/m)[0] ?? "";
@@ -35,7 +42,9 @@ export function checkInfra() {
 			);
 			const extras = [
 				!/read_only:\s*true/.test(svc.body) && "sem read_only",
-				!/healthcheck:/.test(svc.body) && "sem healthcheck",
+				!/healthcheck:/.test(svc.body) &&
+					!/^HEALTHCHECK/m.test(readIf(DOCKERFILE[svc.name] ?? "")) &&
+					"sem healthcheck",
 			].filter(Boolean);
 			record(
 				AREA,
@@ -45,13 +54,4 @@ export function checkInfra() {
 			);
 		}
 	}
-
-	const backendSvc = services(readIf("compose.production.yaml")).find(s => s.name === "backend");
-	if (backendSvc && /caddy\.import:\s*cloudflare/.test(backendSvc.body))
-		record(
-			AREA,
-			"api.rastrewin.com fora do proxy da Cloudflare (premissa do IP nos limites)",
-			"atencao",
-			"label caddy.import: cloudflare na API: se for proxy (nuvem laranja) e não só o certificado, o último X-Forwarded-For passa a ser a Cloudflare. A auditoria --producao confere o cabeçalho cf-ray",
-		);
 }
