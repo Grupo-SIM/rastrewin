@@ -166,10 +166,10 @@ const SECTIONS: Section[] = [
 			rows: [
 				["_trck_consent", "Rastrewin", "Guardar a sua escolha sobre cookies", "1 ano", "Necessário"],
 				[
-					"__cf_bm, cf_clearance",
+					"__cf_bm, cf_clearance, __cf_ob",
 					"Vimeo (via Cloudflare)",
 					"Proteger o player do vídeo contra acessos automatizados (robôs)",
-					"Curta, definida pelo Vimeo (o __cf_bm dura 30 minutos)",
+					"Definida pelo Vimeo: __cf_bm, 30 minutos; __cf_ob, até fechar o navegador; cf_clearance, até 1 ano",
 					"Necessário",
 				],
 				[
