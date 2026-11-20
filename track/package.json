@@ -15,7 +15,7 @@
 		"security:check": "tsx scripts/security-check.ts",
 		"scripts:build": "esbuild scripts/migrate.ts scripts/create-admin.ts scripts/delete-user.ts --bundle --platform=node --target=node22 --format=esm --outdir=dist-scripts --out-extension:.js=.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
 		"start": "next start",
-		"test": "tsx --conditions=react-server --test 'src/**/*.test.ts'",
+		"test": "bun test --conditions=react-server src",
 		"test:retention": "tsx --env-file=.env scripts/test-retention.ts",
 		"test:rls": "tsx --env-file=.env scripts/test-rls.ts",
 		"tracker:build": "esbuild src/tracker/trck.ts --bundle --minify --format=iife --target=es2019 --legal-comments=none --outfile=public/t.js"

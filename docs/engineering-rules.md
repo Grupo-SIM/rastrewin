@@ -19,7 +19,7 @@ Each workspace defines `check-types`. `backend` needs the Prisma client first (`
 
 ## Tests
 
-`vsl` (Vitest) and `track` (node:test via tsx) keep their existing unit suites and run them through `bun run test`. `track` also has database scenarios (`test:rls`, `test:retention`) that need a disposable Postgres. Never run them against a remote or shared database.
+`vsl` (Vitest) and `track` (node:test API run by `bun test`) keep their existing unit suites and run them through `bun run test`. `track` also has database scenarios (`test:rls`, `test:retention`) that need a disposable Postgres. Never run them against a remote or shared database.
 
 ## Database
 
