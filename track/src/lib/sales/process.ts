@@ -4,7 +4,13 @@ import { serviceDb } from "@/db";
 import { purchases, visitors } from "@/db/schema";
 import { hashed, normEmail, normName, normPhone, splitFullName } from "@/lib/tracking/normalize";
 import { BANNER_REJECTED_REASON } from "./consent";
-import { nextStatus, postApprovalOnly, type SalesEvent, toPurchaseFields } from "./simintpay";
+import {
+	nextRenewalFlag,
+	nextStatus,
+	postApprovalOnly,
+	type SalesEvent,
+	toPurchaseFields,
+} from "./simintpay";
 
 type Tx = Parameters<Parameters<ReturnType<typeof serviceDb>["transaction"]>[0]>[0];
 type VisitorRow = typeof visitors.$inferSelect;
@@ -175,6 +181,7 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 			.select({
 				approvedAt: purchases.approvedAt,
 				id: purchases.id,
+				isRenewal: purchases.isRenewal,
 				match: purchases.match,
 				status: purchases.status,
 				trckUserId: purchases.trckUserId,
@@ -227,8 +234,7 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 				approvedAt: isApproval
 					? sql`coalesce(${purchases.approvedAt}, ${f.occurredAt})`
 					: purchases.approvedAt,
-				// Só liga: os eventos seguintes (reembolso...) não trazem o flag e não podem desligá-lo.
-				isRenewal: f.isRenewal || purchases.isRenewal,
+				isRenewal: nextRenewalFlag(existing.approvedAt, existing.isRenewal, f.isRenewal),
 				// Aprovação define o momento da venda; reembolso registra quando aconteceu.
 				occurredAt: isApproval
 					? f.occurredAt

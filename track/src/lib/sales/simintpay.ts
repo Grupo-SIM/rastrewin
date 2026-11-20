@@ -108,6 +108,19 @@ export function postApprovalOnly(existingApprovedAt: Date | null | undefined, in
 	return !!existingApprovedAt && incoming !== "approved";
 }
 
+/**
+ * Renovação ou compra nova. Antes da aprovação, o flag só liga (Pix gerado com renovação → aprovado). Depois
+ * da aprovação, fica como estava: uma reentrega atrasada do mesmo pedido (que pode chegar dizendo "renovação"
+ * porque o cliente já renovou) não tira a venda das métricas de aquisição.
+ */
+export function nextRenewalFlag(
+	existingApprovedAt: Date | null | undefined,
+	existingIsRenewal: boolean,
+	incomingIsRenewal: boolean,
+) {
+	return existingApprovedAt ? existingIsRenewal : existingIsRenewal || incomingIsRenewal;
+}
+
 /** Venda válida para enviar Purchase (aprovada ou em mediação). */
 export function isSaleActive(status: string) {
 	return status === "approved" || status === "refund_requested";

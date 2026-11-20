@@ -6,6 +6,7 @@ import {
 	isSaleActive,
 	mapStatus,
 	metaPaymentMethod,
+	nextRenewalFlag,
 	nextStatus,
 	postApprovalOnly,
 	salesEventSchema,
@@ -110,6 +111,18 @@ test("postApprovalOnly: depois da aprovação, só uma nova aprovação muda os 
 	// antes da aprovação (PIX gerado → aprovado) os dados seguem sendo preenchidos
 	assert.equal(postApprovalOnly(null, "pending"), false);
 	assert.equal(postApprovalOnly(undefined, "refunded"), false);
+});
+
+test("nextRenewalFlag: depois da aprovação, a venda não vira renovação (reentrega atrasada)", () => {
+	const approved = new Date("2026-11-05T12:00:00Z");
+	// 1ª compra já aprovada; a reentrega chega com renewal: true porque o cliente já renovou
+	assert.equal(nextRenewalFlag(approved, false, true), false);
+	// renovação aprovada continua renovação, mesmo se um aviso vier sem o campo
+	assert.equal(nextRenewalFlag(approved, true, false), true);
+	// antes da aprovação: Pix gerado de renovação → aprovação mantém; e o flag só liga
+	assert.equal(nextRenewalFlag(null, true, false), true);
+	assert.equal(nextRenewalFlag(null, false, true), true);
+	assert.equal(nextRenewalFlag(undefined, false, false), false);
 });
 
 test("AddPaymentInfo: Pix gerado ou cartão recusado, uma vez por pedido, só com aceite e fora de renovação", () => {
