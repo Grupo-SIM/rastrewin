@@ -1,5 +1,8 @@
 import { randomBytes } from "node:crypto";
-import bcrypt from "bcryptjs";
+// bcrypt nativo: hash e compare rodam no threadpool do libuv, fora da thread que atende as rotas. O bcryptjs
+// (JavaScript puro) gastava centenas de ms de CPU por login nessa thread e travava a API inteira. Mesmo formato:
+// os hashes $2a$/$2b$ já gravados continuam valendo, e os novos ($2y$) também são lidos pelo bcryptjs.
+import { compare, hash, hashSync } from "@node-rs/bcrypt";
 
 const COST = 12;
 const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -11,16 +14,16 @@ export function generatePassword(length = 12) {
 }
 
 export function hashPassword(plain: string) {
-	return bcrypt.hash(plain, COST);
+	return hash(plain, COST);
 }
 
-export function comparePassword(plain: string, hash: string) {
-	return bcrypt.compare(plain, hash);
+export function comparePassword(plain: string, hashed: string) {
+	return compare(plain, hashed);
 }
 
 /** Hash de uma senha que ninguém tem: o login compara com ele quando a conta não existe, para o tempo
  * de resposta não revelar quais e-mails são clientes. */
-export const DUMMY_HASH = bcrypt.hashSync(randomBytes(16).toString("hex"), COST);
+export const DUMMY_HASH = hashSync(randomBytes(16).toString("hex"), COST);
 
 const COMMON = new Set([
 	"12345678",
