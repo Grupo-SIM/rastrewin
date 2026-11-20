@@ -65,6 +65,10 @@ model Raffle {
   bucket           Int      @default(0) // 0..4999: o plano enxerga o sorteio se bucket < limite diário do plano
 
   @@index([endsAt])
+  // "Prêmios ganhos" do cliente (resumo e aba "Ganhei"): sem ele, cada contagem varre a tabela inteira.
+  @@index([winnerUserId])
+  // Sorteios encerrados ainda sem ganhador (ensureWinners): acha os poucos pendentes sem varrer a tabela.
+  @@index([winnerName, endsAt])
   @@index([createdAt])
   @@index([slot])
 }
