@@ -136,8 +136,10 @@ export class AuthController {
 		enforce(forgotByIp, rateLimitKey(req), "Muitos pedidos. Tente de novo em alguns minutos.");
 		const email = dto.email.trim().toLowerCase();
 		const user = await this.prisma.user.findUnique({ where: { email } });
-		// Quem acabou de pagar ainda não tem senha (cria a primeira por aqui); quem nunca pagou não entra.
-		if (!user || (!user.password && user.status !== "ACTIVE")) return { ok: true };
+		// Sem senha, só quem já pagou alguma vez cria a primeira por aqui: quem acabou de pagar e também quem
+		// venceu ou foi reembolsado antes de criá-la (sem senha não entraria para renovar, e o cadastro manda
+		// entrar na conta). simpayOrderId nunca é apagado. Quem nunca pagou não entra.
+		if (!user || (!user.password && user.status !== "ACTIVE" && !user.simpayOrderId)) return { ok: true };
 
 		const issuedAgo = user.resetCodeExpiresAt
 			? Date.now() - (user.resetCodeExpiresAt.getTime() - RESET_TTL_MS)
