@@ -39,6 +39,7 @@ Each workspace defines `check-types`. `backend` needs the Prisma client first (`
 - **Client IP** for limits is the last `X-Forwarded-For` entry; that holds only while the API is not behind Cloudflare and only trusted containers share the `proxy` network (see `backend/src/http/client-ip.ts`).
 - **Test tools** (`POST /admin/raffles/:id/end` and its "Encerrar em 10s" button) are off in production unless `ENABLE_TEST_TOOLS=true` / `NEXT_PUBLIC_ENABLE_TEST_TOOLS=true`.
 - **Dependencies:** `bun audit` runs in CI as an informational job. Remaining findings are development tools (`committier`, `@nestjs/cli`) that never enter an image.
+- **Audit:** `bun scripts/audit/index.ts` checks these rules in the code (`--producao` also checks the live sites, read-only; `--ferramentas` runs lint, types, tests, build and `bun audit`). Manual items: [audit checklist](audit-checklist.md).
 
 ## Generated files
 
