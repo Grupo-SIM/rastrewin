@@ -24,6 +24,8 @@ const trackOrigin =
  * conversa com o track: por isso esses hosts estão na lista. 'unsafe-inline' em script-src é o que o Next e o
  * gtag exigem sem nonce; o ganho está no resto: nada de outros hosts, sem iframe, sem <base> nem formulário
  * para fora, e a página não pode ser embutida em outro site (clickjacking no /admin).
+ * O gtag manda as coletas do GA4 para analytics.google.com (o domínio raiz, que *.analytics.google.com não
+ * cobre) e www.google.com: sem os dois, nenhum evento do GA4 sai da landing.
  */
 const isDev = process.env.NODE_ENV === "development";
 const contentSecurityPolicy = [
@@ -32,7 +34,7 @@ const contentSecurityPolicy = [
 	"style-src 'self' 'unsafe-inline'",
 	"img-src 'self' data: blob: https:",
 	"font-src 'self' data:",
-	`connect-src 'self'${apiOrigin ? ` ${apiOrigin}` : ""}${trackOrigin ? ` ${trackOrigin}` : ""} https://www.facebook.com https://connect.facebook.net https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://stats.g.doubleclick.net`,
+	`connect-src 'self'${apiOrigin ? ` ${apiOrigin}` : ""}${trackOrigin ? ` ${trackOrigin}` : ""} https://www.facebook.com https://connect.facebook.net https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://www.google.com https://*.googletagmanager.com https://stats.g.doubleclick.net`,
 	"object-src 'none'",
 	"base-uri 'self'",
 	"form-action 'self'",
