@@ -153,6 +153,9 @@ export default function Landing() {
 		// abre a aba já no clique (gesto do usuário), senão o navegador bloqueia o popup
 		// depois que a resposta da API chegar.
 		const checkoutTab = window.open("", "_blank");
+		// O checkout não ganha acesso de volta a esta página (window.opener); a referência acima basta para
+		// redirecionar a aba depois.
+		if (checkoutTab) checkoutTab.opener = null;
 		// Rastreamento: identifica o lead já no envio (o t.js manda ao track). CompleteRegistration só sai
 		// depois que o backend salvar o cadastro; InitiateCheckout, só quando o checkout abrir.
 		const plan = PLANS.find(p => p.id === f.plan);
