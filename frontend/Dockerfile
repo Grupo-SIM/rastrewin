@@ -2,7 +2,7 @@
 # O contexto é a raiz do monorepo: docker build -f frontend/Dockerfile .
 FROM oven/bun:1.4.4-alpine AS bun
 
-FROM node:22-alpine AS build
+FROM node:24.22.1-alpine3.24 AS build
 WORKDIR /app
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
@@ -16,7 +16,7 @@ RUN bun install --frozen-lockfile --ignore-scripts --filter frontend
 COPY frontend frontend
 RUN bun run --cwd frontend build
 
-FROM node:22-alpine
+FROM node:24.22.1-alpine3.24
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app/frontend/.next/standalone ./

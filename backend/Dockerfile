@@ -2,7 +2,7 @@
 # O contexto é a raiz do monorepo: docker build -f backend/Dockerfile .
 FROM oven/bun:1.4.4 AS bun
 
-FROM node:22-slim AS build
+FROM node:24.22.1-slim AS build
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
@@ -15,7 +15,7 @@ RUN bun install --frozen-lockfile --ignore-scripts --filter backend
 COPY backend backend
 RUN bun run --cwd backend generate && bun run --cwd backend build
 
-FROM node:22-slim
+FROM node:24.22.1-slim
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
