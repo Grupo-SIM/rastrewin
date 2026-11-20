@@ -3,6 +3,10 @@ name: CI
 on:
   pull_request:
 
+# O CI só lê o código: o token do GitHub não precisa de nenhuma outra permissão.
+permissions:
+  contents: read
+
 jobs:
   detect:
     name: Detect affected
