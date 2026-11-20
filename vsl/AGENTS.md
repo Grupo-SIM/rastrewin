@@ -61,8 +61,10 @@ fica em `src/config/page-config.ts`, validado com Zod no build. Valor inválido 
   com texto e botão à esquerda e vídeo à direita, para o play caber sem rolar.
 - Identidade visual da Rastrewin: tokens em `src/app/globals.css`.
 - Nada de `dangerouslySetInnerHTML`. Nenhum segredo no código; nenhuma variável sensível `NEXT_PUBLIC_`.
-- Terceiros: o player do Vimeo (iframe `player.vimeo.com`), pré-carregado só depois de a página abrir (nunca com
-  economia de dados ou 2G), e o Pixel da Meta e o GA4, que o `t.js` (nosso, `async` no `<head>`) carrega a partir
+- Terceiros: o player do Vimeo (iframe `player.vimeo.com`), que vem no HTML e carrega junto com a página, para
+  todos (inclusive com economia de dados ou 2G), com a capa do site no fundo até ficar pronto; o play é o do
+  Vimeo (um toque). A capa do vídeo no Vimeo é a mesma imagem da capa do site (`posterSrc`): trocar sempre nas
+  duas. E o Pixel da Meta e o GA4, que o `t.js` (nosso, `async` no `<head>`) carrega a partir
   das contas ativas no painel do track. Não adicione outros scripts de terceiros.
 - Antes de adicionar dependência: justificar e preferir o que já existe. Lockfile sempre commitado.
 - `bunfig.toml` (raiz do monorepo) aplica `minimumReleaseAge` (1 dia) e as dependências do `vsl` usam versões exatas: não abra exceções para versões
