@@ -1,6 +1,8 @@
 // Em dev, o front chama /api/* e o Next repassa para a API local (rewrite resolvido em
 // build time). Em produção o front chama NEXT_PUBLIC_API_URL direto (ver lib/api.ts),
-// já que o rewrite não pode variar por ambiente num build standalone.
+// já que o rewrite não pode variar por ambiente num build standalone. Por isso o rewrite só
+// existe quando NEXT_PUBLIC_API_URL não é uma URL completa: no build de produção ele
+// apontaria para o localhost do container e todo rastrewin.com/api/* responderia 500.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -59,6 +61,6 @@ export default {
 	outputFileTracingRoot: path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
 	poweredByHeader: false,
 	async rewrites() {
-		return [{ destination: `${API_TARGET}/:path*`, source: "/api/:path*" }];
+		return apiOrigin ? [] : [{ destination: `${API_TARGET}/:path*`, source: "/api/:path*" }];
 	},
 };
