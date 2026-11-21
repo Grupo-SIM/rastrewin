@@ -17,6 +17,10 @@
  * não guarda UTMs, não carrega Pixel nem gtag e não chama o servidor (só /api/consent, com a escolha).
  * Comandos trck(...) feitos antes do aceite são descartados.
  *   trck('consent', 'open')  → reabre as preferências (link "Preferências de cookies" no rodapé)
+ * ÚNICA exceção: o cookie NECESSÁRIO _trck_aff (afiliado). Se a URL traz ?aff=CODE (ou ?ref=CODE), o t.js
+ * grava, mesmo sem aceite, só o código em .dominio-raiz por 30 dias (último clique, Secure, SameSite=Lax),
+ * sem id de visitante, UTM ou dado pessoal: serve ao contrato de afiliação (a comissão devida) e sobrevive
+ * à recusa e à revogação. O código só vai ao track (identify/event) depois do aceite.
  *
  * Uso:
  *   trck('track', 'Lead', { value: 10, currency: 'BRL' })
@@ -74,6 +78,9 @@ type TrckWindow = Window & {
 
 	const ID_KEY = "_trck";
 	const UTM_KEY = "_trck_utm";
+	const AFF_KEY = "_trck_aff";
+	const AFF_RE = /^[A-Za-z0-9_-]{3,40}$/;
+	const AFF_DAYS = 30;
 	const ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
 	const DAY = 864e5;
 	const UTM_FIELDS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"];
@@ -150,6 +157,20 @@ type TrckWindow = Window & {
 		},
 	};
 	const params = new URLSearchParams(location.search);
+
+	// ---------------------------------------------------------------- afiliado (cookie necessário)
+	// Roda ANTES de qualquer consentimento e não depende dele (ver o comentário do topo): só o código.
+	// Último clique vence: um novo ?aff= válido troca o cookie e reinicia os 30 dias.
+	const affFromUrl = (params.get("aff") ?? params.get("ref") ?? "").trim();
+	if (AFF_RE.test(affFromUrl)) setCookie(AFF_KEY, affFromUrl, AFF_DAYS);
+	const affiliate = (): string | null => {
+		const v = getCookie(AFF_KEY);
+		return v && AFF_RE.test(v) ? v : null;
+	};
+	const affField = (): Dict => {
+		const code = affiliate();
+		return code ? { aff: code } : {};
+	};
 
 	// ---------------------------------------------------------------- identidade (SÓ depois do aceite)
 	// Nada aqui roda antes do aceite de marketing no banner (LGPD): sem cookie _trck, sem UTMs
@@ -341,6 +362,7 @@ type TrckWindow = Window & {
 			...fbIds(),
 			...ga,
 			...utms,
+			...affField(),
 			landing_url: location.href,
 			pixel_id: cfg?.pixels[0] ?? null,
 			referrer: document.referrer || null,
@@ -446,6 +468,7 @@ type TrckWindow = Window & {
 			...ga,
 			// Mesmas UTMs do identify: o PageView sai junto com ele e pode chegar antes.
 			...utms,
+			...affField(),
 			...(Object.keys(custom).length ? { custom_data: custom } : {}),
 			...(() => {
 				const ud = {

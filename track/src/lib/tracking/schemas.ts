@@ -21,6 +21,19 @@ const utm = {
 	utm_term: optStr(300),
 };
 
+/**
+ * Código do afiliado (cookie necessário _trck_aff do t.js). Inválido é recusado; o servidor só grava
+ * com consentimento. O mesmo formato vale para o código que a SimIntPay devolve no evento da venda.
+ */
+export const AFFILIATE_CODE = /^[A-Za-z0-9_-]{3,40}$/;
+const affiliateCode = z
+	.string()
+	.trim()
+	.regex(AFFILIATE_CODE, "formato inválido")
+	.optional()
+	.nullable()
+	.transform(v => v ?? null);
+
 /** fbp/fbc no formato fb.<n>.<timestamp>.<valor> */
 const fbCookie = optStr(500).refine(
 	v => v === null || /^fb\.\d\.\d{10,13}\.[\w.-]+$/.test(v),
@@ -68,6 +81,7 @@ export const consentSchema = z
 export type ConsentInput = z.infer<typeof consentSchema>;
 
 export const identifySchema = z.object({
+	aff: affiliateCode,
 	fbc: fbCookie,
 	fbp: fbCookie,
 	ga_client_id: optStr(100).refine(v => v === null || /^\d+\.\d+$/.test(v), "formato inválido"),
@@ -84,6 +98,8 @@ export const identifySchema = z.object({
 export type IdentifyInput = z.infer<typeof identifySchema>;
 
 export const eventSchema = z.object({
+	// Mesmas UTMs e afiliado do identify: o evento pode chegar antes dele (os dois saem juntos no PageView).
+	aff: affiliateCode,
 	custom_data: z
 		.object({
 			content_ids: z.array(str(100)).max(50).optional(),
@@ -110,7 +126,6 @@ export const eventSchema = z.object({
 	ga_session_id: optStr(40).refine(v => v === null || /^\d+$/.test(v), "formato inválido"),
 	trck_user_id: z.string().regex(TRCK_ID),
 	user_data: z.object(userData).optional(),
-	// Mesmas UTMs do identify: o evento pode chegar antes dele (os dois saem juntos no PageView).
 	...utm,
 	...webdriver,
 	...consent,

@@ -46,6 +46,20 @@ test("evento aceita as UTMs (opcionais) com os mesmos limites do identify", () =
 	assert.equal(eventSchema.safeParse(base).success, true);
 });
 
+test("afiliado (aff) é opcional e só aceita o formato do código", () => {
+	assert.equal(eventSchema.safeParse(base).success, true); // t.js antigo, sem aff
+	const ok = eventSchema.safeParse({ ...base, aff: "  Joao_Silva-9 " });
+	assert.equal(ok.success && ok.data.aff, "Joao_Silva-9");
+	assert.equal(identifySchema.safeParse({ aff: "abc" }).success, true);
+	assert.equal(identifySchema.safeParse({ aff: null }).success && true, true);
+	for (const bad of ["ab", "x".repeat(41), "a b c", "a/b", "<script>", "joão", "a@b.com", ""]) {
+		assert.equal(eventSchema.safeParse({ ...base, aff: bad }).success, false, bad);
+		assert.equal(identifySchema.safeParse({ aff: bad }).success, false, bad);
+	}
+	const none = identifySchema.safeParse({});
+	assert.equal(none.success && none.data.aff, null);
+});
+
 const choice = {
 	consent_id: "c0ns3nt1d2345678",
 	page_url: "https://rastrewin.com/",
