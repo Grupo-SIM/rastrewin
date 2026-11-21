@@ -174,6 +174,7 @@ export default function Landing() {
 			} catch {}
 			const user = await api<{
 				checkoutUrl?: string;
+				firstSignup?: boolean;
 				loginRequired?: boolean;
 				registrationToken?: string;
 			}>("/users", {
@@ -201,8 +202,11 @@ export default function Landing() {
 				value: plan?.value,
 			};
 			// Cadastro salvo pelo backend. Na Meta é CompleteRegistration (substituiu o Lead);
-			// no GA4 continua generate_lead.
-			trck("track", "CompleteRegistration", { ...planData, ga4: "generate_lead" });
+			// no GA4 continua generate_lead. Só no primeiro cadastro do e-mail: reenviar o formulário
+			// (trocar de plano, voltar do checkout) não é cadastro novo. `!== false` mantém o envio
+			// se o backend ainda não mandar o campo.
+			if (user.firstSignup !== false)
+				trck("track", "CompleteRegistration", { ...planData, ga4: "generate_lead" });
 			const checkoutUrl = withTracking(user.checkoutUrl);
 			if (!isCheckoutUrl(checkoutUrl)) {
 				// Link de checkout inválido: o checkout não abre e não há InitiateCheckout.
