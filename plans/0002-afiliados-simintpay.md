@@ -138,11 +138,13 @@ Código implementado e integrado nas `main` locais (sem push). Pendências de va
 - [x] VSL: só documentação
 - [x] Docs
 - [ ] Privacidade: política escrita; **falta revisão jurídica e subir `settings.consent_version` no painel do track junto da política**
-- [ ] Teste ponta a ponta: `?aff=X` com banner recusado → `_trck_aff` → cadastro → checkout → evento → painel
+- [x] Teste ponta a ponta local (Chromium real, infra descartável): `?aff=X` com banner recusado → `_trck_aff` → cadastro → checkout com `aff` → relay → track → filtro do painel. Não provado: flag `Secure` (só https), domínio real `.rastrewin.com`, checkout real da SimIntPay aceitando `aff`, retenção do cookie após revogar o consentimento, Meta/GA4
 - [ ] Telas reais da SimIntPay (PlatformManager, formulário e lista de ofertas, relatório) vistas no navegador com o backend integrado
 - [x] `affiliate_code` entra na exportação LGPD (`eced44b`); a comissão fica de fora
 - [x] Relatórios, transações e catálogo da SimIntPay mostram a afiliação (`ff4b3150`, `a4e70d5e`, `965e13ad`); `/afiliados/recebimentos` ainda sem filtros de período, plataforma e meio de pagamento
 - [x] Deduplicação: uma parte por pessoa e venda, oferta sobre plataforma, empate vale o coprodutor; exceção por oferta mantida (`1653cba8`, `6115ea46`, `3af096cd`)
 - [ ] Assinaturas anteriores à feature não comissionam (esperado, nada retroativo)
-- [ ] Rodar na `main` da SimIntPay os testes de `affiliate` e `coproduction` juntos, já com relatórios e deduplicação integrados
+- [x] Testes de `affiliate` e `coproduction` na `main` da SimIntPay (18 e 19 passam; 35 falhas de `platform-core` são pré-existentes e idênticas à referência `bc999b63`)
+- [x] Filtros de período, plataforma e meio em `/afiliados/recebimentos` (`c0c3fb84`..`086b47e0`)
+- [ ] Bug anterior à feature, na coprodução e nos afiliados: várias plataformas selecionadas chegam como `A,B` e não casam (`platformTag = 'A,B'`)
 - [ ] Aplicar a migração da SimIntPay e do track em produção (responsável pela publicação)
