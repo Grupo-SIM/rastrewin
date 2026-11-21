@@ -12,9 +12,9 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
 - Opções:
     - **Recusar** e **Aceitar todos**, com o mesmo destaque, já na primeira tela;
     - **Preferências**, com duas categorias:
-        - **Necessários:** só o cookie que guarda a escolha. Não identifica a pessoa e não pode ser desligado.
+        - **Necessários:** o cookie que guarda a escolha e o cookie do afiliado (`_trck_aff`, abaixo). Não identificam a pessoa e não podem ser desligados.
         - **Marketing e medição:** identificador do visitante, origem da visita (UTMs e clique no anúncio), páginas e eventos, progresso do vídeo, Pixel da Meta e Google Analytics.
-- **Antes do aceite, nada de marketing ou medição roda:**
+- **Antes do aceite, nada de marketing ou medição roda** (a única exceção é o cookie necessário `_trck_aff`, descrito abaixo):
     - nenhum cookie `_trck`, `_fbp` ou `_fbc`, e nenhuma UTM é guardada;
     - o Pixel e o GA4 não são carregados;
     - o track não recebe evento nenhum.
@@ -29,6 +29,26 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
     - a **versão do texto**, o site e a página (sem parâmetros).
     - Não guarda IP nem navegador.
     - O painel mostra os totais dos últimos 30 dias em Configurações › Privacidade.
+
+### Exceção: cookie necessário `_trck_aff` (afiliado)
+
+- **O que é:** se a URL traz `?aff=CODIGO` (ou `?ref=CODIGO`), o `t.js` grava o cookie `_trck_aff` **mesmo sem aceite**:
+    - só o código do afiliado, no formato `^[A-Za-z0-9_-]{3,40}$`, sem id de visitante, UTM ou dado pessoal;
+    - domínio raiz (`.rastrewin.com`), 30 dias, último clique vence, `Secure`, `SameSite=Lax`.
+- **Por que é necessário:** serve ao contrato de afiliação, ou seja, pagar a comissão devida a quem indicou a venda. Entra na categoria "Necessários" e não pode ser desligado.
+- **O que ele não faz:**
+    - sobrevive à recusa e à revogação (a revogação apaga só os cookies de marketing);
+    - sem aceite, o código **não** vai ao track (`identify` e `event` continuam descartados), **nem** à Meta ou ao GA4;
+    - ele só segue com o checkout para a SimIntPay, que paga a comissão, e o track o recebe de volta no evento da venda.
+- **Com aceite:** o código também é gravado no visitante e nos eventos (`affiliate_code`), como as UTMs, para o painel filtrar e mostrar a origem.
+- **Retenção:** o código do afiliado não é dado pessoal. Fica na venda, no evento e no visitante e segue a retenção de cada tabela; permanece nas vendas anonimizadas, como UTMs e valor.
+- **Base legal e política:** é uma decisão jurídica, não técnica. **PERSONALIZAR:** valide com o jurídico antes de publicar; a política de privacidade (rastrewin.com/privacidade) precisa listar o cookie na tabela de cookies e a base legal.
+
+#### Versão do texto do banner (pendente, não suba por conta do código)
+
+- A versão **não é constante de código**: é o valor `settings.consent_version` (padrão `"1"`), editado em **Painel do track › Configurações › Privacidade**.
+- A nova exceção muda **o que é coletado** (um cookie necessário), então a regra acima pede subir a versão, o que pergunta de novo a todos os visitantes. Isso é uma ação de produção: **fica por conta do dono do produto**, depois da validação jurídica e junto com a publicação da política atualizada.
+- A versão do banner e a da política têm de bater (regra existente). Nenhuma versão foi alterada por esta mudança.
 
 ### Onde personalizar
 
