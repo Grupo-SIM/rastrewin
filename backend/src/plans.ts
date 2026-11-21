@@ -1,4 +1,5 @@
 import { PrismaService } from "./prisma/prisma.service";
+import { sanitizeTracking } from "./track/tracking";
 
 /** Planos: preço e limite de inscrições em sorteios por dia (calendário). */
 export const PLANS = {
@@ -20,6 +21,8 @@ export interface CheckoutPrefill {
 	email: string;
 	name: string;
 	phone: string;
+	/** Origem guardada no cadastro (User.tracking): daqui sai o código do afiliado (aff). */
+	tracking?: unknown;
 }
 
 /** Link de checkout do plano com nome, e-mail, CPF e telefone já informados (?name=&email=&document=&phone=). */
@@ -31,6 +34,8 @@ export function checkoutUrlWithPrefill(plan: string, prefill: CheckoutPrefill) {
 	url.searchParams.set("email", prefill.email.trim());
 	url.searchParams.set("document", prefill.cpf.replace(/\D/g, ""));
 	url.searchParams.set("phone", prefill.phone.replace(/\D/g, ""));
+	const aff = sanitizeTracking(prefill.tracking)?.aff;
+	if (aff) url.searchParams.set("aff", aff);
 	return url.toString();
 }
 

@@ -14,7 +14,7 @@ class RegisterDto {
 	@IsString() @MinLength(2) city: string;
 	@IsString() @MinLength(3) pix: string;
 	@IsIn(PLAN_IDS) plan: string;
-	/** Origem do visitante (t.js): src = trck_user_id, utm_*, fbc, fbp. Filtrado por sanitizeTracking. */
+	/** Origem do visitante (t.js): src = trck_user_id, utm_*, fbc, fbp, aff (afiliado). Filtrado por sanitizeTracking. */
 	@IsOptional() @IsObject() tracking?: Record<string, unknown>;
 }
 
