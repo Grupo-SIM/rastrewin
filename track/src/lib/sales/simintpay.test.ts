@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+	affiliateOf,
 	isRefunded,
 	isSaleActive,
 	mapStatus,
@@ -90,4 +91,72 @@ test("postApprovalOnly: depois da aprovação, só uma nova aprovação muda os 
 	// antes da aprovação (PIX gerado → aprovado) os dados seguem sendo preenchidos
 	assert.equal(postApprovalOnly(null, "pending"), false);
 	assert.equal(postApprovalOnly(undefined, "refunded"), false);
+});
+
+test("afiliado: o evento da SimIntPay é a fonte da verdade (código, comissão em reais e nome)", () => {
+	const f = toPurchaseFields(
+		salesEventSchema.parse({
+			...payload,
+			affiliate: { code: "Joao-9", commissionCents: 540, name: " João Silva " },
+			// a reserva do tracking não pode vencer o evento
+			tracking: { ...payload.tracking, aff: "OUTRO-1" },
+		}),
+	);
+	assert.deepEqual(f.affiliate, {
+		authoritative: true,
+		value: { code: "Joao-9", commission: "5.40", name: "João Silva" },
+	});
+	// comissão zero é uma comissão informada (afiliado sem comissão nesta venda), não ausência
+	const zero = affiliateOf(
+		salesEventSchema.parse({ ...payload, affiliate: { code: "abc", commissionCents: 0 } }),
+	);
+	assert.equal(zero?.value.commission, "0.00");
+	assert.equal(zero?.value.name, null);
+});
+
+test("afiliado: sem o campo, tracking.aff vale só como reserva do código, sem comissão", () => {
+	const f = toPurchaseFields(
+		salesEventSchema.parse({ ...payload, tracking: { ...payload.tracking, aff: "RESERVA_1" } }),
+	);
+	assert.deepEqual(f.affiliate, {
+		authoritative: false,
+		value: { code: "RESERVA_1", commission: null, name: null },
+	});
+	assert.equal(toPurchaseFields(salesEventSchema.parse({ ...payload, affiliate: null })).affiliate, null);
+	assert.equal(toPurchaseFields(salesEventSchema.parse(payload)).affiliate, null);
+	// reserva fora do formato é descartada
+	for (const bad of ["ab", "a b", "x".repeat(41), "<b>"])
+		assert.equal(
+			toPurchaseFields(salesEventSchema.parse({ ...payload, tracking: { aff: bad } })).affiliate,
+			null,
+			bad,
+		);
+});
+
+test("afiliado malformado no evento não derruba a venda: é ignorado (vale a reserva, sem comissão)", () => {
+	for (const affiliate of [
+		{ code: "x", commissionCents: 100 },
+		{ code: "abc", commissionCents: -1 },
+		{ code: "abc" },
+		"abc",
+	]) {
+		const parsed = salesEventSchema.safeParse({ ...payload, affiliate, tracking: { aff: "RESERVA_1" } });
+		assert.equal(parsed.success, true);
+		const f = toPurchaseFields(parsed.data!);
+		assert.equal(f.affiliate?.authoritative, false);
+		assert.equal(f.affiliate?.value.commission, null);
+	}
+});
+
+test("afiliado fica fixo depois da aprovação: reembolso/chargeback não regravam (postApprovalOnly)", () => {
+	const approved = new Date("2026-11-05T12:00:00Z");
+	// um chargeback que traga outro afiliado cai no ramo que só muda status e data
+	const refund = salesEventSchema.parse({
+		...payload,
+		affiliate: { code: "TROCADO", commissionCents: 1 },
+		event: "chargeback",
+	});
+	assert.equal(postApprovalOnly(approved, toPurchaseFields(refund).status), true);
+	// nova aprovação do mesmo pedido é a única que pode atualizar afiliado e comissão
+	assert.equal(postApprovalOnly(approved, toPurchaseFields(salesEventSchema.parse(payload)).status), false);
 });

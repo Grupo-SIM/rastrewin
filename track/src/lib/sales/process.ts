@@ -121,6 +121,13 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 			src: f.src,
 			webhookRaw: event,
 		};
+		// Afiliado: o do evento da SimIntPay manda (código, comissão e nome andam juntos); a reserva
+		// tracking.aff só preenche o código, sem comissão.
+		const affiliate = {
+			affiliateCode: f.affiliate?.value.code ?? null,
+			affiliateCommission: f.affiliate?.value.commission ?? null,
+			affiliateName: f.affiliate?.value.name ?? null,
+		};
 		const isApproval = f.status === "approved";
 		const isRefund = f.status === "refunded" || f.status === "chargeback";
 
@@ -130,6 +137,7 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 				status: f.status,
 				transactionId: f.transactionId,
 				...base,
+				...affiliate,
 				approvedAt: isApproval ? f.occurredAt : null,
 				isRenewal: f.isRenewal,
 				occurredAt: f.occurredAt,
@@ -182,6 +190,11 @@ export async function upsertPurchase(event: SalesEvent, currency: string) {
 			}
 		}
 		if (keepOldMatch) merged.match = purchases.match;
+		// Afiliado: evento com `affiliate` troca o conjunto inteiro; só com a reserva preenche o código
+		// se a venda ainda não tinha; sem nenhum dos dois mantém o que estava.
+		if (f.affiliate?.authoritative) Object.assign(merged, affiliate);
+		else if (f.affiliate)
+			merged.affiliateCode = sql`coalesce(${purchases.affiliateCode}, ${f.affiliate.value.code})`;
 
 		await tx
 			.update(purchases)

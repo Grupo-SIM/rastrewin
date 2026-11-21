@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TRCK_ID } from "@/lib/tracking/schemas";
+import { AFFILIATE_CODE, TRCK_ID } from "@/lib/tracking/schemas";
 
 /*
  * Contrato do webhook "Central de produtos digitais — API de vendas" do SimIntPay
@@ -25,8 +25,23 @@ const optStr = (max: number) =>
 		.nullish()
 		.transform(v => (v?.trim() ? v.trim() : null));
 
+/**
+ * Afiliado da venda, decidido pela SimIntPay (quem recebe e quanto): código, comissão em centavos e nome
+ * para exibir (sem e-mail nem valores de terceiros). Um campo malformado não derruba a venda: o
+ * afiliado é ignorado (vale a reserva `tracking.aff`, sem comissão).
+ */
+const affiliateSchema = z
+	.object({
+		code: z.string().trim().regex(AFFILIATE_CODE),
+		commissionCents: z.number().nonnegative().max(1e11),
+		name: optStr(100),
+	})
+	.nullish()
+	.catch(null);
+
 export const salesEventSchema = z
 	.object({
+		affiliate: affiliateSchema,
 		amountCents: z.number().nonnegative().max(1e11),
 		customerEmail: optStr(254),
 		customerName: optStr(200),
@@ -113,6 +128,33 @@ export function isRefunded(status: string) {
 
 const FB_COOKIE = /^fb\.\d\.\d{10,13}\.[\w.-]+$/;
 
+export interface PurchaseAffiliate {
+	code: string;
+	/** Reais com 2 casas; nulo quando o evento não traz comissão (reserva `tracking.aff`). */
+	commission: string | null;
+	name: string | null;
+}
+
+/**
+ * Afiliado da venda. Fonte da verdade: `affiliate` do evento da SimIntPay. `tracking.aff` só serve de
+ * reserva quando o evento não traz o campo e NUNCA define comissão.
+ */
+export function affiliateOf(p: SalesEvent): { authoritative: boolean; value: PurchaseAffiliate } | null {
+	if (p.affiliate)
+		return {
+			authoritative: true,
+			value: {
+				code: p.affiliate.code,
+				commission: (Math.round(p.affiliate.commissionCents) / 100).toFixed(2),
+				name: p.affiliate.name,
+			},
+		};
+	const aff = p.tracking?.aff?.trim();
+	if (aff && AFFILIATE_CODE.test(aff))
+		return { authoritative: false, value: { code: aff, commission: null, name: null } };
+	return null;
+}
+
 export interface PurchaseItem {
 	id: string;
 	name: string;
@@ -140,6 +182,7 @@ export function toPurchaseFields(p: SalesEvent) {
 		utmTerm: pick("utm_term"),
 	};
 	return {
+		affiliate: affiliateOf(p),
 		fbc: pick("fbc") && FB_COOKIE.test(pick("fbc")!) ? pick("fbc") : null,
 		fbclid: pick("fbclid"),
 		fbp: pick("fbp") && FB_COOKIE.test(pick("fbp")!) ? pick("fbp") : null,
