@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { NO_AFFILIATE } from "@/lib/dashboard/affiliate";
 import { parseEventTypes, serializeEventTypes } from "@/lib/dashboard/event-types";
 import { DEFAULT_PRESET, PRESETS } from "@/lib/dashboard/period";
 import { cn } from "@/lib/utils";
@@ -182,6 +183,22 @@ export function SelectFilter({
 				))}
 			</SelectContent>
 		</Select>
+	);
+}
+
+/** Filtro "Afiliado" (?afiliado=CODE | ~sem): Todos, Sem afiliado e cada código (com o nome, se houver). */
+export function AffiliateFilter({ options }: { options: { code: string; name: string | null }[] }) {
+	return (
+		<SelectFilter
+			name="afiliado"
+			label="Afiliado"
+			allLabel="Todos os afiliados"
+			options={[
+				{ label: "Sem afiliado", value: NO_AFFILIATE },
+				...options.map(o => ({ label: o.name ? `${o.name} · ${o.code}` : o.code, value: o.code })),
+			]}
+			width="w-[13rem]"
+		/>
 	);
 }
 

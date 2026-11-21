@@ -1,6 +1,16 @@
 import "server-only";
 import { sql } from "drizzle-orm";
-import { ACTIVE_SALE, num, param, rows, type SearchParams, withDashboard } from "./context";
+import {
+	ACTIVE_SALE,
+	affiliateFilter,
+	type AffiliateOption,
+	affiliateOptions,
+	num,
+	param,
+	rows,
+	type SearchParams,
+	withDashboard,
+} from "./context";
 import { pageKeySql } from "./page-url";
 import type { Period } from "./period";
 
@@ -27,6 +37,7 @@ export interface PageStat {
 	revenue: number;
 }
 export interface PagesView {
+	affiliates: AffiliateOption[];
 	period: Period;
 	currency: string;
 	q: string | null;
@@ -39,6 +50,9 @@ export interface PagesView {
 export function getPages(sp: SearchParams): Promise<PagesView> {
 	return withDashboard(sp, async ({ tx, period, currency }) => {
 		const { start: s, end: e } = period;
+		// Filtro de afiliado: PageViews/checkouts pelo afiliado do visitante; compras pelo da venda.
+		const evAff = affiliateFilter(sp);
+		const puAff = affiliateFilter(sp);
 		const q = param(sp, "q")?.trim().toLowerCase().slice(0, 200) || null;
 		const pageNum = Math.max(1, Math.min(10_000, Number(param(sp, "page")) || 1));
 		const page = pageKeySql(sql`event_source_url`);
@@ -47,15 +61,15 @@ export function getPages(sp: SearchParams): Promise<PagesView> {
 		const base = sql`
       pv as (
         select ${page} as page, trck_user_id from events_log
-        where event_name = 'PageView' and created_at >= ${s} and created_at < ${e}
+        where event_name = 'PageView' and created_at >= ${s} and created_at < ${e} and ${evAff}
       ),
       ic as (
         select distinct trck_user_id from events_log
-        where event_name = 'InitiateCheckout' and created_at >= ${s} and created_at < ${e}
+        where event_name = 'InitiateCheckout' and created_at >= ${s} and created_at < ${e} and ${evAff}
       ),
       buyers as (
         select trck_user_id, count(*) as c, sum(value) as r from purchases
-        where status in ${ACTIVE_SALE} and not is_renewal and trck_user_id is not null
+        where status in ${ACTIVE_SALE} and not is_renewal and trck_user_id is not null and ${puAff}
           and coalesce(occurred_at, created_at) >= ${s} and coalesce(occurred_at, created_at) < ${e}
         group by 1
       )`;
@@ -100,6 +114,7 @@ export function getPages(sp: SearchParams): Promise<PagesView> {
 		);
 
 		return {
+			affiliates: await affiliateOptions(tx, sp),
 			currency,
 			page: pageNum,
 			pageSize: PAGE_SIZE,

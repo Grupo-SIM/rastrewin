@@ -1,6 +1,17 @@
 import "server-only";
 import { sql } from "drizzle-orm";
-import { ACTIVE_SALE, num, param, REFUNDED, rows, type SearchParams, withDashboard } from "./context";
+import {
+	ACTIVE_SALE,
+	affiliateFilter,
+	type AffiliateOption,
+	affiliateOptions,
+	num,
+	param,
+	REFUNDED,
+	rows,
+	type SearchParams,
+	withDashboard,
+} from "./context";
 import { type DailyPoint, fillDays } from "./overview";
 import type { Period } from "./period";
 
@@ -30,6 +41,10 @@ export interface PurchaseRow {
 	paymentMethod: string | null;
 	utmSource: string | null;
 	utmCampaign: string | null;
+	/** Afiliado da venda (código, nome da SimIntPay e comissão em reais; null sem afiliado/comissão). */
+	affiliateCode: string | null;
+	affiliateName: string | null;
+	affiliateCommission: number | null;
 	matchedBy: string | null;
 	/**
 	 * ok = enviado; erro = tentou e falhou; pendente = ainda não tentou (ou sem conta ativa);
@@ -39,7 +54,24 @@ export interface PurchaseRow {
 	ga4Status: "ok" | "erro" | "pendente" | "renovacao" | "sem_consentimento";
 }
 
+/** Linha do card "Por afiliado". code null = vendas sem afiliado. */
+export interface AffiliateStat {
+	code: string | null;
+	name: string | null;
+	/** Vendas NOVAS (aquisição): renovações ficam em `renewals`. */
+	sales: number;
+	renewals: number;
+	/** Receita de TODAS as vendas (dinheiro que entrou), renovações incluídas. */
+	revenue: number;
+	/** Comissão das vendas ativas (inclui a de renovações, quando a SimIntPay a paga). */
+	commission: number;
+	/** Líquido do dono: valor líquido (após taxas) menos a comissão. */
+	net: number;
+}
+
 export interface Revenue {
+	affiliates: AffiliateOption[];
+	byAffiliate: AffiliateStat[];
 	period: Period;
 	timeZone: string;
 	currency: string;
@@ -69,6 +101,7 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 		// Período anterior = [ps, pe). Nos filtros de mês ele não encosta no atual (01–08/10 × 01–08/11).
 		const { start: s, end: e, prevStart: ps, prevEnd: pe } = period;
 		const d = sql`coalesce(occurred_at, created_at)`;
+		const aff = affiliateFilter(sp);
 
 		const [k] = await rows<Record<string, unknown>>(
 			tx,
@@ -82,30 +115,47 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
         count(*) filter (where ${d} >= ${s} and is_renewal) as renewals,
         coalesce(sum(value) filter (where ${d} >= ${s} and is_renewal), 0) as renewals_value,
         count(*) filter (where ${d} < ${pe} and is_renewal) as renewals_prev
-      from purchases where status in ${ACTIVE_SALE} and ${d} >= ${ps} and ${d} < ${e}`,
+      from purchases where status in ${ACTIVE_SALE} and ${d} >= ${ps} and ${d} < ${e} and ${aff}`,
 		);
 
 		const [r] = await rows<Record<string, unknown>>(
 			tx,
 			sql`
       select count(*) as refunds, coalesce(sum(value), 0) as refunds_value from purchases
-      where status in ${REFUNDED} and coalesce(refunded_at, updated_at) >= ${s} and coalesce(refunded_at, updated_at) < ${e}`,
+      where status in ${REFUNDED} and coalesce(refunded_at, updated_at) >= ${s} and coalesce(refunded_at, updated_at) < ${e} and ${aff}`,
 		);
 
 		const byDay = await rows<{ day: string; value: unknown }>(
 			tx,
 			sql`
       select ((${d} at time zone ${tz})::date)::text as day, sum(value) as value from purchases
-      where status in ${ACTIVE_SALE} and ${d} >= ${s} and ${d} < ${e} group by 1`,
+      where status in ${ACTIVE_SALE} and ${d} >= ${s} and ${d} < ${e} and ${aff} group by 1`,
 		);
 
 		const methods = await rows<{ key: string; value: unknown; count: unknown }>(
 			tx,
 			sql`
       select coalesce(payment_method, 'OUTRO') as key, sum(value) as value, count(*) as count from purchases
-      where status in ${ACTIVE_SALE} and ${d} >= ${s} and ${d} < ${e}
+      where status in ${ACTIVE_SALE} and ${d} >= ${s} and ${d} < ${e} and ${aff}
       group by 1 order by sum(value) desc`,
 		);
+
+		// Por afiliado: receita conta tudo (é dinheiro que entrou); vendas (aquisição) só as novas.
+		const affRows = await rows<Record<string, unknown>>(
+			tx,
+			sql`
+      select affiliate_code as code,
+             (array_agg(affiliate_name order by updated_at desc) filter (where affiliate_name is not null))[1] as name,
+             count(*) filter (where not is_renewal) as sales,
+             count(*) filter (where is_renewal) as renewals,
+             coalesce(sum(value), 0) as revenue,
+             coalesce(sum(affiliate_commission), 0) as commission,
+             coalesce(sum(coalesce(net_value, value)), 0) - coalesce(sum(affiliate_commission), 0) as net
+      from purchases
+      where status in ${ACTIVE_SALE} and ${d} >= ${s} and ${d} < ${e} and ${aff}
+      group by affiliate_code order by sum(value) desc`,
+		);
+		const affiliates = await affiliateOptions(tx, sp);
 
 		// tabela
 		const status = PURCHASE_STATUS_FILTERS.some(f => f.key === param(sp, "status"))
@@ -115,6 +165,7 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 		const page = Math.max(1, Math.min(10_000, Number(param(sp, "page")) || 1));
 		const where = sql.join(
 			[
+				affiliateFilter(sp, "p.affiliate_code"),
 				sql`coalesce(p.occurred_at, p.created_at) >= ${s} and coalesce(p.occurred_at, p.created_at) < ${e}`,
 				...(STATUS_SQL[status] ? [STATUS_SQL[status]] : []),
 				...(q
@@ -134,6 +185,7 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 			sql`
       select p.id, p.transaction_id, coalesce(p.occurred_at, p.created_at) as date, p.product, p.value, p.currency, p.status,
              p.payment_method, p.utm_source, p.utm_campaign, p.match->>'by' as matched_by,
+             p.affiliate_code, p.affiliate_name, p.affiliate_commission,
              case when p.is_renewal then 'renovacao' when p.meta_sent_at is not null then 'ok' when p.marketing_consent is not true then 'sem_consentimento' when p.meta_attempts > 0 then 'erro' else 'pendente' end as meta_status,
              case when p.is_renewal then 'renovacao' when p.ga4_sent_at is not null then 'ok' when p.marketing_consent is not true then 'sem_consentimento' when p.ga4_attempts > 0 then 'erro' else 'pendente' end as ga4_status
       from purchases p where ${where}
@@ -142,6 +194,16 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 		);
 
 		return {
+			affiliates,
+			byAffiliate: affRows.map(a => ({
+				code: (a.code as string | null) ?? null,
+				commission: num(a.commission),
+				name: (a.name as string | null) ?? null,
+				net: num(a.net),
+				renewals: num(a.renewals),
+				revenue: num(a.revenue),
+				sales: num(a.sales),
+			})),
 			byPaymentMethod: methods.map(m => ({
 				count: num(m.count),
 				key: m.key,
@@ -168,6 +230,9 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 				pageSize: PAGE_SIZE,
 				q,
 				rows: list.map(x => ({
+					affiliateCode: (x.affiliate_code as string | null) ?? null,
+					affiliateCommission: x.affiliate_commission === null ? null : num(x.affiliate_commission),
+					affiliateName: (x.affiliate_name as string | null) ?? null,
 					currency: String(x.currency),
 					date: new Date(x.date as string).toISOString(),
 					ga4Status: x.ga4_status as PurchaseRow["ga4Status"],

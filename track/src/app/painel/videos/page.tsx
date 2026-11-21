@@ -13,7 +13,13 @@ import { Suspense } from "react";
 import { ChartCard } from "@/components/charts/chart-card";
 import { RankedBars } from "@/components/charts/ranked-bars";
 import { RetentionChart } from "@/components/charts/retention-chart";
-import { FiltersBar, FiltersProvider, PendingArea, SelectFilter } from "@/components/dashboard/filters";
+import {
+	AffiliateFilter,
+	FiltersBar,
+	FiltersProvider,
+	PendingArea,
+	SelectFilter,
+} from "@/components/dashboard/filters";
 import { EmptyState } from "@/components/empty-state";
 import { GlassCard } from "@/components/glass-card";
 import { KpiCard } from "@/components/kpi-card";
@@ -63,6 +69,7 @@ async function VideosContent({ searchParams }: { searchParams: Promise<SearchPar
 							options={d.videos.slice(1).map(x => ({ label: label(x), value: x.videoId }))}
 						/>
 					)}
+					<AffiliateFilter options={d.affiliates} />
 				</FiltersBar>
 				<PendingArea className="flex flex-col gap-4">
 					{!v ? (

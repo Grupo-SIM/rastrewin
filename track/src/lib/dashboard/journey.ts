@@ -86,6 +86,8 @@ export interface JourneyPurchase {
 	matchReason: string | null;
 	utm: Utm;
 	fbclid: string | null;
+	/** Afiliado da venda (a comissão não reescreve a receita; em reembolso/chargeback fica como revertida). */
+	affiliate: { code: string; name: string | null; commission: number | null } | null;
 }
 
 export interface Journey {
@@ -108,9 +110,13 @@ export interface Journey {
 		/** Rótulo amigável do referrer (próprio site e vazio = Direto). */
 		referrerSource: ReferrerSource;
 		utm: Utm;
+		/** Afiliado do último clique (só existe com consentimento de marketing). */
+		affiliateCode: string | null;
 		createdAt: string | null;
 		updatedAt: string | null;
 	} | null;
+	/** Primeiro registro (evento ou play) com afiliado: o afiliado do primeiro toque. */
+	firstAffiliate: { at: string; code: string } | null;
 	firstSeen: string | null;
 	lastSeen: string | null;
 	/** Primeiro registro com UTM (evento, play ou compra): a origem do primeiro toque. */
@@ -142,7 +148,7 @@ export function getJourney(id: string, ver: string | null): Promise<Journey | nu
 			sql`
       select email, em_hash, ph_hash, fbc, fbp, ga_client_id, ga_session_id, host(ip) as ip, user_agent,
              geo_city, geo_region, geo_country, landing_url, referrer,
-             utm_source, utm_medium, utm_campaign, utm_term, utm_content, created_at, updated_at
+             utm_source, utm_medium, utm_campaign, utm_term, utm_content, affiliate_code, created_at, updated_at
       from visitors where trck_user_id = ${id}`,
 		);
 
@@ -197,6 +203,7 @@ export function getJourney(id: string, ver: string | null): Promise<Journey | nu
       select transaction_id, status, value, currency, product, payment_method, is_renewal,
              coalesce(occurred_at, created_at) as occurred_at, match->>'by' as match_by,
              match->>'reason' as match_reason, fbclid,
+             affiliate_code, affiliate_name, affiliate_commission,
              utm_source, utm_medium, utm_campaign, utm_term, utm_content,
              webhook_raw->>'customerName' as customer_name, webhook_raw->>'phone' as phone
       from purchases where trck_user_id = ${id}
@@ -279,6 +286,18 @@ export function getJourney(id: string, ver: string | null): Promise<Journey | nu
       ) x order by at asc limit 1`,
 		);
 
+		const [fa] = await rows<Record<string, unknown>>(
+			tx,
+			sql`
+      select at, code from (
+        select created_at as at, affiliate_code as code from events_log
+        where trck_user_id = ${id} and affiliate_code is not null
+        union all
+        select started_at, affiliate_code from video_views
+        where trck_user_id = ${id} and affiliate_code is not null
+      ) x order by at asc limit 1`,
+		);
+
 		const latestBuyer = purchaseRows.find(r => r.customer_name || r.phone);
 		const counts = {
 			events: num(c?.events),
@@ -296,6 +315,7 @@ export function getJourney(id: string, ver: string | null): Promise<Journey | nu
 		return {
 			counts,
 			currency,
+			firstAffiliate: fa ? { at: iso(fa.at)!, code: String(fa.code) } : null,
 			firstSeen: times.sort()[0] ?? null,
 			firstTouch: ft ? { at: iso(ft.at)!, url: str(ft.url), utm: utmOf(ft) } : null,
 			hasMore: counts.total > items.length,
@@ -303,6 +323,13 @@ export function getJourney(id: string, ver: string | null): Promise<Journey | nu
 			items,
 			lastSeen: lastTimes.sort().at(-1) ?? null,
 			purchases: purchaseRows.map(r => ({
+				affiliate: r.affiliate_code
+					? {
+							code: String(r.affiliate_code),
+							commission: r.affiliate_commission === null ? null : num(r.affiliate_commission),
+							name: str(r.affiliate_name),
+						}
+					: null,
 				currency: str(r.currency),
 				fbclid: str(r.fbclid),
 				isRenewal: r.is_renewal === true,
@@ -326,6 +353,7 @@ export function getJourney(id: string, ver: string | null): Promise<Journey | nu
 			timeZone: tz,
 			visitor: v
 				? {
+						affiliateCode: str(v.affiliate_code),
 						createdAt: iso(v.created_at),
 						email: str(v.email),
 						fbc: str(v.fbc),

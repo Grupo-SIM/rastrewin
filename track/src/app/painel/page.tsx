@@ -16,7 +16,7 @@ import { ChartCard } from "@/components/charts/chart-card";
 import { Funnel } from "@/components/charts/funnel";
 import { RankedBars } from "@/components/charts/ranked-bars";
 import { TrendChart } from "@/components/charts/trend-chart";
-import { FiltersBar, FiltersProvider, PendingArea } from "@/components/dashboard/filters";
+import { AffiliateFilter, FiltersBar, FiltersProvider, PendingArea } from "@/components/dashboard/filters";
 import { EmptyState } from "@/components/empty-state";
 import { KpiCard } from "@/components/kpi-card";
 import { PageHeader } from "@/components/page-header";
@@ -71,7 +71,9 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 	return (
 		<FiltersProvider>
 			<div className="flex flex-col gap-4">
-				<FiltersBar />
+				<FiltersBar>
+					<AffiliateFilter options={d.affiliates} />
+				</FiltersBar>
 				<p className="text-muted-foreground text-xs">
 					{d.period.label}
 					{/* No personalizado o nome já traz as datas */}
@@ -149,6 +151,7 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 								currency={currency}
 								revenue={kpis.revenueNew}
 								revenuePrev={kpis.revenueNewPrev}
+								affiliateFiltered={d.affiliateFilter !== null}
 							/>
 						</Suspense>
 					</section>
@@ -268,12 +271,14 @@ async function SpendCards({
 	currency,
 	revenue,
 	revenuePrev,
+	affiliateFiltered,
 }: {
 	period: Period;
 	timeZone: string;
 	currency: string;
 	revenue: number;
 	revenuePrev: number;
+	affiliateFiltered: boolean;
 }) {
 	let ads: AdSpend;
 	try {
@@ -320,6 +325,11 @@ async function SpendCards({
 				value={formatRoas(r)}
 				icon={TrendingUpIcon}
 				info="Receita das vendas novas ÷ gasto (renovações não entram). Inclui vendas novas que não vieram de anúncio; o ROAS só das campanhas fica na aba Campanhas."
+				hint={
+					affiliateFiltered
+						? "Filtro de afiliado: a receita é filtrada, o gasto da Meta não (não se divide por afiliado)."
+						: undefined
+				}
 				delta={compare && r !== null && rPrev !== null ? { value: delta(r, rPrev) } : undefined}
 			/>
 		</>

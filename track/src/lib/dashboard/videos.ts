@@ -1,6 +1,16 @@
 import "server-only";
 import { sql } from "drizzle-orm";
-import { ACTIVE_SALE, num, param, rows, type SearchParams, withDashboard } from "./context";
+import {
+	ACTIVE_SALE,
+	affiliateFilter,
+	type AffiliateOption,
+	affiliateOptions,
+	num,
+	param,
+	rows,
+	type SearchParams,
+	withDashboard,
+} from "./context";
 import { pageKey, pageKeySql } from "./page-url";
 import type { Period } from "./period";
 import { type Bin, retentionCurve, type RetentionPoint, stopBands } from "./video-stats";
@@ -42,6 +52,7 @@ export interface VideoDetail {
 	bands: { label: string; value: number }[];
 }
 export interface VideosView {
+	affiliates: AffiliateOption[];
 	period: Period;
 	timeZone: string;
 	videos: VideoRow[];
@@ -53,7 +64,9 @@ const toNum = (v: unknown) => (v === null || v === undefined ? null : Number(v))
 export function getVideos(sp: SearchParams): Promise<VideosView> {
 	return withDashboard(sp, async ({ tx, period, tz }) => {
 		const { start: s, end: e } = period;
-		const inPeriod = sql`started_at >= ${s} and started_at < ${e}`;
+		// Filtro de afiliado: plays, PageViews e compras pelo mesmo código (visitante no play/evento, venda).
+		const aff = affiliateFilter(sp);
+		const inPeriod = sql`started_at >= ${s} and started_at < ${e} and ${aff}`;
 
 		const list = await rows<Record<string, unknown>>(
 			tx,
@@ -80,7 +93,8 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
 
 		const wanted = param(sp, "video");
 		const pick = videos.find(v => v.videoId === wanted) ?? videos[0];
-		if (!pick) return { period, selected: null, timeZone: tz, videos };
+		const affiliates = await affiliateOptions(tx, sp);
+		if (!pick) return { affiliates, period, selected: null, timeZone: tz, videos };
 
 		const vid = sql`video_id = ${pick.videoId} and ${inPeriod}`;
 		const [sum] = await rows<Record<string, unknown>>(
@@ -113,10 +127,10 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
       select
         (select count(*) from plays where ${ctaS === null ? sql`false` : sql`max_position_s >= ${ctaS}`}) as reached_cta,
         (select count(*) from events_log
-          where event_name = 'PageView' and created_at >= ${viewsFrom} and created_at < ${e}
+          where event_name = 'PageView' and created_at >= ${viewsFrom} and created_at < ${e} and ${aff}
             and ${pageKeySql(sql`event_source_url`)} in (select page from pages)) as page_views,
         (select count(distinct p.trck_user_id) from purchases p
-          where p.status in ${ACTIVE_SALE} and not p.is_renewal
+          where p.status in ${ACTIVE_SALE} and not p.is_renewal and ${aff}
             and coalesce(p.occurred_at, p.created_at) >= ${s} and coalesce(p.occurred_at, p.created_at) < ${e}
             and p.trck_user_id in (select trck_user_id from plays)) as buyers`,
 		);
@@ -132,6 +146,7 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
 		const bins: Bin[] = hist.map(h => ({ bin: num(h.bin), count: num(h.c) }));
 
 		return {
+			affiliates,
 			period,
 			selected: {
 				avgPct: toNum(sum?.avg_pct),

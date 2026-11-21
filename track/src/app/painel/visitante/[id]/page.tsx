@@ -253,6 +253,18 @@ function OriginCard({ j }: { j: Journey }) {
 					) : (
 						<span className="text-muted-foreground">Sem UTMs registradas</span>
 					)}
+					{j.firstAffiliate && (
+						<div className="mt-1">
+							<span className="text-muted-foreground">Afiliado: </span>
+							<span className="font-medium">{j.firstAffiliate.code}</span>
+							{!j.firstTouch && (
+								<span className="num text-muted-foreground text-xs">
+									{" "}
+									· {formatDateTime(j.firstAffiliate.at, j.timeZone)}
+								</span>
+							)}
+						</div>
+					)}
 				</div>
 				<div>
 					<div className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
@@ -269,6 +281,12 @@ function OriginCard({ j }: { j: Journey }) {
 							}
 						}
 					/>
+					{v?.affiliateCode && (
+						<div className="mt-1">
+							<span className="text-muted-foreground">Afiliado: </span>
+							<span className="font-medium">{v.affiliateCode}</span>
+						</div>
+					)}
 				</div>
 				<dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
 					<Row label="Primeira página">
@@ -350,6 +368,34 @@ function PurchasesCard({ j }: { j: Journey }) {
 									)}
 								</Row>
 								<Row label="Produto">{dash(p.product)}</Row>
+								<Row label="Afiliado">
+									{p.affiliate ? (
+										<span>
+											<span className="font-medium">{p.affiliate.code}</span>
+											{p.affiliate.name && (
+												<span className="text-muted-foreground">
+													{" "}
+													· {p.affiliate.name}
+												</span>
+											)}
+											{p.affiliate.commission !== null && (
+												<span className="text-muted-foreground block text-xs">
+													Comissão{" "}
+													<span className="num">
+														{formatMoney(
+															p.affiliate.commission,
+															p.currency ?? j.currency,
+														)}
+													</span>
+													{(p.status === "refunded" || p.status === "chargeback") &&
+														" · revertida"}
+												</span>
+											)}
+										</span>
+									) : (
+										"—"
+									)}
+								</Row>
 								<Row label="Ligada por">
 									{p.matchBy ? (MATCH_LABEL[p.matchBy] ?? p.matchBy) : "—"}
 									{p.matchReason && (

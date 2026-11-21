@@ -1,7 +1,18 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { summarizeOrigins } from "@/lib/tracking/referrer";
-import { ACTIVE_SALE, num, ownHosts, rows, type SearchParams, withDashboard } from "./context";
+import {
+	ACTIVE_SALE,
+	affiliateFilter,
+	type AffiliateOption,
+	affiliateOptions,
+	affiliateParam,
+	num,
+	ownHosts,
+	rows,
+	type SearchParams,
+	withDashboard,
+} from "./context";
 import { daysOf, type Period } from "./period";
 
 export interface DailyPoint {
@@ -10,6 +21,9 @@ export interface DailyPoint {
 }
 
 export interface Overview {
+	affiliates: AffiliateOption[];
+	/** Filtro de afiliado ativo (código ou `~sem`); null = todos. O gasto da Meta nunca é filtrado. */
+	affiliateFilter: string | null;
 	period: Period;
 	timeZone: string;
 	currency: string;
@@ -49,6 +63,11 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 	return withDashboard(sp, async ({ tx, tz, period, currency }) => {
 		// Período anterior = [ps, pe). Nos filtros de mês ele não encosta no atual (01–08/10 × 01–08/11).
 		const { start: s, end: e, prevStart: ps, prevEnd: pe } = period;
+		// Filtro de afiliado: eventos pelo afiliado do visitante no evento; vendas pelo afiliado da venda.
+		const evAff = affiliateFilter(sp, "affiliate_code");
+		const evAffL = affiliateFilter(sp, "l.affiliate_code");
+		const puAff = affiliateFilter(sp, "affiliate_code");
+		const puAffP = affiliateFilter(sp, "p.affiliate_code");
 
 		const [ev] = await rows<Record<string, unknown>>(
 			tx,
@@ -58,7 +77,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
         count(distinct trck_user_id) filter (where created_at < ${pe}) as users_prev,
         count(*) filter (where created_at >= ${s} and created_at < ${e}) as events,
         count(*) filter (where created_at < ${pe}) as events_prev
-      from events_log where created_at >= ${ps} and created_at < ${e}`,
+      from events_log where created_at >= ${ps} and created_at < ${e} and ${evAff}`,
 		);
 
 		const [pu] = await rows<Record<string, unknown>>(
@@ -66,7 +85,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 			sql`
       with p as (
         select coalesce(occurred_at, created_at) as d, value, is_renewal as ren
-        from purchases where status in ${ACTIVE_SALE}
+        from purchases where status in ${ACTIVE_SALE} and ${puAff}
       )
       select
         count(*) filter (where d >= ${s} and not ren) as purchases,
@@ -85,13 +104,13 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 			sql`
       with visited as (
         select distinct trck_user_id from events_log
-        where event_name = 'PageView' and created_at >= ${s} and created_at < ${e}
+        where event_name = 'PageView' and created_at >= ${s} and created_at < ${e} and ${evAff}
       ), checkout as (
         select distinct l.trck_user_id from events_log l join visited v using (trck_user_id)
-        where l.event_name = 'InitiateCheckout' and l.created_at >= ${s} and l.created_at < ${e}
+        where l.event_name = 'InitiateCheckout' and l.created_at >= ${s} and l.created_at < ${e} and ${evAffL}
       ), buyers as (
         select distinct trck_user_id from purchases
-        where status in ${ACTIVE_SALE} and not is_renewal and trck_user_id is not null
+        where status in ${ACTIVE_SALE} and not is_renewal and trck_user_id is not null and ${puAff}
           and coalesce(occurred_at, created_at) >= ${s} and coalesce(occurred_at, created_at) < ${e}
       )
       select
@@ -99,7 +118,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
         (select count(*) from checkout) as checkout,
         (select count(*) from checkout c join buyers b using (trck_user_id)) as purchased,
         (select count(*) from purchases p
-          where p.status in ${ACTIVE_SALE} and not p.is_renewal
+          where p.status in ${ACTIVE_SALE} and not p.is_renewal and ${puAffP}
             and coalesce(p.occurred_at, p.created_at) >= ${s} and coalesce(p.occurred_at, p.created_at) < ${e}
             and (p.trck_user_id is null or p.trck_user_id not in (select trck_user_id from checkout))) as outside`,
 		);
@@ -108,7 +127,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 			tx,
 			sql`
       select event_name as label, count(*) as value from events_log
-      where created_at >= ${s} and created_at < ${e}
+      where created_at >= ${s} and created_at < ${e} and ${evAff}
       group by event_name order by count(*) desc`,
 		);
 
@@ -116,14 +135,14 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 			tx,
 			sql`
       select ((created_at at time zone ${tz})::date)::text as day, count(distinct trck_user_id) as value
-      from events_log where created_at >= ${s} and created_at < ${e} group by 1`,
+      from events_log where created_at >= ${s} and created_at < ${e} and ${evAff} group by 1`,
 		);
 
 		const revenueByDay = await rows<{ day: string; value: unknown }>(
 			tx,
 			sql`
       select ((coalesce(occurred_at, created_at) at time zone ${tz})::date)::text as day, sum(value) as value
-      from purchases where status in ${ACTIVE_SALE}
+      from purchases where status in ${ACTIVE_SALE} and ${puAff}
         and coalesce(occurred_at, created_at) >= ${s} and coalesce(occurred_at, created_at) < ${e}
       group by 1`,
 		);
@@ -137,21 +156,32 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 		const purchased = num(fu.purchased);
 		// Origens: por visitante do período, a utm_source mais recente dos eventos do período; sem UTM,
 		// o domínio do referrer guardado (1ª origem externa). Total = usuários únicos do período.
-		const originRows = await rows<{ utm: string | null; host: string | null; visitors: unknown }>(
+		const originRows = await rows<{
+			aff: string | null;
+			utm: string | null;
+			host: string | null;
+			visitors: unknown;
+		}>(
 			tx,
 			sql`
       with p as (
         select trck_user_id,
-               (array_agg(utm_source order by created_at desc) filter (where utm_source is not null))[1] as utm
-        from events_log where created_at >= ${s} and created_at < ${e}
+               (array_agg(utm_source order by created_at desc) filter (where utm_source is not null))[1] as utm,
+               (array_agg(affiliate_code order by created_at desc) filter (where affiliate_code is not null))[1] as aff
+        from events_log where created_at >= ${s} and created_at < ${e} and ${evAff}
         group by trck_user_id
       )
-      select p.utm, lower(substring(v.referrer from '^[a-zA-Z]+://([^/:?#]+)')) as host, count(*) as visitors
+      select p.aff, p.utm, lower(substring(v.referrer from '^[a-zA-Z]+://([^/:?#]+)')) as host, count(*) as visitors
       from p left join visitors v on v.trck_user_id = p.trck_user_id
-      group by 1, 2`,
+      group by 1, 2, 3`,
 		);
 		const origins = summarizeOrigins(
-			originRows.map(r => ({ referrer: r.host, utmSource: r.utm, visitors: num(r.visitors) })),
+			originRows.map(r => ({
+				affiliate: r.aff,
+				referrer: r.host,
+				utmSource: r.utm,
+				visitors: num(r.visitors),
+			})),
 			await ownHosts(tx),
 		);
 
@@ -160,6 +190,8 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 		eventsByType.sort((a, b) => b.value - a.value);
 
 		return {
+			affiliateFilter: affiliateParam(sp),
+			affiliates: await affiliateOptions(tx, sp),
 			currency,
 			eventsByType,
 			funnel: {

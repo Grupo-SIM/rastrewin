@@ -64,6 +64,9 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 								Origem
 							</th>
 							<th scope="col" className="py-2 pr-3 font-medium">
+								Afiliado
+							</th>
+							<th scope="col" className="py-2 pr-3 font-medium">
 								Ligada por
 							</th>
 							<th scope="col" className="py-2 pr-3 font-medium">
@@ -98,6 +101,15 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 								</td>
 								<td className="text-muted-foreground max-w-48 truncate py-2 pr-3">
 									{origin(r)}
+								</td>
+								<td className="max-w-40 py-2 pr-3">
+									{r.affiliateCode ? (
+										<span className="block truncate" title={r.affiliateName ?? undefined}>
+											{r.affiliateCode}
+										</span>
+									) : (
+										<span className="text-muted-foreground">—</span>
+									)}
 								</td>
 								<td className="text-muted-foreground py-2 pr-3">
 									{r.matchedBy ? (MATCH_LABEL[r.matchedBy] ?? r.matchedBy) : "Não ligada"}
@@ -148,6 +160,11 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 								<span className="text-muted-foreground block truncate text-xs">
 									{origin(r)}
 								</span>
+								{r.affiliateCode && (
+									<span className="text-muted-foreground block truncate text-xs">
+										Afiliado · {r.affiliateCode}
+									</span>
+								)}
 							</span>
 							<span className="flex shrink-0 flex-col items-end gap-1">
 								<span className="num text-sm font-semibold">
@@ -260,6 +277,37 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 										]
 											.filter(Boolean)
 											.join(" · ") || "—"}
+									</dd>
+									<dt className="text-muted-foreground">Afiliado</dt>
+									<dd className="break-all">
+										{detail.affiliateCode ? (
+											<>
+												<span className="font-medium">{detail.affiliateCode}</span>
+												{detail.affiliateName && (
+													<span className="text-muted-foreground">
+														{" "}
+														· {detail.affiliateName}
+													</span>
+												)}
+												{detail.affiliateCommission !== null && (
+													<span className="text-muted-foreground">
+														{" "}
+														· comissão{" "}
+														<span className="num">
+															{formatMoney(
+																detail.affiliateCommission,
+																detail.currency,
+															)}
+														</span>
+														{(detail.status === "refunded" ||
+															detail.status === "chargeback") &&
+															" (revertida: a receita da venda não é reescrita)"}
+													</span>
+												)}
+											</>
+										) : (
+											"—"
+										)}
 									</dd>
 									<dt className="text-muted-foreground">Meta</dt>
 									<dd>

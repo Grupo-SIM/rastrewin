@@ -4,7 +4,9 @@ import { Suspense } from "react";
 import { ChartCard } from "@/components/charts/chart-card";
 import { SegmentedBar } from "@/components/charts/segmented-bar";
 import { TrendChart } from "@/components/charts/trend-chart";
+import { AffiliatesCard } from "@/components/dashboard/affiliates-card";
 import {
+	AffiliateFilter,
 	FiltersBar,
 	FiltersProvider,
 	Pagination,
@@ -67,6 +69,7 @@ async function RevenueContent({ searchParams }: { searchParams: Promise<SearchPa
 						}))}
 						width="w-[14rem]"
 					/>
+					<AffiliateFilter options={d.affiliates} />
 					<SearchFilter placeholder="Pedido, email ou produto" />
 				</FiltersBar>
 				<PendingArea className="flex flex-col gap-4">
@@ -170,6 +173,8 @@ async function RevenueContent({ searchParams }: { searchParams: Promise<SearchPa
 							/>
 						</ChartCard>
 					</div>
+
+					<AffiliatesCard rows={d.byAffiliate} currency={currency} />
 
 					<GlassCard>
 						<CardHeader>

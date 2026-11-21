@@ -32,6 +32,9 @@ export async function getPurchaseDetail(id: number) {
 	return readAsUser(async tx => {
 		const [row] = await tx
 			.select({
+				affiliateCode: purchases.affiliateCode,
+				affiliateCommission: purchases.affiliateCommission,
+				affiliateName: purchases.affiliateName,
 				currency: purchases.currency,
 				email: purchases.email,
 				ga4Attempts: purchases.ga4Attempts,
@@ -70,6 +73,7 @@ export async function getPurchaseDetail(id: number) {
 		const iso = (d: Date | null) => d?.toISOString() ?? null;
 		return {
 			...row,
+			affiliateCommission: row.affiliateCommission === null ? null : Number(row.affiliateCommission),
 			ga4SentAt: iso(row.ga4SentAt),
 			metaSentAt: iso(row.metaSentAt),
 			netValue: row.netValue === null ? null : Number(row.netValue),

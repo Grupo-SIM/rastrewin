@@ -9,6 +9,7 @@ import {
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import {
+	AffiliateFilter,
 	FiltersBar,
 	FiltersProvider,
 	Pagination,
@@ -71,6 +72,7 @@ async function PagesContent({ searchParams }: { searchParams: Promise<SearchPara
 		<FiltersProvider>
 			<div className="flex flex-col gap-4">
 				<FiltersBar>
+					<AffiliateFilter options={d.affiliates} />
 					<SearchFilter placeholder="Buscar URL (ex.: vsl)" />
 				</FiltersBar>
 				<PendingArea className="flex flex-col gap-4">

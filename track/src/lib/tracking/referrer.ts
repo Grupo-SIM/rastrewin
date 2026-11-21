@@ -137,6 +137,8 @@ export function originOf(r: OriginInput, ownHosts: string[]): Origin {
 }
 
 export interface OriginCountRow {
+	/** Afiliado mais recente do visitante no período (vence a UTM e o referrer: é quem indicou). */
+	affiliate?: string | null;
 	/** utm_source mais recente do visitante no período (null = sem UTM). */
 	utmSource: string | null;
 	/** Domínio do referrer guardado (já extraído no SQL) ou o endereço. */
@@ -145,7 +147,8 @@ export interface OriginCountRow {
 }
 
 /**
- * Resumo "Origens dos visitantes": UTM vira "UTM · fonte"; sem UTM, o rótulo do referrer.
+ * Resumo "Origens dos visitantes": afiliado vira "Afiliado · CÓDIGO"; senão UTM vira "UTM · fonte";
+ * sem UTM, o rótulo do referrer.
  * Ordenado do maior para o menor; além de `top` grupos, o resto vira "Outros".
  */
 export function summarizeOrigins(
@@ -156,7 +159,12 @@ export function summarizeOrigins(
 	const by = new Map<string, number>();
 	for (const r of rows) {
 		const utm = r.utmSource?.trim();
-		const label = utm ? `UTM · ${utm.toLowerCase()}` : referrerSource(r.referrer, ownHosts).label;
+		const aff = r.affiliate?.trim();
+		const label = aff
+			? `Afiliado · ${aff}`
+			: utm
+				? `UTM · ${utm.toLowerCase()}`
+				: referrerSource(r.referrer, ownHosts).label;
 		by.set(label, (by.get(label) ?? 0) + r.visitors);
 	}
 	const sorted = [...by.entries()]
