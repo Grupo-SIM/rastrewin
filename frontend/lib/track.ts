@@ -37,6 +37,17 @@ function cookie(name: string): string | null {
 	}
 }
 
+/**
+ * Código do afiliado (cookie necessário _trck_aff, gravado pelo t.js na chegada com ?aff=). Lido direto
+ * do cookie, sem o t.js e sem consentimento: vai só ao checkout, para a SimIntPay pagar a comissão.
+ */
+const AFF_RE = /^[A-Za-z0-9_-]{3,40}$/;
+
+function readAffiliate(): string | null {
+	const v = cookie("_trck_aff");
+	return v && AFF_RE.test(v) ? v : null;
+}
+
 /** src (= trck_user_id), UTMs guardadas pelo t.js e cookies da Meta. Só o que existir. */
 export function readTracking(): Record<string, string> {
 	const out: Record<string, string> = {};
@@ -55,11 +66,13 @@ export function readTracking(): Record<string, string> {
 	const fbp = cookie("_fbp");
 	if (fbc) out.fbc = fbc;
 	if (fbp) out.fbp = fbp;
+	const aff = readAffiliate();
+	if (aff) out.aff = aff;
 	return out;
 }
 
 /**
- * Link do checkout com a origem do visitante na query (src, UTMs, fbc, fbp): o SimIntPay aceita
+ * Link do checkout com a origem do visitante na query (src, UTMs, fbc, fbp, aff): o SimIntPay aceita
  * esses campos e devolve no webhook, então a venda se liga à visita mesmo que o comprador use
  * outro email no checkout. Não sobrescreve o que o link já trouxer.
  */
