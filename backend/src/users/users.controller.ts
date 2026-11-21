@@ -53,7 +53,9 @@ export class UsersController {
 	 *    com os dados ENVIADOS (nunca os da conta, que são de outra pessoa).
 	 *  - Conta de quem JÁ pagou (tem senha ou pedido): só mexe quem está logado nela. Sem login, nada é
 	 *    alterado e a resposta pede o login. Sem isso, qualquer um trocava o Pix e o telefone de um cliente.
-	 * A resposta nunca traz dados da conta nem o id.
+	 * A resposta nunca traz dados da conta nem o id. `firstSignup` só é true quando o e-mail ainda não existia: a
+	 * landing manda o CompleteRegistration só nesse caso, e reenviar o formulário (corrigir dado, trocar de plano,
+	 * voltar do checkout) não conta um cadastro novo.
 	 */
 	@Post()
 	async register(@Body() dto: RegisterDto, @Req() req: Request) {
@@ -78,7 +80,10 @@ export class UsersController {
 		}
 		if (existing && !everPaid && !sameToken(existing.registrationTokenHash, registrationToken)) {
 			const submitted = { cpf: data.cpf, email, name: data.name, phone: data.phone };
-			return { checkoutUrl: checkoutUrlWithPrefill(dto.plan, submitted) ?? checkoutUrl };
+			return {
+				checkoutUrl: checkoutUrlWithPrefill(dto.plan, submitted) ?? checkoutUrl,
+				firstSignup: false,
+			};
 		}
 		// Telefone novo: a verificação por WhatsApp não vale para o número antigo.
 		const phoneChanged = !!existing && normalizePhone(existing.phone) !== normalizePhone(data.phone);
@@ -97,7 +102,7 @@ export class UsersController {
 				},
 				where: { id: existing.id },
 			});
-			return { checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl };
+			return { checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl, firstSignup: false };
 		}
 
 		// Quem já tem o código continua com ele (se a resposta se perdesse, um código trocado trancaria a pessoa
@@ -129,6 +134,7 @@ export class UsersController {
 		});
 		return {
 			checkoutUrl: checkoutUrlWithPrefill(dto.plan, user) ?? checkoutUrl,
+			firstSignup: !existing,
 			registrationToken: newToken,
 		};
 	}
