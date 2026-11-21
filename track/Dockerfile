@@ -2,20 +2,20 @@
 # Imagem do app (Next.js standalone). Buildada pelo GitHub Actions e publicada no GHCR.
 # O contexto é a raiz do monorepo: docker build -f track/Dockerfile .
 
-ARG NODE_VERSION=26
+ARG NODE_VERSION=24.22.1
 
 FROM --platform=$BUILDPLATFORM oven/bun:1.4.4-alpine AS bun
 
 # ---------- geo (base DB-IP City Lite, CC BY 4.0) ----------
 # GEO_MONTH muda todo mês no CI → invalida o cache e baixa a base nova.
-FROM node:${NODE_VERSION}-alpine AS geo
+FROM node:${NODE_VERSION}-alpine3.24 AS geo
 ARG GEO_MONTH=local
 WORKDIR /app
 COPY track/scripts/geo-download.sh scripts/geo-download.sh
 RUN echo "base de geolocalização: $GEO_MONTH" && sh scripts/geo-download.sh /app/data/geo
 
 # ---------- build ----------
-FROM node:${NODE_VERSION}-alpine AS builder
+FROM node:${NODE_VERSION}-alpine3.24 AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -31,7 +31,7 @@ COPY track track
 RUN mkdir -p track/public && bun run --cwd track build && bun run --cwd track scripts:build
 
 # ---------- runtime ----------
-FROM node:${NODE_VERSION}-alpine AS runner
+FROM node:${NODE_VERSION}-alpine3.24 AS runner
 WORKDIR /app/track
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

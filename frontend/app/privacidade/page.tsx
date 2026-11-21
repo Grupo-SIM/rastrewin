@@ -6,23 +6,25 @@ import { Logo } from "@/components/Logo";
 export const metadata: Metadata = { title: "Política de Privacidade | Rastrewin" };
 
 /*
- * RASCUNHO-BASE da política (LGPD). Descreve o que o sistema faz de fato (banner, track, prazos);
- * revise com um advogado antes de publicar. Pontos a ajustar estão marcados com PERSONALIZAR.
+ * Política de privacidade (LGPD). Descreve o que o sistema faz de fato (banner, track, prazos).
+ * Revisada e aprovada pelo jurídico sem mudanças (registro em 20/11/2026). Ao mudar o texto, atualize UPDATED_AT;
+ * ao mudar o uso dos dados, suba POLICY_VERSION (e a do painel) e passe pelo jurídico de novo.
  * Guia do que foi construído: track/docs/lgpd.md.
  */
 
-// PERSONALIZAR: canal do encarregado (DPO). Se nomear um encarregado, preencha ENCARREGADO com o nome.
+// Canal do encarregado (DPO): só o e-mail, sem nome de pessoa, por orientação do jurídico. Para nomear alguém,
+// preencha ENCARREGADO com o nome.
 const CONTACT_EMAIL = "contatosimintermediacoes@gmail.com";
 const ENCARREGADO = "";
-// PERSONALIZAR: razão social, CNPJ e endereço do controlador (aparecem na seção 1 quando preenchidos).
+// Razão social, CNPJ e endereço do controlador (aparecem na seção 1).
 const CONTROLADOR = {
 	cnpj: "38.486.051/0001-48",
 	endereco: "Beco Neutel Maia, 21, Bosque, Rio Branco/AC, CEP 69900-430",
 	razaoSocial: "SIM INTERMEDIACOES LTDA",
 };
-// PERSONALIZAR: mantenha igual à "Versão do texto" do banner (painel do track › Configurações › Privacidade).
+// Mantenha igual à "Versão do texto" do banner (painel do track › Configurações › Privacidade).
 const POLICY_VERSION = "1";
-const UPDATED_AT = "10 de novembro de 2026";
+const UPDATED_AT = "20 de novembro de 2026";
 
 interface Section {
 	title: string;
@@ -82,8 +84,8 @@ const SECTIONS: Section[] = [
 				pagamento), a origem da visita (parâmetros de campanha, como utm_source, e o identificador do
 				clique em anúncios da Meta), o quanto você assistiu do vídeo de apresentação, o endereço IP e
 				o navegador (usados para estimar cidade e estado e para a plataforma de anúncios reconhecer a
-				visita) e, quando você se cadastra, e-mail, telefone e nome, para ligar a compra à visita que
-				a originou.
+				visita) e, quando você informa seu e-mail no site ou se cadastra, e-mail, telefone e nome,
+				para ligar a compra à visita que a originou.
 			</>,
 			"Coletado na navegação independentemente do aviso de cookies: se você chegar por um link de afiliado, apenas o código do afiliado (cookie necessário _trck_aff), sem identificador seu.",
 		],
@@ -97,6 +99,7 @@ const SECTIONS: Section[] = [
 			"Inscrever você em sorteios, apurar vencedores e entrar em contato para a entrega de prêmios, incluindo o uso da chave PIX — execução de contrato.",
 			"Confirmar que o telefone cadastrado é seu e recuperar sua senha — prevenção a fraudes e segurança da conta (legítimo interesse, art. 7º, IX).",
 			"Medir de onde vêm as visitas e as compras, avaliar nossos anúncios e informar à Meta e ao Google as compras concluídas — consentimento (art. 7º, I), que você dá ou recusa no aviso de cookies e pode revogar a qualquer momento, sem prejuízo do uso do site.",
+			"Exibir o vídeo da página de apresentação pelo player do Vimeo — legítimo interesse (art. 7º, IX). O player é configurado para não gravar cookies de estatística do Vimeo.",
 			"Guardar a prova da sua escolha sobre cookies e atender seus pedidos de acesso e exclusão — cumprimento de obrigação legal (art. 7º, II, e art. 8º, §2º).",
 			"Guardar o código do afiliado que indicou você (cookie _trck_aff) e repassá-lo ao pagamento, para apurar e pagar a comissão devida ao afiliado — execução de contrato (a afiliação) e legítimo interesse (art. 7º, V e IX). Não depende do aviso de cookies.",
 			"Cumprir obrigações legais, fiscais e regulatórias, e exercer direitos em processos judiciais, administrativos ou arbitrais — obrigação legal e exercício regular de direitos (art. 7º, II e VI).",
@@ -113,16 +116,24 @@ const SECTIONS: Section[] = [
 		],
 		list: [
 			<>
-				<b>Meta (Facebook e Instagram), só com o seu consentimento:</b> eventos de navegação e de
-				compra, pelo Pixel no seu navegador e pela Conversions API no nosso servidor. E-mail,
-				telefone, nome, cidade e estado são enviados embaralhados (hash SHA-256), nunca em texto. O
-				IP, o navegador e os identificadores da própria Meta (cookies _fbp e _fbc) seguem como são,
-				porque a Meta precisa deles para reconhecer a visita.
+				<b>Meta (Facebook e Instagram), só com o seu consentimento:</b> eventos de navegação, de
+				pagamento (como a geração do Pix) e de compra, pelo Pixel no seu navegador e pela Conversions
+				API no nosso servidor. E-mail, telefone, nome, cidade e estado são enviados embaralhados (hash
+				SHA-256), nunca em texto. O IP, o navegador e os identificadores da própria Meta (cookies _fbp
+				e _fbc) seguem como são, porque a Meta precisa deles para reconhecer a visita.
 			</>,
 			<>
 				<b>Google (Google Analytics), só com o seu consentimento:</b> eventos de navegação, pelo seu
 				navegador, e a compra, pelo nosso servidor, com o identificador do próprio Google Analytics, a
 				localização aproximada e o tipo de aparelho. Não enviamos e-mail, telefone ou nome ao Google.
+			</>,
+			<>
+				<b>Vimeo, que exibe o vídeo da página de apresentação (vsl.rastrewin.com):</b> ao abrir a
+				página, o player do Vimeo é carregado e recebe, como todo conteúdo incorporado de outro site,
+				o seu endereço IP e o seu navegador. Isso acontece mesmo sem aceite no aviso de cookies,
+				porque é o que permite exibir o vídeo. Configuramos o player para não gravar cookies de
+				estatística nem de identificação do Vimeo no seu navegador. O Vimeo trata esses dados conforme
+				a política de privacidade dele.
 			</>,
 			"Gateway de pagamento: processa as cobranças e nos informa o resultado.",
 			"Provedor de e-mail (SMTP): envia credenciais de acesso, códigos de recuperação de senha e links de confirmação dos pedidos de privacidade.",
@@ -168,10 +179,24 @@ const SECTIONS: Section[] = [
 					"Necessário",
 				],
 				[
+					"__cf_bm, cf_clearance, __cf_ob",
+					"Vimeo (via Cloudflare)",
+					"Proteger o player do vídeo contra acessos automatizados (robôs)",
+					"Definida pelo Vimeo: __cf_bm, 30 minutos; __cf_ob, até fechar o navegador; cf_clearance, até 1 ano",
+					"Necessário",
+				],
+				[
 					"userId, userToken (armazenamento local)",
 					"Rastrewin",
 					"Manter você conectado à sua conta",
 					"Até você sair",
+					"Necessário",
+				],
+				[
+					"registrationToken (armazenamento local)",
+					"Rastrewin",
+					"Reconhecer o cadastro feito neste navegador, para que só ele possa corrigir os dados antes do pagamento",
+					"Até você limpar os dados do navegador",
 					"Necessário",
 				],
 				[
@@ -302,7 +327,7 @@ const SECTIONS: Section[] = [
 	},
 	{
 		body: [
-			"A Meta e o Google, quando você consente com os cookies de marketing e medição, e alguns provedores de infraestrutura podem armazenar ou processar dados fora do Brasil, inclusive nos Estados Unidos. Nesses casos, buscamos garantir um nível de proteção compatível com o da LGPD, por meio de cláusulas contratuais e de provedores que adotem padrões adequados de segurança e privacidade.",
+			"A Meta e o Google, quando você consente com os cookies de marketing e medição, o Vimeo, que exibe o vídeo de apresentação, e alguns provedores de infraestrutura podem armazenar ou processar dados fora do Brasil, inclusive nos Estados Unidos. Nesses casos, buscamos garantir um nível de proteção compatível com o da LGPD, por meio de cláusulas contratuais e de provedores que adotem padrões adequados de segurança e privacidade.",
 		],
 		title: "12. Transferência Internacional",
 	},

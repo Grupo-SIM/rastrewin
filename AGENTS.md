@@ -79,7 +79,7 @@ Workspaces: `backend` (NestJS + Prisma), `frontend` (Next.js), `track` (Next.js 
 
 ## Tests
 
-- Only the unit suites that already existed are kept: `vsl` (Vitest) and `track` (node:test via tsx). Do not add unit tests or coverage gates elsewhere without asking. See [`docs/testing.md`](docs/testing.md).
+- Only the unit suites that already existed are kept: `vsl` (Vitest) and `track` (node:test API run by `bun test`). Do not add unit tests or coverage gates elsewhere without asking. See [`docs/testing.md`](docs/testing.md).
 - `track` database scenarios (`test:rls`, `test:retention`) need a disposable Postgres, never a remote/shared database.
 - Never name a folder `__tests__` or any `__…__` form.
 

@@ -4,7 +4,7 @@
 		"esModuleInterop": true,
 		"incremental": true,
 		"isolatedModules": true,
-		"jsx": "preserve",
+		"jsx": "react-jsx",
 		"lib": ["dom", "dom.iterable", "esnext"],
 		"module": "esnext",
 		"moduleResolution": "bundler",
@@ -18,5 +18,5 @@
 		"target": "ES2020"
 	},
 	"exclude": ["node_modules"],
-	"include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"]
+	"include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"]
 }

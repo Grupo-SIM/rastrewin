@@ -2,7 +2,7 @@
 # O contexto é a raiz do monorepo: docker build -f frontend/Dockerfile .
 FROM oven/bun:1.4.4-alpine AS bun
 
-FROM node:20-alpine AS build
+FROM node:24.22.1-alpine3.24 AS build
 WORKDIR /app
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
@@ -16,12 +16,18 @@ RUN bun install --frozen-lockfile --ignore-scripts --filter frontend
 COPY frontend frontend
 RUN bun run --cwd frontend build
 
-FROM node:20-alpine
+FROM node:24.22.1-alpine3.24
 WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=build /app/frontend/.next/standalone ./
-COPY --from=build /app/frontend/.next/static ./frontend/.next/static
-COPY --from=build /app/frontend/public ./frontend/public
+# HOSTNAME=0.0.0.0: o Next escuta em todas as interfaces (o Docker põe o id do container em HOSTNAME),
+# assim o HEALTHCHECK alcança 127.0.0.1.
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
+COPY --from=build --chown=node:node /app/frontend/.next/standalone ./
+COPY --from=build --chown=node:node /app/frontend/.next/static ./frontend/.next/static
+COPY --from=build --chown=node:node /app/frontend/public ./frontend/public
+# Sem root: um erro no site não vira acesso ao container inteiro.
+USER node
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1
 WORKDIR /app/frontend
 CMD ["node", "server.js"]

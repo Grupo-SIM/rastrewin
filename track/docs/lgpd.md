@@ -2,7 +2,7 @@
 
 Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastreamento da Rastrewin: track, `t.js`, rastrewin.com e VSL. Ele descreve o que o sistema faz e marca com **PERSONALIZAR** o que você precisa ajustar ao seu produto e ao seu público.
 
-> Não é parecer jurídico. Os textos são um rascunho honesto, com base na LGPD e no guia de cookies da ANPD. Revise a política e o banner com um advogado antes de publicar.
+> **Revisão jurídica (registrada em 20/11/2026):** o advogado aprovou sem mudanças a política de privacidade, os termos de uso, os textos do banner e os e-mails do sistema. O encarregado fica só como canal de e-mail (`contatosimintermediacoes@gmail.com`), sem nome de pessoa, por orientação dele. Mudou algum desses textos ou o uso dos dados? Passe pelo jurídico de novo.
 
 ## 1. Consentimento (banner de cookies)
 
@@ -19,10 +19,15 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
     - o Pixel e o GA4 não são carregados;
     - o track não recebe evento nenhum.
     - Comandos `trck(...)` do site feitos antes do aceite são descartados (não ficam em fila).
+    - **Origem do anúncio entre a VSL e o rastrewin.com:** o botão da VSL leva as UTMs e o `fbclid` da visita **só na URL** (nada é gravado). No rastrewin.com, o `t.js` lê a URL só depois do aceite. Por isso quem deixou o banner sem resposta na VSL e aceita no rastrewin.com não perde a origem, e quem recusou não leva a origem adiante: com o cookie da escolha marcando recusa, o botão abre o rastrewin.com sem esses parâmetros.
 - **Recusou:** continua assim. A compra dessa pessoa entra no Faturamento, mas **não** vai à Meta nem ao GA4. O painel mostra "Sem consentimento".
+    - A recusa **da visita do cadastro** vale mais que um aceite antigo: o site informa a escolha no cadastro, o backend a repassa com a venda, e o track não liga a compra a nenhum visitante (nem pelo e-mail, nem por um telefone compartilhado, nem por outro aparelho que tenha aceitado).
+    - **Banner sem resposta:** nenhum evento sai do navegador (nem Pixel, nem API de Conversões). A compra segue a regra do aceite já existente: se aquele e-mail se cadastrou antes **aceitando** o banner (em outra visita ou aparelho), o backend mantém o rastreamento daquele cadastro e a compra vai à Meta com aquele aceite. Sem aceite anterior, a compra fica "Sem consentimento". A recusa explícita, ao contrário, sempre vale mais que o aceite antigo.
+    - No Faturamento, essa venda mostra **"Banner recusado"** ao lado do status. Quem deixou o banner sem resposta não ganha esse rótulo: só a coluna Envio mostra "Sem consentimento".
 - **Mudou de ideia:** o link "Preferências de cookies" no rodapé reabre o banner.
     - Quem tinha aceitado e agora recusa tem a escolha registrada como **revogação**.
     - Os cookies de marketing do navegador são apagados, e os identificadores da Meta e do Google daquele visitante são apagados no track.
+    - As URLs que o track guardou dessa pessoa (página de entrada e páginas dos eventos) perdem a parte depois do `?` e do `#`, onde ficam o `fbclid`, o `gclid` e as UTMs. Fica só o endereço da página, que é o que as abas Páginas e Jornada mostram.
 - **Prova do consentimento** (LGPD art. 8º): cada escolha fica na tabela `consent_records` com:
     - um id aleatório da escolha;
     - a ação (aceite, recusa, personalizada ou revogação);
@@ -117,6 +122,7 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
 ## 3. Minimização: o que vai para a Meta e o Google
 
 - **Meta (Conversions API):**
+    - Eventos do site (navegação, cadastro, checkout, marcos do vídeo) e, pelo servidor, a geração do Pix ou o cartão recusado (`AddPaymentInfo`) e a compra (`Purchase`). Os dois do servidor seguem a mesma regra de aceite da compra.
     - Vão em **SHA-256**: email, telefone, nome, sobrenome, cidade, estado, país e o id do visitante (`external_id`).
     - Vão **sem hash**, porque a Meta exige assim: IP, navegador (user agent), `fbp` e `fbc`, que são identificadores da própria Meta.
     - Um teste automático (`src/lib/meta/capi.test.ts`) garante que nenhum email, telefone, nome ou cidade sai em claro.
@@ -154,7 +160,7 @@ A limpeza roda todo dia a partir das 03:15 (Brasília), dentro do app. O painel 
 
 Teste: `bun run test:retention` (Postgres descartável). Ele cria dados velhos e novos de cada tipo e confere que só os velhos são limpos.
 
-## 5. Política de privacidade (rascunho)
+## 5. Política de privacidade (revisada)
 
 A página fica em **rastrewin.com/privacidade** (`frontend/app/privacidade/page.tsx`) e descreve o que o sistema faz de fato:
 
@@ -171,19 +177,19 @@ Os Termos de Uso (seção 5) foram alinhados: antes falavam em "informações an
 
 ## Checklist do que personalizar antes de publicar
 
-| #   | O quê                                                  | Onde                                                                                                                                 |
-| --- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Razão social, CNPJ e endereço do controlador           | `CONTROLADOR` em `frontend/app/privacidade/page.tsx` (aparece na seção 1 quando preenchido)                                          |
-| 2   | Encarregado (DPO): nome, se houver, e o email do canal | `ENCARREGADO` e `CONTACT_EMAIL` na política **e** `CONTACT_EMAIL` em `frontend/app/privacidade/solicitacao/page.tsx`                 |
-| 3   | Versão e data da política                              | `POLICY_VERSION` e `UPDATED_AT` na política. A versão deve ser **igual** à "Versão do texto" do painel (Configurações › Privacidade) |
-| 4   | Link da política no banner                             | Painel do track › Configurações › Privacidade › `https://rastrewin.com/privacidade`                                                  |
-| 5   | Textos do banner                                       | Mesmo lugar (vazio = padrão)                                                                                                         |
-| 6   | Visual do banner                                       | CSS do site (`#trck-consent { --trck-… }`)                                                                                           |
-| 7   | Prazos de retenção (e a tabela da política)            | `RETENTION_DAYS` em `track/src/lib/maintenance/retention.ts` **e** seção 7 da política                                               |
-| 8   | Prazo de 5 anos das vendas                             | Confirmar com o contador                                                                                                             |
-| 9   | Promessa de apagar no GA4 "em até 15 dias"             | Cumprir pelo painel (Exclusões de dados) ou mudar o texto (política seção 10 e página de confirmação)                                |
-| 10  | Lista de provedores e países                           | Política, seções 4 e 12                                                                                                              |
-| 11  | Revisão jurídica do texto todo                         | Política, Termos, banner e emails                                                                                                    |
+| #   | O quê                                                  | Onde                                                                                                                                                                                             |
+| --- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Razão social, CNPJ e endereço do controlador           | `CONTROLADOR` em `frontend/app/privacidade/page.tsx` (aparece na seção 1 quando preenchido)                                                                                                      |
+| 2   | Encarregado (DPO): nome, se houver, e o email do canal | Feito: só o canal de e-mail, sem nome (orientação do jurídico, 20/11/2026). `ENCARREGADO` e `CONTACT_EMAIL` na política **e** `CONTACT_EMAIL` em `frontend/app/privacidade/solicitacao/page.tsx` |
+| 3   | Versão e data da política                              | `POLICY_VERSION` e `UPDATED_AT` na política. A versão deve ser **igual** à "Versão do texto" do painel (Configurações › Privacidade)                                                             |
+| 4   | Link da política no banner                             | Painel do track › Configurações › Privacidade › `https://rastrewin.com/privacidade`                                                                                                              |
+| 5   | Textos do banner                                       | Mesmo lugar (vazio = padrão)                                                                                                                                                                     |
+| 6   | Visual do banner                                       | CSS do site (`#trck-consent { --trck-… }`)                                                                                                                                                       |
+| 7   | Prazos de retenção (e a tabela da política)            | `RETENTION_DAYS` em `track/src/lib/maintenance/retention.ts` **e** seção 7 da política                                                                                                           |
+| 8   | Prazo de 5 anos das vendas                             | Confirmar com o contador                                                                                                                                                                         |
+| 9   | Promessa de apagar no GA4 "em até 15 dias"             | Cumprir pelo painel (Exclusões de dados) ou mudar o texto (política seção 10 e página de confirmação)                                                                                            |
+| 10  | Lista de provedores e países                           | Política, seções 4 e 12                                                                                                                                                                          |
+| 11  | Revisão jurídica do texto todo                         | Feito em 20/11/2026: aprovados sem mudanças. Política, Termos, banner e emails                                                                                                                   |
 
 ## Ordem para publicar
 

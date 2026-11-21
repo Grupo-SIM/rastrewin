@@ -28,7 +28,13 @@ model User {
   otpCode            String? // código que o usuário precisa mandar pro WhatsApp do rastrewin
   resetCodeHash      String? // HMAC do código de 6 dígitos enviado por e-mail na recuperação de senha
   resetCodeExpiresAt DateTime?
-  resetAttempts      Int       @default(0)
+  resetAttempts      Int       @default(0) // erros de código na janela de 1 h (resetWindowStart); NÃO zera ao pedir código novo
+  resetWindowStart   DateTime? // início da janela de 1 h que conta resetAttempts
+  registrationTokenHash String? // SHA-256 do código que o navegador recebe no cadastro; só quem o tem reenvia o cadastro de quem ainda não pagou
+  tokenVersion       Int       @default(0) // sobe ao trocar/redefinir a senha: derruba todos os JWT já emitidos
+  totpSecret         String? // segredo TOTP (2FA) do admin; só vale com totpEnabled
+  totpEnabled        Boolean   @default(false)
+  totpLastStep       Int? // último passo de 30 s aceito (um código não vale duas vezes)
   createdAt          DateTime  @default(now())
   entries            Entry[]
 }
@@ -59,6 +65,10 @@ model Raffle {
   bucket           Int      @default(0) // 0..4999: o plano enxerga o sorteio se bucket < limite diário do plano
 
   @@index([endsAt])
+  // "Prêmios ganhos" do cliente (resumo e aba "Ganhei"): sem ele, cada contagem varre a tabela inteira.
+  @@index([winnerUserId])
+  // Sorteios encerrados ainda sem ganhador (ensureWinners): acha os poucos pendentes sem varrer a tabela.
+  @@index([winnerName, endsAt])
   @@index([createdAt])
   @@index([slot])
 }
@@ -108,4 +118,11 @@ model PrivacyRequest {
   createdAt   DateTime  @default(now())
 
   @@index([email, createdAt])
+}
+
+/// Eventos de venda do SimIntPay que já liberaram um plano. Uma reentrega antiga (pedido já substituído por
+/// uma renovação) não pode estender o plano de novo.
+model ProcessedEvent {
+  eventId     String   @id
+  processedAt DateTime @default(now())
 }

@@ -67,6 +67,13 @@ export function PurchaseStatus({ status, className }: { status: string; classNam
 	);
 }
 
+/** O comprador clicou em "Recusar" no banner de cookies na visita da compra (LGPD). Fica ao lado do status. */
+const BANNER_REJECTED = { color: "var(--status-warning)", icon: ShieldOffIcon, label: "Banner recusado" };
+
+export function BannerRejectedBadge({ className }: { className?: string }) {
+	return <Badge spec={BANNER_REJECTED} className={className} />;
+}
+
 export function DeliveryStatus({ status, className }: { status: string; className?: string }) {
 	return <Badge spec={DELIVERY[status] ?? DELIVERY.pendente} className={className} />;
 }

@@ -1,3 +1,5 @@
+import { randomInt } from "node:crypto";
+
 /** Normaliza um telefone para comparação: só dígitos, com DDI 55 (padrão BR) e SEM o 9º dígito
  * do celular — o WhatsApp às vezes manda o JID sem esse 9 (formato antigo), então removê-lo dos
  * dois lados evita falso-negativo na comparação entre o cadastro e o remetente do OTP. */
@@ -13,5 +15,5 @@ export function normalizePhone(raw: string) {
 
 /** Gera um código numérico de 6 dígitos para o OTP reverso. */
 export function generateOtpCode() {
-	return String(Math.floor(100000 + Math.random() * 900000));
+	return String(randomInt(100000, 1_000_000));
 }

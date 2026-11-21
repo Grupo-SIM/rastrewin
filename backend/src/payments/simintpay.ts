@@ -17,6 +17,20 @@ export const SALES_EVENTS = [
 ] as const;
 export type SalesEventType = (typeof SALES_EVENTS)[number];
 
+/**
+ * Avisos de assinatura da oferta anual (`subscription_activated`: 1º ciclo pago e reativação de
+ * contrato suspenso). Chegam JUNTO do `purchase_approved` do mesmo pagamento, que é quem libera ou
+ * prorroga o plano; por isso são só confirmados (200), sem efeito e sem repasse ao track. Sem a
+ * confirmação, o SimIntPay reenviaria o aviso para sempre (até 1 vez por hora).
+ */
+export const ACKNOWLEDGED_ONLY_EVENTS: readonly string[] = ["subscription_activated"];
+
+export function acknowledgedOnlyEvent(raw: unknown): string | null {
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+	const event = (raw as Record<string, unknown>).event;
+	return typeof event === "string" && ACKNOWLEDGED_ONLY_EVENTS.includes(event) ? event : null;
+}
+
 /** Campos que o backend usa. O objeto original (com todos os campos) é o que vai para o track. */
 export interface SalesEvent {
 	eventId: string;

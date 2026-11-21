@@ -3,26 +3,28 @@ import {
 	Body,
 	Controller,
 	Get,
+	Logger,
 	NotFoundException,
 	Param,
 	Patch,
 	Post,
 	Put,
 	Query,
+	Req,
 	UseGuards,
 } from "@nestjs/common";
-import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from "class-validator";
-import { AdminGuard } from "../auth/auth.guard";
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from "class-validator";
+import { AdminGuard, type RequestAuth } from "../auth/auth.guard";
 import { uniqueWinnerName } from "../mock";
 import { planLimit } from "../plans";
 import { PrismaService } from "../prisma/prisma.service";
-import { ensureWinners, reservedNames } from "../raffles/raffles.controller";
-import { toPublicUser } from "../users/user.view";
+import { RECENT_WINNERS, reservedNames } from "../raffles/raffles.controller";
+import { toAdminUser } from "../users/user.view";
 
 class UpdateRaffleDto {
 	@IsOptional() @IsString() @MinLength(1) @MaxLength(200) title?: string;
-	@IsOptional() @IsString() winnerName?: string;
-	@IsOptional() @IsString() winnerUserId?: string;
+	@IsOptional() @IsString() @MaxLength(120) winnerName?: string;
+	@IsOptional() @IsString() @MaxLength(40) winnerUserId?: string;
 }
 
 const WA_KEY = "whatsappMessage";
@@ -34,19 +36,20 @@ class MessageDto {
 }
 
 class EndDto {
-	@IsInt() @Min(0) inSeconds: number;
+	@IsInt() @Min(0) @Max(86_400) inSeconds: number;
 }
 
 @UseGuards(AdminGuard)
 @Controller("admin")
 export class AdminController {
+	private readonly logger = new Logger(AdminController.name);
+
 	constructor(private readonly prisma: PrismaService) {}
 
 	/** Sorteios em andamento (o que termina antes vem primeiro), paginados (`limit` até 100) e com busca por título ou site. */
 	@Get("raffles")
 	async list(@Query("q") q = "", @Query("offset") offset = "0", @Query("limit") limit = "50") {
-		await ensureWinners(this.prisma);
-		const term = q.trim();
+		const term = q.trim().slice(0, 100);
 		const where = {
 			endsAt: { gt: new Date() }, // só os em andamento (a tela esconde os encerrados, então não podem ocupar a página)
 			...(term
@@ -108,7 +111,7 @@ export class AdminController {
 	/** Busca leve de clientes para o seletor de ganhador (no máximo 50 por chamada). */
 	@Get("users/options")
 	async userOptions(@Query("q") q = "") {
-		const term = q.trim();
+		const term = q.trim().slice(0, 100);
 		const rows = await this.prisma.user.findMany({
 			orderBy: { name: "asc" },
 			select: { email: true, id: true, name: true, plan: true },
@@ -134,6 +137,7 @@ export class AdminController {
 	 */
 	@Get("users")
 	async users(
+		@Req() req: { auth: RequestAuth },
 		@Query("q") q = "",
 		@Query("plan") plan = "all",
 		@Query("city") city = "all",
@@ -142,7 +146,7 @@ export class AdminController {
 		@Query("limit") limit = "50",
 		@Query("export") exportAll = "",
 	) {
-		const term = q.trim();
+		const term = q.trim().slice(0, 100);
 		// sorteios já encerrados em que algum cliente foi o ganhador
 		const wonRows = await this.prisma.raffle.groupBy({
 			_count: { _all: true },
@@ -169,6 +173,8 @@ export class AdminController {
 		};
 		const o = Math.max(0, Number(offset) || 0);
 		const l = Math.min(exportAll ? 5000 : 100, Math.max(1, Number(limit) || 50));
+		// Quem vê (e leva) o CPF e o Pix de todos os clientes fica registrado.
+		if (exportAll) this.logger.warn(`Exportação de clientes pelo admin ${req.auth.sub}: até ${l} linhas`);
 		const [users, total, byPlan, byCity, winnerClients] = await Promise.all([
 			this.prisma.user.findMany({ orderBy: { paidAt: "desc" }, skip: o, take: l, where }),
 			this.prisma.user.count({ where }),
@@ -218,7 +224,7 @@ export class AdminController {
 				(a, b) => b.count - a.count || a.city.localeCompare(b.city, "pt-BR"),
 			),
 			items: users.map(u => ({
-				...toPublicUser(u),
+				...toAdminUser(u),
 				limit: planLimit(u.plan),
 				wins: winsOf.get(u.id) ?? [],
 			})),
@@ -256,8 +262,12 @@ export class AdminController {
 	@Post("raffles/:id/draw")
 	async draw(@Param("id") id: string) {
 		const r = await this.find(id);
+		// Só os ganhadores recentes, como no sorteio automático: todos os de sempre (milhões de linhas com o tempo)
+		// iriam inteiros para a memória a cada clique.
 		const taken = await this.prisma.raffle.findMany({
+			orderBy: { endsAt: "desc" },
 			select: { winnerName: true },
+			take: RECENT_WINNERS,
 			where: { NOT: { id }, winnerName: { not: null } },
 		});
 		// sorteio automático: só nomes do pool fictício, nunca um usuário real (esse só o admin escolhe, pelo PATCH)
@@ -271,6 +281,9 @@ export class AdminController {
 	/** Útil para testes: faz o sorteio terminar em N segundos. */
 	@Post("raffles/:id/end")
 	async end(@Param("id") id: string, @Body() dto: EndDto) {
+		// Ferramenta de teste: em produção fica desligada, a menos que ENABLE_TEST_TOOLS=true.
+		if (process.env.NODE_ENV === "production" && process.env.ENABLE_TEST_TOOLS !== "true")
+			throw new NotFoundException();
 		await this.find(id);
 		return this.prisma.raffle.update({
 			data: { endsAt: new Date(Date.now() + dto.inSeconds * 1000) },

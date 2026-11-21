@@ -85,14 +85,17 @@ export async function POST(request: Request) {
 		utmTerm: d.utm_term,
 	});
 
-	const customData = d.custom_data
-		? {
-				...d.custom_data,
-				...(d.custom_data.value !== undefined
-					? { currency: (d.custom_data.currency ?? config.currency).toUpperCase() }
-					: {}),
-			}
-		: undefined;
+	// Parâmetros dos eventos personalizados entram no custom_data; os campos de comércio vêm depois.
+	const customData =
+		d.custom_data || d.params
+			? {
+					...(d.params ?? {}),
+					...(d.custom_data ?? {}),
+					...(d.custom_data?.value !== undefined
+						? { currency: (d.custom_data.currency ?? config.currency).toUpperCase() }
+						: {}),
+				}
+			: undefined;
 
 	const input = {
 		customData,

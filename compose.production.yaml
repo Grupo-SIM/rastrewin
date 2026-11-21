@@ -9,6 +9,16 @@ services:
       - internal
       - proxy
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Disco só leitura: a API não grava arquivos. O boot (npx prisma db push e tsx do seed-admin) usa
+    # /tmp e a home do usuário, que ficam em memória.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/node
     labels:
       caddy: api.rastrewin.com
       caddy.import: cloudflare
@@ -23,6 +33,15 @@ services:
     networks:
       - proxy
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Disco só leitura; o cache do Next (páginas e imagens) fica em memória.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/frontend/.next/cache
     labels:
       caddy: rastrewin.com
       caddy.import: cloudflare

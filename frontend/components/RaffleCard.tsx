@@ -5,7 +5,7 @@ import { api, fmtRemaining, type Raffle } from "@/lib/api";
 
 const PAGE_NAMES = 100; // nomes por chamada (a lista rola devagar: cada página dura mais de 1 min)
 
-export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId: string }) {
+export function RaffleCard({ r, now }: { r: Raffle; now: number }) {
 	const [names, setNames] = useState<string[]>([]);
 	const [me, setMe] = useState<{ index: number; name: string } | null>(null);
 	const [q, setQ] = useState("");
@@ -37,7 +37,7 @@ export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId:
 				items: string[];
 				nextOffset: number;
 				me: { index: number; name: string } | null;
-			}>(`/raffles/${r.id}/participants?offset=${offset.current}&limit=${PAGE_NAMES}&userId=${userId}`);
+			}>(`/raffles/${r.id}/participants?offset=${offset.current}&limit=${PAGE_NAMES}`);
 			if (res.me) setMe(res.me);
 			offset.current = res.nextOffset;
 			setNames(n => [...n, ...res.items]);
@@ -74,7 +74,7 @@ export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId:
 		const t = setTimeout(async () => {
 			try {
 				const res = await api<{ results: { index: number; name: string; me: boolean }[] }>(
-					`/raffles/${r.id}/participants/search?q=${encodeURIComponent(term)}&userId=${userId}`,
+					`/raffles/${r.id}/participants/search?q=${encodeURIComponent(term)}`,
 				);
 				setFound(res.results);
 			} catch {
@@ -84,12 +84,12 @@ export function RaffleCard({ r, now, userId }: { r: Raffle; now: number; userId:
 			}
 		}, 300);
 		return () => clearTimeout(t);
-	}, [q, r.id, userId]);
+	}, [q, r.id]);
 
 	const remaining = new Date(r.endsAt).getTime() - now;
 	const ended = remaining <= 0;
 	const urgent = !ended && remaining < 300000;
-	const isMe = ended && r.winnerUserId === userId && !!r.winnerName;
+	const isMe = ended && r.mine;
 
 	const pill = !ended
 		? urgent

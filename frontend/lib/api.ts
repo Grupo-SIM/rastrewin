@@ -13,7 +13,8 @@ export interface Raffle {
 	participants: number;
 	ended: boolean;
 	winnerName: string | null;
-	winnerUserId: string | null;
+	/** O usuário logado é o ganhador. O id do ganhador não vem da API. */
+	mine: boolean;
 	entered: boolean;
 }
 
@@ -26,15 +27,28 @@ export interface User {
 	role: string;
 	phoneVerified: boolean;
 	expiresAt: string | null;
+	pendingPlan?: string | null;
 	checkoutUrl: string | null;
 }
 
+/** Token da sessão (JWT de 7 dias). */
+export const TOKEN_KEY = "userToken";
+
+export function clearSession() {
+	try {
+		localStorage.removeItem(TOKEN_KEY);
+		// Chave da versão antiga, em que o userId fazia as vezes de sessão.
+		localStorage.removeItem("userId");
+	} catch {}
+}
+
+/** Toda chamada leva o token quando há sessão: o backend decide o que exige login. */
 export async function api<T>(path: string, init?: RequestInit & { admin?: boolean }): Promise<T> {
 	const headers: Record<string, string> = { "Content-Type": "application/json" };
-	if (init?.admin) {
-		const token = localStorage.getItem("userToken");
+	try {
+		const token = localStorage.getItem(TOKEN_KEY);
 		if (token) headers.Authorization = `Bearer ${token}`;
-	}
+	} catch {}
 	const res = await fetch(`${API}${path}`, {
 		...init,
 		headers: { ...headers, ...(init?.headers as object) },

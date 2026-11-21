@@ -11,12 +11,10 @@ interface OtpResponse {
 /** Pede ao usuário que prove que o telefone é dele: manda o código
  * gerado para o WhatsApp do rastrewin, nosso webhook confere remetente + código. */
 export function PhoneVerifyModal({
-	userId,
 	open,
 	onClose,
 	onVerified,
 }: {
-	userId: string;
 	open: boolean;
 	onClose: () => void;
 	onVerified: () => void;
@@ -25,21 +23,21 @@ export function PhoneVerifyModal({
 	const [err, setErr] = useState("");
 
 	useEffect(() => {
-		api<OtpResponse>(`/users/${userId}/otp`, { method: "POST" })
+		api<OtpResponse>("/users/me/otp", { method: "POST" })
 			.then(setData)
 			.catch(() => setErr("Não foi possível gerar o código. Recarregue a página."));
-	}, [userId]);
+	}, []);
 
 	useEffect(() => {
 		const poll = setInterval(async () => {
 			try {
-				const r = await api<OtpResponse>(`/users/${userId}/otp`, { method: "POST" });
+				const r = await api<OtpResponse>("/users/me/otp", { method: "POST" });
 				setData(r);
 				if (r.phoneVerified) onVerified();
 			} catch {}
 		}, 4000);
 		return () => clearInterval(poll);
-	}, [userId, onVerified]);
+	}, [onVerified]);
 
 	const waLink =
 		data?.whatsappNumber && data.code

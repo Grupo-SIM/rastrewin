@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+	addPaymentInfoSkipReason,
 	affiliateOf,
 	isRefunded,
 	isSaleActive,
 	mapStatus,
+	metaPaymentMethod,
+	nextRenewalFlag,
 	nextStatus,
 	postApprovalOnly,
 	salesEventSchema,
@@ -60,6 +63,24 @@ test("renovação: só com renewal === true (o contrato do SimIntPay não traz o
 	assert.equal(toPurchaseFields(salesEventSchema.parse({ ...payload, renewal: true })).isRenewal, true);
 	assert.equal(toPurchaseFields(salesEventSchema.parse({ ...payload, renewal: null })).isRenewal, false);
 	assert.equal(salesEventSchema.safeParse({ ...payload, renewal: "sim" }).success, false);
+});
+
+test("recusa do banner (tracking.consent = rejected): nada liga a venda ao visitante", () => {
+	const recusa = toPurchaseFields(
+		salesEventSchema.parse({ ...payload, tracking: { ...payload.tracking, consent: "rejected" } }),
+	);
+	assert.equal(recusa.consentRejected, true);
+	assert.equal(recusa.trckUserIdFromSrc, null);
+	assert.equal(recusa.fbc, null);
+	assert.equal(recusa.fbclid, null);
+	assert.equal(recusa.fbp, null);
+	for (const consent of ["granted", "", "REJECTED"]) {
+		const f = toPurchaseFields(
+			salesEventSchema.parse({ ...payload, tracking: { ...payload.tracking, consent } }),
+		);
+		assert.equal(f.consentRejected, false, consent);
+		assert.equal(f.trckUserIdFromSrc, "abc123def456ghi7");
+	}
 });
 
 test("src que não é trck_user_id não é usado para ligar a venda", () => {
@@ -159,4 +180,105 @@ test("afiliado fica fixo depois da aprovação: reembolso/chargeback não regrav
 	assert.equal(postApprovalOnly(approved, toPurchaseFields(refund).status), true);
 	// nova aprovação do mesmo pedido é a única que pode atualizar afiliado e comissão
 	assert.equal(postApprovalOnly(approved, toPurchaseFields(salesEventSchema.parse(payload)).status), false);
+});
+
+test("nextRenewalFlag: depois da aprovação, a venda não vira renovação (reentrega atrasada)", () => {
+	const approved = new Date("2026-11-05T12:00:00Z");
+	// 1ª compra já aprovada; a reentrega chega com renewal: true porque o cliente já renovou
+	assert.equal(nextRenewalFlag(approved, false, true), false);
+	// renovação aprovada continua renovação, mesmo se um aviso vier sem o campo
+	assert.equal(nextRenewalFlag(approved, true, false), true);
+	// antes da aprovação: Pix gerado de renovação → aprovação mantém; e o flag só liga
+	assert.equal(nextRenewalFlag(null, true, false), true);
+	assert.equal(nextRenewalFlag(null, false, true), true);
+	assert.equal(nextRenewalFlag(undefined, false, false), false);
+});
+
+test("AddPaymentInfo: Pix gerado ou cartão recusado, uma vez por pedido, só com aceite e fora de renovação", () => {
+	const now = new Date("2026-11-16T12:00:00Z");
+	const ok = {
+		event: "pix_generated" as const,
+		isRenewal: false,
+		marketingConsent: true,
+		now,
+		occurredAt: new Date("2026-11-16T11:59:00Z"),
+		status: "pending",
+		trckUserId: "abc123def456ghi7",
+	};
+	assert.equal(addPaymentInfoSkipReason(ok), null);
+	assert.equal(addPaymentInfoSkipReason({ ...ok, event: "card_declined", status: "declined" }), null);
+	// outros avisos não geram AddPaymentInfo
+	for (const event of ["pix_expired", "purchase_refunded", "chargeback", "refund_requested"] as const)
+		assert.notEqual(addPaymentInfoSkipReason({ ...ok, event }), null, event);
+	// Pix gerado depois de a venda já estar aprovada ou reembolsada (aviso atrasado): não envia
+	for (const status of ["approved", "refund_requested", "refunded", "chargeback"])
+		assert.equal(addPaymentInfoSkipReason({ ...ok, status }), "pedido já aprovado ou encerrado", status);
+	assert.equal(addPaymentInfoSkipReason({ ...ok, isRenewal: true }), "renovação");
+	// LGPD: sem aceite (ou recusa do banner, que deixa a venda sem visitante) não envia
+	assert.equal(addPaymentInfoSkipReason({ ...ok, marketingConsent: false }), "sem consentimento");
+	assert.equal(addPaymentInfoSkipReason({ ...ok, marketingConsent: null }), "sem consentimento");
+	assert.equal(addPaymentInfoSkipReason({ ...ok, trckUserId: null }), "sem consentimento");
+	assert.equal(
+		addPaymentInfoSkipReason({ ...ok, occurredAt: new Date("2026-11-08T11:00:00Z") }),
+		"fora do prazo",
+	);
+});
+
+test("plano do cadastro vira o id do item principal (mesmo content_id do InitiateCheckout)", () => {
+	const semPlano = toPurchaseFields(salesEventSchema.parse(payload));
+	assert.deepEqual(
+		semPlano.items.map(i => i.id),
+		["Livro", "bump1"],
+	);
+	const comPlano = toPurchaseFields(salesEventSchema.parse({ ...payload, plan: "pro" }));
+	assert.deepEqual(
+		comPlano.items.map(i => [i.id, i.name]),
+		[
+			["pro", "Livro"],
+			["bump1", "Bônus"],
+		],
+	);
+	// sem itens no aviso: um item só, com o plano e o valor da venda
+	const semItens = toPurchaseFields(salesEventSchema.parse({ ...payload, items: null, plan: "vip" }));
+	assert.deepEqual(semItens.items, [{ id: "vip", name: "Produto", price: 27, type: null }]);
+	// plano inválido é ignorado, sem derrubar o aviso
+	const invalido = salesEventSchema.parse({ ...payload, plan: "Plano X!" });
+	assert.equal(invalido.plan, null);
+	assert.equal(toPurchaseFields(invalido).items[0].id, "Livro");
+});
+
+test("AddPaymentInfo na aprovação: cartão de primeira (ou Pix fora de ordem), com a venda ativa", () => {
+	const now = new Date("2026-11-16T12:00:00Z");
+	const aprovado = {
+		event: "purchase_approved" as const,
+		isRenewal: false,
+		marketingConsent: true,
+		now,
+		occurredAt: new Date("2026-11-16T11:59:59Z"),
+		status: "approved",
+		trckUserId: "abc123def456ghi7",
+	};
+	assert.equal(addPaymentInfoSkipReason(aprovado), null);
+	assert.equal(addPaymentInfoSkipReason({ ...aprovado, status: "refund_requested" }), null);
+	// aprovação que chega com a venda já reembolsada (reentrega atrasada): não envia
+	for (const status of ["refunded", "chargeback", "pending", "declined"])
+		assert.equal(addPaymentInfoSkipReason({ ...aprovado, status }), "venda não está ativa", status);
+	// mesmas regras do Pix: renovação, sem aceite, fora do prazo
+	assert.equal(addPaymentInfoSkipReason({ ...aprovado, isRenewal: true }), "renovação");
+	assert.equal(addPaymentInfoSkipReason({ ...aprovado, marketingConsent: false }), "sem consentimento");
+	assert.equal(
+		addPaymentInfoSkipReason({ ...aprovado, occurredAt: new Date("2026-11-08T11:00:00Z") }),
+		"fora do prazo",
+	);
+});
+
+test("payment_method do AddPaymentInfo: pix ou credit_card, a partir do meio informado pelo SimIntPay", () => {
+	assert.equal(metaPaymentMethod("PIX"), "pix");
+	assert.equal(metaPaymentMethod("CREDIT_CARD"), "credit_card");
+	assert.equal(metaPaymentMethod(" credit_card "), "credit_card");
+	// outro meio ou sem meio: o campo não vai à Meta
+	for (const method of ["BOLETO", "", "  ", null, undefined]) assert.equal(metaPaymentMethod(method), null);
+	// o meio do aviso chega à venda (toPurchaseFields) e é dele que o AddPaymentInfo parte
+	const pix = salesEventSchema.parse({ ...payload, paymentMethod: "PIX" });
+	assert.equal(metaPaymentMethod(toPurchaseFields(pix).paymentMethod), "pix");
 });

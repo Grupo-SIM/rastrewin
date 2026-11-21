@@ -1,5 +1,21 @@
-import { Body, Controller, Logger, Post } from "@nestjs/common";
+import { createHash, timingSafeEqual } from "node:crypto";
+import {
+	Body,
+	Controller,
+	Headers,
+	HttpCode,
+	HttpException,
+	HttpStatus,
+	Logger,
+	Post,
+	Query,
+	Req,
+	UnauthorizedException,
+} from "@nestjs/common";
+import type { Request } from "express";
 import { normalizePhone } from "../auth/phone.util";
+import { rateLimitKey } from "../http/client-ip";
+import { createRateLimiter } from "../http/rate-limit";
 import { PrismaService } from "../prisma/prisma.service";
 
 interface EvolutionMessage {
@@ -7,13 +23,22 @@ interface EvolutionMessage {
 	message?: { conversation?: string; extendedTextMessage?: { text?: string } };
 }
 
-/** A Evolution API varia o shape entre versões: evento pode vir em maiúsculo/minúsculo e o
- * payload da mensagem às vezes dentro de "data", às vezes "data" já é a mensagem, às vezes
- * um array. Aceita os formatos observados em produção em vez de travar num único shape. */
-interface EvolutionWebhookDto {
-	event?: string;
-	data?: EvolutionMessage | EvolutionMessage[];
+/** Evolution manda poucas mensagens por pedido; um array enorme é abuso. */
+const MAX_MESSAGES = 20;
+/** Trava contra inundação da rota pública (o Evolution manda 1 pedido por mensagem recebida). */
+const webhookLimiter = createRateLimiter({ max: 120, windowMs: 60 * 1000 });
+
+const sha = (v: string) => createHash("sha256").update(v).digest();
+
+/** Segredo do webhook, no header `x-webhook-secret` ou em `?token=` na URL cadastrada na Evolution API.
+ * Sem WHATSAPP_WEBHOOK_SECRET configurado, nunca aceita. */
+function secretOk(provided: string | undefined) {
+	const expected = process.env.WHATSAPP_WEBHOOK_SECRET?.trim();
+	if (!expected || !provided) return false;
+	return timingSafeEqual(sha(provided), sha(expected));
 }
+
+const last4 = (phone: string) => phone.slice(-4);
 
 @Controller("whatsapp")
 export class WhatsappController {
@@ -22,14 +47,28 @@ export class WhatsappController {
 	constructor(private readonly prisma: PrismaService) {}
 
 	/** OTP reverso: usuário manda o código pro WhatsApp do rastrewin; aqui a gente confere
-	 * se o remetente é o telefone cadastrado e se o texto bate com o código gerado. */
+	 * se o remetente é o telefone cadastrado e se o texto bate com o código gerado.
+	 * A Evolution API varia o shape entre versões (evento em maiúsculo/minúsculo, "data" como objeto ou
+	 * array), então o corpo é lido à mão, com limites, em vez de por um DTO rígido. */
 	@Post("webhook")
-	async webhook(@Body() dto: EvolutionWebhookDto) {
-		const event = (dto.event ?? "").toLowerCase();
-		if (event !== "messages.upsert") return { ok: true };
+	@HttpCode(200)
+	async webhook(
+		@Body() body: unknown,
+		@Req() req: Request,
+		@Headers("x-webhook-secret") headerSecret?: string,
+		@Query("token") querySecret?: string,
+	) {
+		if (!webhookLimiter.take(rateLimitKey(req)))
+			throw new HttpException("Muitas requisições", HttpStatus.TOO_MANY_REQUESTS);
+		if (!secretOk(headerSecret ?? (typeof querySecret === "string" ? querySecret : undefined)))
+			throw new UnauthorizedException();
 
-		const messages = Array.isArray(dto.data) ? dto.data : dto.data ? [dto.data] : [];
-		for (const msg of messages) await this.handleMessage(msg);
+		if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: true };
+		const { event, data } = body as { event?: unknown; data?: unknown };
+		if (typeof event !== "string" || event.toLowerCase() !== "messages.upsert") return { ok: true };
+
+		const messages = (Array.isArray(data) ? data : data ? [data] : []).slice(0, MAX_MESSAGES);
+		for (const msg of messages) await this.handleMessage(msg as EvolutionMessage);
 		return { ok: true };
 	}
 
@@ -38,11 +77,12 @@ export class WhatsappController {
 		// usa para mandar o OTP (ex.: testes, "Mensagens para mim"), o Baileys sempre marca
 		// fromMe=true nesse chat — não há como diferenciar de uma mensagem "recebida" ali.
 		// Sem risco de loop: o bot nunca envia mensagens de texto de volta nesse webhook.
-		if (!msg) return;
-		const remoteJid = msg.key?.remoteJid ?? "";
+		if (!msg || typeof msg !== "object") return;
+		const remoteJid = typeof msg.key?.remoteJid === "string" ? msg.key.remoteJid : "";
 		const senderPhone = remoteJid.split("@")[0]?.replace(/\D/g, "");
-		const text = (msg.message?.conversation ?? msg.message?.extendedTextMessage?.text ?? "").trim();
-		if (!senderPhone || !/^\d{6}$/.test(text)) return;
+		const raw = msg.message?.conversation ?? msg.message?.extendedTextMessage?.text;
+		const text = typeof raw === "string" ? raw.trim() : "";
+		if (!senderPhone || senderPhone.length > 20 || !/^\d{6}$/.test(text)) return;
 
 		const normalized = normalizePhone(senderPhone);
 		const candidates = await this.prisma.user.findMany({
@@ -51,7 +91,8 @@ export class WhatsappController {
 		});
 		const match = candidates.find(u => normalizePhone(u.phone) === normalized);
 		if (!match) {
-			this.logger.warn(`OTP ${text} recebido de ${normalized} sem usuário pendente correspondente`);
+			// Nem o código nem o telefone inteiro vão para o log (dado pessoal).
+			this.logger.warn(`OTP recebido de ...${last4(normalized)} sem usuário pendente correspondente`);
 			return;
 		}
 

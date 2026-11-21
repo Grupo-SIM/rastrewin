@@ -9,7 +9,7 @@ import { PhoneVerifyModal } from "@/components/PhoneVerifyModal";
 import { RaffleCard } from "@/components/RaffleCard";
 import { Tabs } from "@/components/Tabs";
 import { Toast, type ToastData } from "@/components/Toast";
-import { api, type Raffle, type User } from "@/lib/api";
+import { api, clearSession, type Raffle, TOKEN_KEY, type User } from "@/lib/api";
 
 type Tab = "all" | "open" | "ended" | "won";
 interface Summary {
@@ -57,7 +57,7 @@ export default function Dashboard() {
 	const itemsRef = useRef<Raffle[]>([]);
 	const totalRef = useRef(0);
 	const busy = useRef(false);
-	const uidRef = useRef<string | null>(null);
+	const authed = useRef(false);
 	itemsRef.current = items;
 	totalRef.current = total;
 
@@ -66,16 +66,16 @@ export default function Dashboard() {
 		return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
 	};
 	const listUrl = (tab: Tab, offset: number, limit: number) =>
-		`/raffles?userId=${uidRef.current}&since=${midnightIso()}&tab=${tab}&offset=${offset}&limit=${limit}`;
+		`/raffles?since=${midnightIso()}&tab=${tab}&offset=${offset}&limit=${limit}`;
 
 	const refresh = useCallback(async () => {
-		if (!uidRef.current || busy.current) return;
+		if (!authed.current || busy.current) return;
 		busy.current = true;
 		const tab = tabRef.current;
 		try {
 			const limit = Math.min(200, Math.max(PAGE, itemsRef.current.length));
 			const [sum, page] = await Promise.all([
-				api<Summary>(`/raffles/summary?userId=${uidRef.current}&since=${midnightIso()}`),
+				api<Summary>(`/raffles/summary?since=${midnightIso()}`),
 				api<Page>(listUrl(tab, 0, limit)),
 			]);
 			if (tabRef.current !== tab) return; // trocou de aba no meio da chamada
@@ -91,7 +91,7 @@ export default function Dashboard() {
 	}, []);
 
 	const loadMore = useCallback(async () => {
-		if (!uidRef.current || busy.current || itemsRef.current.length >= totalRef.current) return;
+		if (!authed.current || busy.current || itemsRef.current.length >= totalRef.current) return;
 		busy.current = true;
 		const tab = tabRef.current;
 		try {
@@ -110,19 +110,22 @@ export default function Dashboard() {
 	}, []);
 
 	useEffect(() => {
-		const uid = localStorage.getItem("userId");
-		if (!uid) return void router.replace("/");
-		uidRef.current = uid;
-		api<User>(`/users/${uid}`)
+		if (!localStorage.getItem(TOKEN_KEY)) return void router.replace("/login");
+		authed.current = true;
+		api<User>("/users/me")
 			.then(setUser)
-			.catch(() => router.replace("/"));
+			.catch(() => {
+				// Sessão vencida ou derrubada (senha trocada): volta para o login.
+				clearSession();
+				router.replace("/login");
+			});
 		refresh();
 		const onScreen = () => document.visibilityState === "visible";
 		const poll = setInterval(() => onScreen() && refresh(), REFRESH_MS);
 		const userPoll = setInterval(
 			() =>
 				onScreen() &&
-				api<User>(`/users/${uid}`)
+				api<User>("/users/me")
 					.then(setUser)
 					.catch(() => {}),
 			20000,
@@ -154,9 +157,7 @@ export default function Dashboard() {
 		const check = async () => {
 			if (document.visibilityState !== "visible") return;
 			try {
-				const page = await api<Page>(
-					`/raffles?userId=${user.id}&since=${midnightIso()}&tab=ended&offset=0&limit=8`,
-				);
+				const page = await api<Page>(`/raffles?since=${midnightIso()}&tab=ended&offset=0&limit=8`);
 				const done = page.items.filter(r => r.winnerName);
 				if (notified.current === null) {
 					notified.current = new Set(done.map(r => r.id)); // não avisa o que já estava encerrado ao abrir
@@ -170,7 +171,7 @@ export default function Dashboard() {
 					const add = fresh.map((r): ToastData => ({
 						color: r.siteColor,
 						id: r.id,
-						me: r.winnerUserId === user.id,
+						me: r.mine,
 						prize: r.title,
 						site: r.site,
 						winner: r.winnerName ?? "",
@@ -287,7 +288,6 @@ export default function Dashboard() {
 		<div className="app">
 			{!user.phoneVerified && (
 				<PhoneVerifyModal
-					userId={user.id}
 					open={verifyOpen}
 					onClose={() => setVerifyOpen(false)}
 					onVerified={() => setUser(u => (u ? { ...u, phoneVerified: true } : u))}
@@ -325,8 +325,7 @@ export default function Dashboard() {
 						<button
 							className="btn-outline"
 							onClick={() => {
-								localStorage.removeItem("userId");
-								localStorage.removeItem("userToken");
+								clearSession();
 								router.push("/");
 							}}
 						>
@@ -378,7 +377,7 @@ export default function Dashboard() {
 
 				<div className={`raffles ${tab === "won" ? "compact" : ""}`}>
 					{items.map(r => (
-						<RaffleCard key={r.id} r={r} now={now} userId={user.id} />
+						<RaffleCard key={r.id} r={r} now={now} />
 					))}
 				</div>
 			</main>

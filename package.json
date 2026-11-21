@@ -48,5 +48,8 @@
 		"turbo": "^2.9.16",
 		"typescript": "^6.0.3",
 		"typescript-eslint": "^8.60.1"
+	},
+	"overrides": {
+		"simple-git": "^4.1.0"
 	}
 }

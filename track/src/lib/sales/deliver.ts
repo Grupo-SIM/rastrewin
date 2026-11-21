@@ -3,9 +3,15 @@ import { eq, sql } from "drizzle-orm";
 import { serviceDb } from "@/db";
 import { purchases, visitors } from "@/db/schema";
 import { buildMpBody, type MpItem, sendMp } from "@/lib/ga4/mp";
-import { buildEvent, type CapiCustomData, fbcFromFbclid, sendToPixels } from "@/lib/meta/capi";
+import {
+	buildEvent,
+	type CapiCustomData,
+	type CapiPerson,
+	fbcFromFbclid,
+	sendToPixels,
+} from "@/lib/meta/capi";
 import { getRuntimeConfig } from "@/lib/tracking/runtime-config";
-import { isRefunded, isSaleActive, type PurchaseItem } from "./simintpay";
+import { isRefunded, isSaleActive, META_MAX_AGE_MS, type PurchaseItem } from "./simintpay";
 
 /*
  * Envio da compra (Purchase) para TODOS os pixels (CAPI) e TODAS as propriedades GA4 (MP),
@@ -13,7 +19,6 @@ import { isRefunded, isSaleActive, type PurchaseItem } from "./simintpay";
  * Chamado pelo webhook (em after()) e pelo reenvio automático.
  */
 
-const META_MAX_AGE_MS = 7 * 24 * 3600 * 1000; // a Meta aceita event_time de até 7 dias
 /** A Meta pede country sempre; o SimIntPay só vende no Brasil, então é o padrão sem geo do visitante. */
 const DEFAULT_COUNTRY = "br";
 export const MAX_ATTEMPTS = 5;
@@ -24,7 +29,10 @@ interface DeliveryReport {
 	refund?: string;
 }
 
-function itemsOf(p: typeof purchases.$inferSelect): PurchaseItem[] {
+type PurchaseRow = typeof purchases.$inferSelect;
+type VisitorRow = typeof visitors.$inferSelect;
+
+export function itemsOf(p: PurchaseRow): PurchaseItem[] {
 	const items = (p.items as PurchaseItem[] | null) ?? [];
 	if (items.length) return items;
 	return [
@@ -45,6 +53,42 @@ function previousOk(previous: unknown): Record<string, { ok: boolean }> {
 	return previous && typeof previous === "object" && !Array.isArray(previous)
 		? (previous as Record<string, { ok: boolean }>)
 		: {};
+}
+
+/** custom_data da venda para a Meta (Purchase e AddPaymentInfo usam a mesma base). */
+export function saleCustomData(p: PurchaseRow, items: PurchaseItem[]): CapiCustomData {
+	return {
+		content_ids: items.map(i => i.id),
+		content_name: p.product ?? items[0]?.name,
+		content_type: "product",
+		contents: items.map(i => ({ id: i.id, item_price: i.price, quantity: 1 })),
+		currency: p.currency,
+		order_id: p.transactionId,
+		value: Number(p.value),
+	};
+}
+
+/** Quem comprou, para a CAPI: o que o webhook não trouxer (ex.: telefone) vem do visitante ligado à venda. */
+export function salePerson(p: PurchaseRow, visitor: VisitorRow | undefined, eventTime: Date): CapiPerson {
+	return {
+		city: p.geoCity,
+		country: p.geoCountry ?? DEFAULT_COUNTRY,
+		emHash: p.emHash ?? visitor?.emHash ?? null,
+		externalId: p.trckUserId,
+		fbc: p.fbc ?? fbcFromFbclid(p.fbclid, eventTime),
+		fbp: p.fbp,
+		fnHash: p.fnHash ?? visitor?.fnHash ?? null,
+		ip: visitor?.ip ?? null,
+		lnHash: p.lnHash ?? visitor?.lnHash ?? null,
+		phHash: p.phHash ?? visitor?.phHash ?? null,
+		region: p.geoRegion,
+		userAgent: visitor?.userAgent ?? null,
+	};
+}
+
+/** Página do evento da venda: a de entrada do visitante, senão a raiz do 1º site autorizado. */
+export function saleSourceUrl(visitor: VisitorRow | undefined, allowedOrigins: string[]): string | null {
+	return visitor?.landingUrl ?? (allowedOrigins[0] ? `${allowedOrigins[0]}/` : null);
 }
 
 // Trava por compra: o webhook (after) e o reenvio automático rodam no mesmo processo
@@ -103,39 +147,15 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 			report.meta = "fora do prazo";
 		} else {
 			const userAgent = visitor?.userAgent ?? null;
-			const customData: CapiCustomData = {
-				content_ids: items.map(i => i.id),
-				content_name: p.product ?? items[0]?.name,
-				content_type: "product",
-				contents: items.map(i => ({ id: i.id, item_price: i.price, quantity: 1 })),
-				currency: p.currency,
-				order_id: p.transactionId,
-				value,
-			};
 			const event = buildEvent({
 				// "website" exige user agent; venda sem visitante vai como "system_generated".
 				actionSource: userAgent ? "website" : "system_generated",
-				customData,
+				customData: saleCustomData(p, items),
 				eventId: p.metaEventId ?? `purchase_${p.transactionId}`,
 				eventName: "Purchase",
-				eventSourceUrl:
-					visitor?.landingUrl ?? (config.allowedOrigins[0] ? `${config.allowedOrigins[0]}/` : null),
+				eventSourceUrl: saleSourceUrl(visitor, config.allowedOrigins),
 				eventTime: occurredAt,
-				// O que o webhook não trouxer (ex.: telefone) vem do visitante ligado à venda.
-				person: {
-					city: p.geoCity,
-					country: p.geoCountry ?? DEFAULT_COUNTRY,
-					emHash: p.emHash ?? visitor?.emHash ?? null,
-					externalId: p.trckUserId,
-					fbc: p.fbc ?? fbcFromFbclid(p.fbclid, occurredAt),
-					fbp: p.fbp,
-					fnHash: p.fnHash ?? visitor?.fnHash ?? null,
-					ip: visitor?.ip ?? null,
-					lnHash: p.lnHash ?? visitor?.lnHash ?? null,
-					phHash: p.phHash ?? visitor?.phHash ?? null,
-					region: p.geoRegion,
-					userAgent,
-				},
+				person: salePerson(p, visitor, occurredAt),
 			});
 			const before = previousOk(p.responseMeta);
 			const pending = config.pixels.filter(px => !before[px.pixelId]?.ok);

@@ -1,9 +1,10 @@
-.next
-build
-dist
-generated
-node_modules
-out
+# Em qualquer pasta (sem **/ só valeria na raiz e o node_modules/.next do projeto local entraria na imagem).
+**/.next
+**/build
+**/dist
+**/generated
+**/node_modules
+**/out
 
 # Segredos: o Next copia .env/.env.production para o .next/standalone, que vai para a imagem.
 **/.env

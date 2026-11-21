@@ -13,27 +13,32 @@ export class EmailService {
 		host: process.env.SMTP_HOST,
 		port: Number(process.env.SMTP_PORT ?? 587),
 		secure: process.env.SMTP_SECURE === "true",
-		// host de hospedagem compartilhada: cert TLS cobre o hostname real do servidor
-		// (ex. pro120.dns-pro.com.br), não o domínio SMTP_HOST usado para conectar.
-		tls: { rejectUnauthorized: false },
+		// O certificado é SEMPRE verificado. Em hospedagem compartilhada ele cobre o hostname real do servidor
+		// (ex. pro120.dns-pro.com.br) e não o SMTP_HOST usado para conectar: nesse caso, informe esse hostname em
+		// SMTP_TLS_SERVERNAME. Desligar a verificação deixaria quem estiver no caminho ler a senha do SMTP e os e-mails.
+		tls: { servername: process.env.SMTP_TLS_SERVERNAME?.trim() || undefined },
 	});
 
-	async sendWelcomeCredentials(to: string, name: string, password: string) {
-		const loginUrl = `${process.env.WEB_ORIGIN}/login`;
-		const safeName = escapeHtml(name.trim().split(/\s+/)[0] ?? "");
+	/** Remetente com nome ("Rastrewin <endereço>"): endereço sozinho pesa contra no filtro de spam. */
+	private get from() {
+		return { address: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER ?? "", name: "Rastrewin" };
+	}
+
+	/** Pagamento confirmado: o cliente cria a própria senha (pelo código enviado ao e-mail). A senha nunca vai por e-mail. */
+	async sendWelcomeSetup(to: string, name: string) {
+		const loginUrl = `${process.env.WEB_ORIGIN}/esqueci-senha?email=${encodeURIComponent(to)}`;
+		const firstName = name.trim().split(/\s+/)[0] ?? "";
+		const safeName = escapeHtml(firstName);
 		const safeEmail = escapeHtml(to);
-		const safePassword = escapeHtml(password);
 		const safeLoginUrl = escapeHtml(loginUrl);
 		try {
 			await this.transport.sendMail({
-				from: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER,
+				from: this.from,
 				html: `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 </head>
 <body style="margin:0;background:#fafbfc;-webkit-font-smoothing:antialiased">
 <div style="background:#fafbfc;padding:40px 16px;font-family:Manrope,system-ui,Arial,sans-serif;color:#08304c">
@@ -49,22 +54,18 @@ export class EmailService {
           <span style="display:inline-block;background:#d7ffe2;color:#0a7a35;font:700 13px Manrope,Arial,sans-serif;padding:7px 14px;border-radius:999px">Pagamento confirmado</span>
         </div>
         <h1 style="margin:0 0 14px;font-family:'Plus Jakarta Sans',system-ui,Arial,sans-serif;font-weight:600;letter-spacing:-.05em;line-height:1.02;font-size:48px;color:#08304c">Olá, ${safeName}! Seja <span style="font-family:'Instrument Serif',Georgia,serif;font-style:italic;font-weight:400;font-size:1.13em;letter-spacing:-.01em;background:linear-gradient(90deg,#26c0ff,#e600c2 20%,#ff4940 40%,#ffa130 60%,#ffc837 80%,#00cc3d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;padding:0 .07em 0 .02em">bem-vindo</span></h1>
-        <p style="margin:0 0 28px;font:500 17px/1.55 Manrope,Arial,sans-serif;color:#353535">Seu pagamento foi confirmado e sua conta já está ativa. Use os dados abaixo para entrar:</p>
+        <p style="margin:0 0 28px;font:500 17px/1.55 Manrope,Arial,sans-serif;color:#353535">Seu pagamento foi confirmado e sua conta já está ativa. Falta só criar a sua senha: clique no botão, confirme este e-mail e use o código que enviaremos a você.</p>
         <div style="background:#f6f7f9;border-radius:24px;padding:10px;margin-bottom:28px">
-          <div style="background:#fff;border-radius:18px;padding:16px 22px;box-shadow:0 0 0 1px rgba(0,0,0,.07);margin-bottom:8px">
+          <div style="background:#fff;border-radius:18px;padding:16px 22px;box-shadow:0 0 0 1px rgba(0,0,0,.07)">
             <span style="display:block;font:600 13px Manrope,Arial,sans-serif;color:#797979;margin-bottom:4px">E-mail</span>
             <span style="display:block;font:500 19px 'Plus Jakarta Sans',Arial,sans-serif;letter-spacing:-.02em;color:#08304c;word-break:break-all">${safeEmail}</span>
           </div>
-          <div style="background:#fff;border-radius:18px;padding:16px 22px;box-shadow:0 0 0 1px rgba(0,0,0,.07)">
-            <span style="display:block;font:600 13px Manrope,Arial,sans-serif;color:#797979;margin-bottom:4px">Senha</span>
-            <span style="display:block;font:600 22px 'SFMono-Regular',Menlo,Consolas,monospace;letter-spacing:.06em;color:#08304c;word-break:break-all">${safePassword}</span>
-          </div>
         </div>
         <div style="margin-bottom:28px">
-          <a href="${safeLoginUrl}" style="display:inline-block;background:#2c2c2c;color:#fff;border-radius:999px;padding:18px 34px;font:600 17px Manrope,Arial,sans-serif;text-decoration:none">Entrar na plataforma</a>
+          <a href="${safeLoginUrl}" style="display:inline-block;background:#2c2c2c;color:#fff;border-radius:999px;padding:18px 34px;font:600 17px Manrope,Arial,sans-serif;text-decoration:none">Criar minha senha</a>
           <div style="margin-top:14px;font:500 14px/1.5 Manrope,Arial,sans-serif;color:#797979">Ou acesse: <a href="${safeLoginUrl}" style="color:#084e72">${safeLoginUrl}</a></div>
         </div>
-        <div style="border-top:1px solid #eeeeee;padding-top:22px;font:500 14px/1.55 Manrope,Arial,sans-serif;color:#585858">Por segurança, recomendamos não compartilhar sua senha com ninguém.</div>
+        <div style="border-top:1px solid #eeeeee;padding-top:22px;font:500 14px/1.55 Manrope,Arial,sans-serif;color:#585858">Por segurança, nunca enviamos senhas por e-mail e nunca pedimos a sua. Se você não fez este cadastro, ignore esta mensagem.</div>
       </div>
     </div>
     <div style="padding:20px 8px 0;font:500 13px/1.6 Manrope,Arial,sans-serif;color:#797979;text-align:center">Você recebeu este e-mail porque se cadastrou na Rastrewin.</div>
@@ -73,29 +74,44 @@ export class EmailService {
 </body>
 </html>`,
 				subject: "Seu acesso à Rastrewin",
+				text: [
+					"Rastrewin",
+					"",
+					"Pagamento confirmado",
+					"",
+					`Olá, ${firstName}! Seja bem-vindo.`,
+					"",
+					"Seu pagamento foi confirmado e sua conta já está ativa. Falta só criar a sua senha: acesse o link abaixo, confirme este e-mail e use o código que enviaremos a você.",
+					"",
+					`E-mail: ${to}`,
+					`Criar minha senha: ${loginUrl}`,
+					"",
+					"Por segurança, nunca enviamos senhas por e-mail e nunca pedimos a sua.",
+					"",
+					"Você recebeu este e-mail porque se cadastrou na Rastrewin.",
+				].join("\n"),
 				to,
 			});
 		} catch (err) {
 			// falha de SMTP não pode travar a liberação do plano
-			this.logger.error(`Falha ao enviar e-mail de boas-vindas para ${to}: ${(err as Error).message}`);
+			this.logger.error(`Falha ao enviar e-mail de boas-vindas: ${(err as Error).message}`);
 		}
 	}
 
 	async sendPasswordResetCode(to: string, name: string, code: string) {
-		const safeName = escapeHtml(name.trim().split(/\s+/)[0] ?? "");
+		const firstName = name.trim().split(/\s+/)[0] ?? "";
+		const safeName = escapeHtml(firstName);
 		const safeCode = escapeHtml(code);
 		const gradient =
 			"linear-gradient(90deg,#26c0ff,#e600c2 20%,#ff4940 40%,#ffa130 60%,#ffc837 80%,#00cc3d)";
 		try {
 			await this.transport.sendMail({
-				from: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER,
+				from: this.from,
 				html: `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 </head>
 <body style="margin:0;background:#fafbfc;-webkit-font-smoothing:antialiased">
 <div style="background:#fafbfc;padding:40px 16px;font-family:Manrope,system-ui,Arial,sans-serif;color:#08304c">
@@ -126,6 +142,19 @@ export class EmailService {
 </body>
 </html>`,
 				subject: "Seu código para redefinir a senha",
+				text: [
+					"Rastrewin",
+					"",
+					"Redefinição de senha",
+					"",
+					`Olá, ${firstName}! Use o código abaixo para criar uma nova senha. Ele vale por 15 minutos.`,
+					"",
+					`Código: ${code}`,
+					"",
+					"Se você não pediu para redefinir a senha, ignore este e-mail. Sua senha atual continua a mesma.",
+					"",
+					"Você recebeu este e-mail porque alguém solicitou a redefinição de senha na Rastrewin.",
+				].join("\n"),
 				to,
 			});
 		} catch (err) {
@@ -148,7 +177,7 @@ export class EmailService {
 			"linear-gradient(90deg,#26c0ff,#e600c2 20%,#ff4940 40%,#ffa130 60%,#ffc837 80%,#00cc3d)";
 		try {
 			await this.transport.sendMail({
-				from: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER,
+				from: this.from,
 				html: `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
@@ -174,6 +203,19 @@ export class EmailService {
 </body>
 </html>`,
 				subject: isDelete ? "Confirme a exclusão dos seus dados" : "Confirme o acesso aos seus dados",
+				text: [
+					"Rastrewin",
+					"",
+					badge,
+					"",
+					intro,
+					"",
+					"Para confirmar que foi você, abra o link abaixo e confirme na página. Ele vale por 30 minutos e só pode ser usado uma vez.",
+					"",
+					link,
+					"",
+					"Se você não fez esse pedido, ignore este e-mail: nada acontece sem a confirmação.",
+				].join("\n"),
 				to,
 			});
 		} catch (err) {

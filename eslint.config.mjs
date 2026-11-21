@@ -8,7 +8,7 @@ export default [
 	...config,
 	{
 		files: ["**/*.mjs"],
-		languageOptions: { globals: { console: "readonly", process: "readonly" } },
+		languageOptions: { globals: { console: "readonly", process: "readonly", URL: "readonly" } },
 	},
 	{
 		files: ["frontend/src/**/*.{ts,tsx}"],

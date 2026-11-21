@@ -419,6 +419,24 @@ type TrckWindow = Window & {
 		return out;
 	}
 
+	// Parâmetros dos eventos personalizados (ex.: section, percent, button, plan): até 10, chave a-z0-9_,
+	// valor texto (até 100) ou número. Os campos de comércio e a opção ga4 não entram aqui.
+	const COMMERCE = ["value", "currency", "content_ids", "content_name", "content_type", "num_items"];
+	function eventParams(data: Dict): Dict {
+		const out: Dict = {};
+		for (const [k, v] of Object.entries(data)) {
+			if (Object.keys(out).length >= 10) break;
+			if (k === "ga4" || COMMERCE.includes(k) || !/^[a-z][a-z0-9_]{0,39}$/.test(k)) continue;
+			if (typeof v === "string" && v.trim() && v.length <= 100) out[k] = v.trim();
+			else if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+		}
+		return out;
+	}
+
+	/**
+	 * Opção ga4 nos dados do evento: false = não vai ao GA4; "nome" = vai ao GA4 com esse nome
+	 * (ex.: trck('track', 'CompleteRegistration', { ga4: 'generate_lead' })). Sem ela, o nome padrão.
+	 */
 	function track(name: string, data: Dict = {}, user?: UserData) {
 		if (!/^[A-Za-z][A-Za-z0-9_]{1,39}$/.test(name))
 			return console.warn("[trck] nome de evento inválido:", name);
@@ -428,6 +446,8 @@ type TrckWindow = Window & {
 			);
 		}
 		const eventId = uuid();
+		const ga4Opt = data.ga4;
+		const params = STANDARD.has(name) ? {} : eventParams(data);
 		const custom = pick(data, [
 			"value",
 			"currency",
@@ -443,8 +463,15 @@ type TrckWindow = Window & {
 		}
 
 		// Navegador: Pixel (mesmo eventID → a Meta deduplica com o servidor) e gtag
-		w.fbq?.(STANDARD.has(name) ? "track" : "trackCustom", name, custom, { eventID: eventId });
-		if (name !== "PageView" && w.gtag && cfg?.ga4.length) {
+		w.fbq?.(
+			STANDARD.has(name) ? "track" : "trackCustom",
+			name,
+			{ ...params, ...custom },
+			{ eventID: eventId },
+		);
+		const ga4Name =
+			typeof ga4Opt === "string" && /^[a-z][a-z0-9_]{0,39}$/.test(ga4Opt) ? ga4Opt : gaName(name);
+		if (name !== "PageView" && ga4Opt !== false && w.gtag && cfg?.ga4.length) {
 			const ids = (custom.content_ids as string[] | undefined) ?? [];
 			// O GA4 exige items em begin_checkout/view_item/add_to_cart: sem ids, vai o nome.
 			const items = ids.length
@@ -452,7 +479,7 @@ type TrckWindow = Window & {
 				: custom.content_name
 					? [{ item_name: custom.content_name }]
 					: [];
-			w.gtag("event", gaName(name), {
+			w.gtag("event", ga4Name, {
 				...(custom.value !== undefined ? { currency: custom.currency, value: custom.value } : {}),
 				...(items.length ? { items } : {}),
 			});
@@ -470,6 +497,7 @@ type TrckWindow = Window & {
 			...utms,
 			...affField(),
 			...(Object.keys(custom).length ? { custom_data: custom } : {}),
+			...(Object.keys(params).length ? { params } : {}),
 			...(() => {
 				const ud = {
 					...knownUser,

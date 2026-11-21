@@ -1,5 +1,6 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { signBody } from "../payments/simintpay";
+import { PLAN_IDS, type PlanId } from "../plans";
 import { PrismaService } from "../prisma/prisma.service";
 import { sanitizeTracking } from "./tracking";
 
@@ -20,6 +21,7 @@ type SendResult = { ok: true } | { ok: false; error: string; retry: boolean };
  * - tracking: o do checkout tem prioridade; o guardado no cadastro preenche o que faltar
  *   (o checkout do SimIntPay ainda não repassa src/UTM).
  * - renewal: recompra de quem já tinha pago. O track grava, mas não envia à Meta/GA4.
+ * - plan: plano do cadastro (basico, pro, vip), usado pelo track como id do produto na Meta e no GA4.
  *
  * Entrega garantida: o repasse é gravado na tabela TrackRelay antes do envio e só sai de lá quando o
  * track confirma (2xx). Se o track estiver fora do ar, um worker reenvia a cada minuto com backoff
@@ -57,7 +59,10 @@ export class TrackRelayService implements OnModuleInit, OnModuleDestroy {
 		return url && secret ? { secret, url } : null;
 	}
 
-	relay(event: Record<string, unknown>, opts: { savedTracking?: unknown; renewal?: boolean }): void {
+	relay(
+		event: Record<string, unknown>,
+		opts: { savedTracking?: unknown; renewal?: boolean; plan?: string },
+	): void {
 		if (!this.config()) return;
 		const tracking = {
 			...(sanitizeTracking(opts.savedTracking) ?? {}),
@@ -65,6 +70,7 @@ export class TrackRelayService implements OnModuleInit, OnModuleDestroy {
 		};
 		const payload: Record<string, unknown> = { ...event, tracking };
 		if (opts.renewal !== undefined) payload.renewal = opts.renewal;
+		if (opts.plan && PLAN_IDS.includes(opts.plan as PlanId)) payload.plan = opts.plan;
 		void this.enqueueAndSend(String(event.eventId), JSON.stringify(payload));
 	}
 

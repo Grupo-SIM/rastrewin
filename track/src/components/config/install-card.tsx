@@ -47,6 +47,18 @@ export function InstallCard({ general }: { general: GeneralView }) {
 							{example}
 						</pre>
 						<p>
+							Evento personalizado com parâmetros (até 10, chave em minúsculas, texto curto ou
+							número), que vão no custom_data da Meta:{" "}
+							<code className="text-xs">
+								trck(&apos;track&apos;, &apos;SectionView&apos;, {"{"} section:
+								&apos;planos&apos; {"}"})
+							</code>
+							. A opção <code className="text-xs">ga4</code> controla o GA4 do navegador:{" "}
+							<code className="text-xs">ga4: false</code> não envia ao GA4, e{" "}
+							<code className="text-xs">ga4: &apos;generate_lead&apos;</code> envia com outro
+							nome.
+						</p>
+						<p>
 							Ao capturar um lead, envie os dados para melhorar a correspondência na Meta:{" "}
 							<code className="text-xs">
 								trck(&apos;identify&apos;, {"{"} email, phone, first_name, last_name {"}"})

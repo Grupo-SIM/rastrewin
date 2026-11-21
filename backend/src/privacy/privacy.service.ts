@@ -1,6 +1,7 @@
-import { createHmac, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { BadGatewayException, BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { Prisma, type User } from "@prisma/client";
+import { hmacFor } from "../auth/secrets.util";
 import { EmailService } from "../email/email.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { callTrackPrivacy } from "./track-privacy.client";
@@ -15,10 +16,8 @@ const KEEP_REQUESTS_MS = 30 * 24 * 3600 * 1000;
 export type PrivacyType = "ACCESS" | "DELETE";
 
 function tokenHash(token: string) {
-	// Sem o segredo, a chave viraria vazia em silêncio (o hash ficaria previsível): falha, como o jwt.util.ts.
-	const secret = process.env.JWT_SECRET;
-	if (!secret) throw new Error("JWT_SECRET não configurado");
-	return createHmac("sha256", secret).update(`privacy:${token}`).digest("hex");
+	// Segredo próprio (PRIVACY_TOKEN_SECRET) ou, na falta, o JWT_SECRET; sem nenhum, falha (hmacFor).
+	return hmacFor("privacy", "PRIVACY_TOKEN_SECRET", token);
 }
 
 /** Só os dígitos, sem o DDI 55: "+55 (11) 99999-8888" e "11999998888" são o mesmo telefone. */
