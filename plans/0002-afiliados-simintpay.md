@@ -140,6 +140,9 @@ Código implementado e integrado nas `main` locais (sem push). Pendências de va
 - [ ] Privacidade: política escrita; **falta revisão jurídica e subir `settings.consent_version` no painel do track junto da política**
 - [ ] Teste ponta a ponta: `?aff=X` com banner recusado → `_trck_aff` → cadastro → checkout → evento → painel
 - [ ] Telas reais da SimIntPay (PlatformManager, formulário e lista de ofertas, relatório) vistas no navegador com o backend integrado
-- [ ] Decidir se `affiliate_code` entra na exportação LGPD (`track/src/lib/privacy/subject.ts`)
-- [ ] Relatórios do dashboard da SimIntPay ainda não listam a afiliação; assinaturas anteriores à feature não comissionam
+- [x] `affiliate_code` entra na exportação LGPD (`eced44b`); a comissão fica de fora
+- [x] Relatórios, transações e catálogo da SimIntPay mostram a afiliação (`ff4b3150`, `a4e70d5e`, `965e13ad`); `/afiliados/recebimentos` ainda sem filtros de período, plataforma e meio de pagamento
+- [x] Deduplicação: uma parte por pessoa e venda, oferta sobre plataforma, empate vale o coprodutor; exceção por oferta mantida (`1653cba8`, `6115ea46`, `3af096cd`)
+- [ ] Assinaturas anteriores à feature não comissionam (esperado, nada retroativo)
+- [ ] Rodar na `main` da SimIntPay os testes de `affiliate` e `coproduction` juntos, já com relatórios e deduplicação integrados
 - [ ] Aplicar a migração da SimIntPay e do track em produção (responsável pela publicação)
