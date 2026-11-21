@@ -127,13 +127,19 @@ Nada vai para produção daqui: a SimIntPay aplica a migração e publica na ord
 
 ## Progresso
 
-- [ ] Decisões da tabela confirmadas
-- [ ] SimIntPay: modelo
-- [ ] SimIntPay: backend
-- [ ] SimIntPay: frontend e checkout
-- [ ] Rastrewin: captura e repasse
-- [ ] Track: migração e venda com afiliado
-- [ ] Track: filtro, coluna e card por afiliado
-- [ ] Privacidade: cookie `_trck_aff`, política e versão do banner (validar com o jurídico)
-- [ ] VSL: só documentação
-- [ ] Docs
+Código implementado e integrado nas `main` locais (sem push). Pendências de validação listadas abaixo; nada aplicado em produção.
+
+- [x] Decisões da tabela confirmadas
+- [x] SimIntPay: modelo e migração `20261122090000_affiliates` (só testada em Postgres local)
+- [x] SimIntPay: backend (exceção: ebook `EBOOK_V1` fora do escopo; soma validada pelo maior percentual de uma pessoa + co-produtores)
+- [x] SimIntPay: frontend e checkout
+- [x] Rastrewin: captura e repasse (`_trck_aff`, cadastro, checkout, relay)
+- [x] Track: migração 0013, venda com afiliado, filtro, coluna, card "Por afiliado", jornada
+- [x] VSL: só documentação
+- [x] Docs
+- [ ] Privacidade: política escrita; **falta revisão jurídica e subir `settings.consent_version` no painel do track junto da política**
+- [ ] Teste ponta a ponta: `?aff=X` com banner recusado → `_trck_aff` → cadastro → checkout → evento → painel
+- [ ] Telas reais da SimIntPay (PlatformManager, formulário e lista de ofertas, relatório) vistas no navegador com o backend integrado
+- [ ] Decidir se `affiliate_code` entra na exportação LGPD (`track/src/lib/privacy/subject.ts`)
+- [ ] Relatórios do dashboard da SimIntPay ainda não listam a afiliação; assinaturas anteriores à feature não comissionam
+- [ ] Aplicar a migração da SimIntPay e do track em produção (responsável pela publicação)
