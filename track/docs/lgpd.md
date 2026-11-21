@@ -82,11 +82,11 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
 4. **Acesso:** a página mostra e permite baixar em `.json`:
     - o cadastro (sem senha nem códigos);
     - a assinatura e os sorteios;
-    - os identificadores de navegação, os eventos e os vídeos;
-    - as compras, dizendo se foram enviadas à Meta e ao Google;
+    - os identificadores de navegação, os eventos e os vídeos, com o código do afiliado pelo qual a pessoa chegou (`affiliate_code`), como as UTMs;
+    - as compras, com o código e o nome do afiliado da venda (a comissão devida ao afiliado **não** entra: não é dado da pessoa), dizendo se foram enviadas à Meta e ao Google;
     - as escolhas de cookies.
 5. **Exclusão:**
-    - **No track:** apaga visitante, eventos e plays de vídeo. Anonimiza as compras: ficam pedido, valor, data, status, produto e campanha, sem identificar a pessoa. Apaga o conteúdo bruto do webhook e desliga a pessoa dos registros de consentimento (a prova continua, anônima).
+    - **No track:** apaga visitante, eventos e plays de vídeo. Anonimiza as compras: ficam pedido, valor, data, status, produto, campanha e afiliado (código, nome e comissão são dado comercial da venda, sem ligação com a pessoa depois do apagamento), sem identificar a pessoa. Apaga o conteúdo bruto do webhook e desliga a pessoa dos registros de consentimento (a prova continua, anônima).
     - **No backend:** anonimiza o cadastro (nome, email, CPF, telefone, cidade, PIX, origem da visita), apaga a senha e os códigos, encerra o acesso e apaga as participações em sorteios. Num sorteio que ela ganhou, o nome vira "Participante". Plano, data de pagamento e número do pedido ficam (obrigação fiscal).
     - **O próprio pedido** de exclusão perde o email e fica só como prova (data e contagens).
     - Por **30 dias**, uma venda que ainda estava a caminho para o mesmo email ou telefone chega já anonimizada. Depois disso, quem se cadastrar de novo é tratado como pessoa nova.

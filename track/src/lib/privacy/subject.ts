@@ -56,7 +56,7 @@ export async function exportSubject(subject: Subject) {
 		const ids = await visitorIdsOf(tx, emHash, phHash);
 		const visitors = await tx.execute(sql`
       select trck_user_id as visitor_id, email, created_at as first_seen_at, updated_at as last_seen_at,
-             landing_url, referrer, utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+             landing_url, referrer, utm_source, utm_medium, utm_campaign, utm_term, utm_content, affiliate_code,
              fbp as meta_browser_id, fbc as meta_click_id, ga_client_id as google_client_id,
              ip, user_agent, geo_city as city, geo_region as region, geo_country as country,
              consent_marketing, consent_at,
@@ -65,14 +65,14 @@ export async function exportSubject(subject: Subject) {
         from visitors where trck_user_id = any(${pgTextArray(ids)}::text[]) order by created_at`);
 		const events = await tx.execute(sql`
       select event_name as event, created_at as at, event_source_url as page, value, currency,
-             utm_source, utm_campaign, geo_city as city, geo_region as region
+             utm_source, utm_campaign, affiliate_code, geo_city as city, geo_region as region
         from events_log where trck_user_id = any(${pgTextArray(ids)}::text[]) order by created_at limit 5000`);
 		const videos = await tx.execute(sql`
-      select video_title as video, started_at as at, max_position_s as reached_second, watched_s as watched_seconds
+      select video_title as video, started_at as at, max_position_s as reached_second, watched_s as watched_seconds, affiliate_code
         from video_views where trck_user_id = any(${pgTextArray(ids)}::text[]) order by started_at limit 2000`);
 		const purchases = await tx.execute(sql`
       select transaction_id as order_id, coalesce(occurred_at, created_at) as at, status, value, currency, product,
-             payment_method, utm_source, utm_campaign,
+             payment_method, utm_source, utm_campaign, affiliate_code, affiliate_name,
              (meta_sent_at is not null) as sent_to_meta, (ga4_sent_at is not null) as sent_to_google
         from purchases where ${purchaseFilter(emHash, phHash, ids)} order by created_at`);
 		const consents = await tx.execute(sql`
