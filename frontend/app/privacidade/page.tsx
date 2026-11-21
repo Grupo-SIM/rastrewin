@@ -69,7 +69,7 @@ const SECTIONS: Section[] = [
 			"Se você recusar, guardamos apenas a sua escolha (no seu navegador) e um registro anônimo de que ela foi feita, com data, versão deste texto e página. Esse registro não tem IP, navegador ou qualquer dado que identifique você.",
 		],
 		body: [
-			"Tratamos apenas os dados necessários para cada finalidade. Eles chegam até nós de quatro formas:",
+			"Tratamos apenas os dados necessários para cada finalidade. Eles chegam até nós de cinco formas:",
 		],
 		list: [
 			"Fornecidos por você no cadastro: nome, e-mail, CPF, telefone (WhatsApp), cidade, chave PIX (quando informada) e o plano escolhido.",
@@ -85,6 +85,7 @@ const SECTIONS: Section[] = [
 				visita) e, quando você se cadastra, e-mail, telefone e nome, para ligar a compra à visita que
 				a originou.
 			</>,
+			"Coletado na navegação independentemente do aviso de cookies: se você chegar por um link de afiliado, apenas o código do afiliado (cookie necessário _trck_aff), sem identificador seu.",
 		],
 		title: "2. Dados que Coletamos",
 	},
@@ -97,6 +98,7 @@ const SECTIONS: Section[] = [
 			"Confirmar que o telefone cadastrado é seu e recuperar sua senha — prevenção a fraudes e segurança da conta (legítimo interesse, art. 7º, IX).",
 			"Medir de onde vêm as visitas e as compras, avaliar nossos anúncios e informar à Meta e ao Google as compras concluídas — consentimento (art. 7º, I), que você dá ou recusa no aviso de cookies e pode revogar a qualquer momento, sem prejuízo do uso do site.",
 			"Guardar a prova da sua escolha sobre cookies e atender seus pedidos de acesso e exclusão — cumprimento de obrigação legal (art. 7º, II, e art. 8º, §2º).",
+			"Guardar o código do afiliado que indicou você (cookie _trck_aff) e repassá-lo ao pagamento, para apurar e pagar a comissão devida ao afiliado — execução de contrato (a afiliação) e legítimo interesse (art. 7º, V e IX). Não depende do aviso de cookies.",
 			"Cumprir obrigações legais, fiscais e regulatórias, e exercer direitos em processos judiciais, administrativos ou arbitrais — obrigação legal e exercício regular de direitos (art. 7º, II e VI).",
 			"Responder a dúvidas e solicitações enviadas por você — execução de contrato e legítimo interesse.",
 		],
@@ -145,7 +147,11 @@ const SECTIONS: Section[] = [
 			<>
 				Na primeira visita, um aviso pergunta se você aceita os cookies de <b>marketing e medição</b>.
 				Recusar é tão simples quanto aceitar, e o site funciona do mesmo jeito. Antes da sua escolha,
-				nenhum cookie de marketing é gravado e nada é enviado à Meta ou ao Google.
+				nenhum cookie de marketing é gravado e nada é enviado à Meta ou ao Google. A única exceção é o
+				cookie necessário <b>_trck_aff</b>: se você chegar por um link de afiliado, ele guarda somente
+				o código do afiliado, por 30 dias, para que a comissão devida a ele possa ser apurada e paga.
+				Não guarda identificador de visitante, origem da campanha nem dado pessoal, continua valendo
+				se você recusar o aviso e só é enviado ao pagamento, nunca à Meta ou ao Google.
 			</>,
 			'Você pode mudar de ideia a qualquer momento, pelo botão abaixo ou por "Preferências de cookies" no rodapé do site. Se retirar o consentimento, apagamos os cookies de marketing do seu navegador e paramos de usar os identificadores de marketing ligados a você.',
 		],
@@ -154,6 +160,13 @@ const SECTIONS: Section[] = [
 			head: ["Nome", "De quem", "Para quê", "Duração", "Categoria"],
 			rows: [
 				["_trck_consent", "Rastrewin", "Guardar a sua escolha sobre cookies", "1 ano", "Necessário"],
+				[
+					"_trck_aff",
+					"Rastrewin",
+					"Guardar o código do afiliado que indicou o site, para apurar e pagar a comissão devida a ele (somente o código)",
+					"30 dias",
+					"Necessário",
+				],
 				[
 					"userId, userToken (armazenamento local)",
 					"Rastrewin",
