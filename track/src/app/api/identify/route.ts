@@ -68,6 +68,7 @@ export async function POST(request: Request) {
 	const referrer = cleanReferrer(d.referrer, ownHostsOf(config.allowedOrigins, config.checkoutDomains));
 
 	await upsertVisitor({
+		affiliateCode: d.aff,
 		consentMarketing: true,
 		email: d.email,
 		fbc: d.fbc,

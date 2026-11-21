@@ -6,6 +6,8 @@ import type { Geo } from "@/lib/geo";
 import { hashed, normEmail, normLastName, normName, normPhone } from "./normalize";
 
 export interface VisitorInput {
+	/** Código do afiliado (último clique). Só chega com o aceite de marketing. */
+	affiliateCode?: string | null;
 	trckUserId: string;
 	/** true quando a requisição veio com o aceite de marketing (t.js depois do banner). */
 	consentMarketing?: boolean;
@@ -46,6 +48,7 @@ export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
 	);
 
 	const values = {
+		affiliateCode: input.affiliateCode ?? null,
 		consentAt: input.consentMarketing ? sql`now()` : null,
 		consentMarketing: input.consentMarketing ? true : null,
 		email,
@@ -84,6 +87,8 @@ export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
 		.values(values)
 		.onConflictDoUpdate({
 			set: {
+				// Afiliado: último clique vence; sem código no envio, mantém o anterior.
+				affiliateCode: keepOld("affiliate_code"),
 				// Aceite: liga (e marca a data só quando muda). Sem o campo, mantém o que estava.
 				consentAt: input.consentMarketing
 					? sql.raw(

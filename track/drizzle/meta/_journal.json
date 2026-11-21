@@ -91,6 +91,13 @@
 			"tag": "0012_retention_lgpd",
 			"version": "7",
 			"when": 1794326259612
+		},
+		{
+			"breakpoints": true,
+			"idx": 13,
+			"tag": "0013_affiliates",
+			"version": "7",
+			"when": 1795227887372
 		}
 	],
 	"version": "7"

@@ -25,6 +25,7 @@ export async function insertEvent(input: RecordEventInput): Promise<number | nul
 	const [row] = await serviceDb()
 		.insert(eventsLog)
 		.values({
+			affiliateCode: visitor.affiliateCode,
 			currency: input.customData?.currency ?? null,
 			eventId: input.eventId,
 			eventName: input.eventName,

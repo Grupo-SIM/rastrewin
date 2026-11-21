@@ -63,6 +63,7 @@ export async function POST(request: Request) {
 
 	// Garante o visitante (caso o identify ainda não tenha chegado) e pega os dados para enriquecer.
 	const visitor = await upsertVisitor({
+		affiliateCode: d.aff,
 		consentMarketing: true,
 		email: d.user_data?.email,
 		fbc: d.fbc,

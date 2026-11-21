@@ -117,6 +117,8 @@ export const metaAdAccounts = pgTable(
 export const visitors = pgTable(
 	"visitors",
 	{
+		/** Afiliado do último clique (cookie necessário _trck_aff). Só é gravado com consentimento de marketing. */
+		affiliateCode: text("affiliate_code"),
 		/** Quando a escolha de marketing abaixo foi registrada. */
 		consentAt: timestamp("consent_at", { withTimezone: true }),
 		/**
@@ -156,6 +158,8 @@ export const visitors = pgTable(
 export const eventsLog = pgTable(
 	"events_log",
 	{
+		/** Afiliado do visitante no momento do evento (copiado de visitors, como as UTMs). */
+		affiliateCode: text("affiliate_code"),
 		currency: text("currency"),
 		/** Mesmo event_id do Pixel (deduplicação). */
 		eventId: text("event_id").notNull().unique(),
@@ -204,6 +208,8 @@ export const eventsLog = pgTable(
 export const videoViews = pgTable(
 	"video_views",
 	{
+		/** Afiliado do visitante no momento do play (copiado de visitors, como as UTMs). */
+		affiliateCode: text("affiliate_code"),
 		completed: boolean("completed").notNull().default(false),
 		/** Segundo em que o site libera o botão (CTA), se ele informar. */
 		ctaS: integer("cta_s"),
@@ -242,6 +248,15 @@ export const videoViews = pgTable(
 export const purchases = pgTable(
 	"purchases",
 	{
+		/**
+		 * Afiliado da venda. Fonte da verdade: `affiliate` do evento da SimIntPay (que decide quem recebe e
+		 * quanto); `tracking.aff` só preenche o código quando o evento não traz o campo. Fixo depois da aprovação.
+		 */
+		affiliateCode: text("affiliate_code"),
+		/** Comissão do afiliado em reais (nulo sem afiliado ou sem comissão informada). Não altera a receita. */
+		affiliateCommission: numeric("affiliate_commission", { precision: 14, scale: 2 }),
+		/** Nome do afiliado informado pela SimIntPay (só para exibir). */
+		affiliateName: text("affiliate_name"),
 		currency: text("currency").notNull(),
 		email: text("email"),
 		emHash: text("em_hash"),
@@ -298,6 +313,7 @@ export const purchases = pgTable(
 		index("purchases_status_idx").on(t.status),
 		index("purchases_created_at_idx").on(t.createdAt),
 		index("purchases_utm_campaign_idx").on(t.utmCampaign),
+		index("purchases_affiliate_code_idx").on(t.affiliateCode),
 	],
 );
 

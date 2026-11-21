@@ -16,12 +16,12 @@ export async function recordVideoView(input: VideoInput, geo: Geo): Promise<void
     insert into video_views (
       view_id, trck_user_id, video_id, video_title, page_url,
       duration_s, max_position_s, watched_s, completed, cta_s,
-      utm_campaign, utm_content, utm_medium, utm_source, utm_term,
+      utm_campaign, utm_content, utm_medium, utm_source, utm_term, affiliate_code,
       geo_city, geo_country, geo_region
     )
     select ${input.view_id}, ${input.trck_user_id}, ${input.video_id}, ${input.title}, ${input.page_url},
            ${p.durationS}, ${p.maxPositionS}, ${p.watchedS}, ${p.completed}, ${input.cta === undefined ? null : Math.round(input.cta)},
-           v.utm_campaign, v.utm_content, v.utm_medium, v.utm_source, v.utm_term,
+           v.utm_campaign, v.utm_content, v.utm_medium, v.utm_source, v.utm_term, v.affiliate_code,
            ${geo.city}, ${geo.country}, ${geo.region}
     from (select 1) as one
     left join visitors v on v.trck_user_id = ${input.trck_user_id}
