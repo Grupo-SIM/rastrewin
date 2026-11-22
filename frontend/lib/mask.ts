@@ -7,8 +7,15 @@ export function maskCpf(value: string) {
 		.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
 
+/**
+ * Telefone BR no formato (DD) 9XXXX-XXXX. O preenchimento automático do celular costuma trazer o DDI
+ * (+55 18 99641-2577): sem tirar o 55, o corte em 11 dígitos perdia os 2 últimos do número.
+ * DDD nunca começa com 0, então um 0 na frente (018...) também sai.
+ */
 export function maskPhone(value: string) {
-	const d = value.replace(/\D/g, "").slice(0, 11);
+	let d = value.replace(/\D/g, "").replace(/^0+/, "");
+	if (d.length > 11 && d.startsWith("55")) d = d.slice(2);
+	d = d.slice(0, 11);
 	if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
 	return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
 }

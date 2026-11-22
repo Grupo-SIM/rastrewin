@@ -722,7 +722,7 @@ export default function Landing() {
 									value={f.phone}
 									onChange={set("phone")}
 									placeholder="(11) 99999-9999"
-									autoComplete="tel"
+									autoComplete="tel-national"
 								/>
 							</div>
 						</div>
