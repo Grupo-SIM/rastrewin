@@ -25,6 +25,8 @@ interface Paged<T> {
 }
 type UsersPage = Paged<AdminUser> & {
 	planCounts: Record<string, number>;
+	paymentCounts: { all: number; paid: number; pending: number; expired: number };
+	clientTotal: number;
 	cityCounts: { city: string; count: number }[];
 	winnerClients: number;
 	winnerPrizes: number;
@@ -40,7 +42,9 @@ interface AdminUser {
 	cpf: string;
 	pix: string | null;
 	city: string;
-	paidAt: string;
+	/** null para quem só se cadastrou e não pagou */
+	paidAt: string | null;
+	createdAt: string;
 	wins: { id: string; title: string; site: string; prize: string; endsAt: string }[];
 }
 
@@ -97,7 +101,7 @@ function downloadClientsCsv(clients: AdminUser[]) {
 		u.city,
 		PLAN_NAME[u.plan] ?? u.plan,
 		String(PLAN_PRICE[u.plan] ?? ""),
-		fmtDate(u.paidAt),
+		u.paidAt ? fmtDate(u.paidAt) : "",
 		String(u.wins.length),
 	]);
 	const csv = `﻿${[header, ...rows].map(r => r.map(esc).join(";")).join("\r\n")}`;
@@ -145,6 +149,9 @@ export default function Admin() {
 	const [userTotal, setUserTotal] = useState(0);
 	const [raffleTotal, setRaffleTotal] = useState(0);
 	const [planCounts, setPlanCounts] = useState<Record<string, number>>({});
+	const [paymentCounts, setPaymentCounts] = useState({ all: 0, expired: 0, paid: 0, pending: 0 });
+	const [clientTotal, setClientTotal] = useState(0);
+	const [paymentFilter, setPaymentFilter] = useState("all");
 	const [cityCounts, setCityCounts] = useState<{ city: string; count: number }[]>([]);
 	const [cityFilter, setCityFilter] = useState("all");
 	const [winStats, setWinStats] = useState({ clients: 0, prizes: 0 });
@@ -175,10 +182,10 @@ export default function Admin() {
 	useEffect(() => {
 		setRLimit(PAGE);
 		setULimit(PAGE);
-	}, [dq, planFilter, cityFilter, onlyWinners]);
+	}, [dq, planFilter, paymentFilter, cityFilter, onlyWinners]);
 
 	const usersQuery = (limit: number) =>
-		`q=${encodeURIComponent(dq)}&plan=${planFilter}&city=${encodeURIComponent(cityFilter)}&winners=${onlyWinners ? 1 : ""}&offset=0&limit=${limit}`;
+		`q=${encodeURIComponent(dq)}&plan=${planFilter}&payment=${paymentFilter}&city=${encodeURIComponent(cityFilter)}&winners=${onlyWinners ? 1 : ""}&offset=0&limit=${limit}`;
 
 	const load = useCallback(async () => {
 		try {
@@ -198,6 +205,8 @@ export default function Admin() {
 			setUsers(u.items);
 			setUserTotal(u.total);
 			setPlanCounts(u.planCounts);
+			setPaymentCounts(u.paymentCounts);
+			setClientTotal(u.clientTotal);
 			setCityCounts(u.cityCounts);
 			setWinStats({ clients: u.winnerClients, prizes: u.winnerPrizes });
 			setError("");
@@ -205,7 +214,7 @@ export default function Admin() {
 			setError((e as Error).message);
 		}
 		// eslint-disable-next-line
-	}, [dq, rLimit, uLimit, planFilter, cityFilter, onlyWinners]);
+	}, [dq, rLimit, uLimit, planFilter, paymentFilter, cityFilter, onlyWinners]);
 
 	async function exportCsv() {
 		try {
@@ -309,10 +318,34 @@ export default function Admin() {
 						Sorteios
 					</button>
 					<button className={tab === "clients" ? "on" : ""} onClick={() => setTab("clients")}>
-						Clientes ({Object.values(planCounts).reduce((a, n) => a + n, 0)})
+						Clientes ({clientTotal})
 					</button>
 					{tab === "clients" && (
 						<span className="atabs-sum">
+							<Dropdown
+								label="Filtrar por pagamento"
+								value={paymentFilter}
+								onChange={setPaymentFilter}
+								width={300}
+								options={[
+									{ label: `Todos os pagamentos (${paymentCounts.all})`, value: "all" },
+									{
+										label: `Pagantes (${paymentCounts.paid})`,
+										sub: "Pagou e está com o plano ativo",
+										value: "paid",
+									},
+									{
+										label: `Só cadastro, não pagou (${paymentCounts.pending})`,
+										sub: "Preencheu o formulário e não pagou",
+										value: "pending",
+									},
+									{
+										label: `Expirados ou reembolsados (${paymentCounts.expired})`,
+										sub: "Já pagou, mas está sem acesso",
+										value: "expired",
+									},
+								]}
+							/>
 							<Dropdown
 								label="Filtrar por plano"
 								value={planFilter}
@@ -443,7 +476,12 @@ export default function Admin() {
 							<div key={u.id} className="arow clients">
 								<div>
 									<div className="ttl">{u.name}</div>
-									<div className="sub">Pago em {fmtDate(u.paidAt)}</div>
+									{/* quem só se cadastrou não tem data de pagamento */}
+									<div className="sub">
+										{u.paidAt
+											? `Pago em ${fmtDate(u.paidAt)}`
+											: `Cadastrado em ${fmtDate(u.createdAt)}`}
+									</div>
 								</div>
 								<span className="cell" title={u.email}>
 									{u.email}
