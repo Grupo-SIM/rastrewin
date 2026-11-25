@@ -1408,6 +1408,16 @@ button {
 	letter-spacing: 0.14em;
 	margin-left: 4px;
 }
+.admin-nav-acts {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+@media (max-width: 374px) {
+	.admin-nav-acts .nav-lbl {
+		display: none;
+	}
+}
 .admin-head h1 {
 	font-size: 56px;
 	letter-spacing: -0.055em;
@@ -2271,6 +2281,30 @@ button {
 	/* admin */
 	.admin-page .app-top {
 		padding-bottom: 0;
+	}
+	/* topo do admin cabe em 320 px: logo, selo e botões menores */
+	.admin-page .nav {
+		gap: 8px;
+		padding: 0 6px 0 14px;
+	}
+	.admin-page .nav .logo {
+		gap: 6px;
+	}
+	.admin-page .nav .logo img {
+		height: 26px;
+	}
+	.admin-page .nav .admin-badge {
+		font-size: 9.5px;
+		padding: 3px 8px;
+		margin-left: 0;
+	}
+	.admin-nav-acts {
+		gap: 6px;
+	}
+	.admin-nav-acts .btn-outline {
+		padding: 8px 12px;
+		font-size: 13px;
+		white-space: nowrap;
 	}
 	.admin-head {
 		flex-direction: column;

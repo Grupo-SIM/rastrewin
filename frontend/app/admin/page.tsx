@@ -287,12 +287,15 @@ export default function Admin() {
 					<a href="/dashboard">
 						<Logo badge="ADMIN" />
 					</a>
-					<div style={{ alignItems: "center", display: "flex", gap: 12 }}>
+					<div className="admin-nav-acts">
 						<button className="btn-outline" onClick={() => setTwoFaOpen(true)}>
 							2FA
 						</button>
-						<a href="/dashboard" className="btn-outline">
-							← Dashboard
+						{/* em tela bem estreita fica só a seta (ver .nav-lbl no CSS) */}
+						<a href="/dashboard" className="btn-outline" aria-label="Voltar ao Dashboard">
+							<span>
+								← <span className="nav-lbl">Dashboard</span>
+							</span>
 						</a>
 					</div>
 				</nav>
