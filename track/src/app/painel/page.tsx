@@ -9,7 +9,6 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { Suspense } from "react";
 import { ChartCard } from "@/components/charts/chart-card";
@@ -21,7 +20,7 @@ import { EmptyState } from "@/components/empty-state";
 import { KpiCard } from "@/components/kpi-card";
 import { PageHeader } from "@/components/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
-import { Button } from "@/components/ui/button";
+import { ConfigButton } from "@/components/shell/config-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { roas } from "@/lib/campaigns/build";
 import { type AdSpend, getAdSpend } from "@/lib/campaigns/query";
@@ -87,9 +86,7 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 							title="Nenhum dado ainda"
 							description="Instale o script no site e cadastre os sites autorizados para começar a ver visitantes e eventos aqui."
 						>
-							<Button asChild className="h-11">
-								<Link href="/painel/config">Ir para Configurações</Link>
-							</Button>
+							<ConfigButton />
 						</EmptyState>
 					)}
 

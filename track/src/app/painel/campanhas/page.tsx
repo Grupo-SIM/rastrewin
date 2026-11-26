@@ -7,7 +7,6 @@ import {
 	TargetIcon,
 } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense } from "react";
 import { CampaignTree } from "@/components/campaigns/campaign-tree";
 import { StatusStrip } from "@/components/campaigns/status-strip";
@@ -20,7 +19,7 @@ import { GlassCard } from "@/components/glass-card";
 import { KpiCard } from "@/components/kpi-card";
 import { PageHeader } from "@/components/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
-import { Button } from "@/components/ui/button";
+import { ConfigButton } from "@/components/shell/config-button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cpa, roas } from "@/lib/campaigns/build";
 import { getCampaigns } from "@/lib/campaigns/query";
@@ -54,9 +53,7 @@ async function CampaignsContent({ searchParams }: { searchParams: Promise<Search
 				title="Nenhuma conta de anúncio"
 				description="Cadastre uma conta de anúncios da Meta (com token de leitura ads_read) para ver gasto, ROAS e CPA aqui."
 			>
-				<Button asChild className="h-11">
-					<Link href="/painel/config">Ir para Configurações</Link>
-				</Button>
+				<ConfigButton />
 			</EmptyState>
 		);
 	}

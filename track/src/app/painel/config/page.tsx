@@ -6,6 +6,7 @@ import { HealthPanel } from "@/components/config/health-panel";
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getConfigView } from "@/lib/config/queries";
+import { requireAdmin } from "@/lib/dal";
 import { safeErrorMessage } from "@/lib/errors";
 import { getHealthView } from "@/lib/health/queries";
 
@@ -26,7 +27,8 @@ export default function ConfigPage() {
 }
 
 async function ConfigContent() {
-	// getConfigView valida a sessão (readAsUser) e lê com RLS.
+	// Só Administrador: Colaborador é redirecionado para /painel (getConfigView também confere).
+	await requireAdmin();
 	const config = await getConfigView();
 	return (
 		<ConfigTabs

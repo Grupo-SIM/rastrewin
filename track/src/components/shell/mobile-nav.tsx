@@ -14,17 +14,18 @@ import {
 	SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { isActive, NAV_ITEMS } from "./nav-items";
+import { isActive, navItemsFor } from "./nav-items";
 
 const tab =
 	"flex min-h-14 flex-1 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /** Barra inferior fixa no celular (até lg). Itens secundários ficam em "Mais". */
-export function MobileNav({ footer }: { footer?: ReactNode }) {
+export function MobileNav({ footer, isAdmin = false }: { footer?: ReactNode; isAdmin?: boolean }) {
 	const pathname = usePathname();
+	const items = navItemsFor(isAdmin);
 	const [open, setOpen] = useState(false);
-	const primary = NAV_ITEMS.filter(i => i.primary);
-	const secondary = NAV_ITEMS.filter(i => !i.primary);
+	const primary = items.filter(i => i.primary);
+	const secondary = items.filter(i => !i.primary);
 	const secondaryActive = secondary.some(i => isActive(pathname, i.href));
 
 	return (

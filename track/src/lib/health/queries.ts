@@ -3,7 +3,7 @@ import { desc, sql } from "drizzle-orm";
 import type { ReaderTx } from "@/db";
 import { maintenanceRuns } from "@/db/schema";
 import { maintenanceHealth } from "@/lib/config/maintenance";
-import { getSession, readAsUser } from "@/lib/dal";
+import { isAdmin, readAsAdmin } from "@/lib/dal";
 import { ACTIVE_SALE, num, rows } from "@/lib/dashboard/context";
 import { MAX_ATTEMPTS } from "@/lib/sales/deliver";
 import { ignoredVisits } from "@/lib/tracking/bot-guard";
@@ -22,7 +22,7 @@ import { lastRelayStatus, relayRetryState } from "./relay";
 
 /*
  * Dados da aba Configurações › Saúde e da faixa de aviso do painel. Leitura com a sessão do usuário
- * (readAsUser, RLS). O tamanho do banco é a soma de pg_total_relation_size de todas as tabelas
+ * (readAsAdmin, RLS; só Administrador). O tamanho do banco é a soma de pg_total_relation_size de todas as tabelas
  * (com índices e TOAST): pg_database_size exige o privilégio CONNECT, que o app_reader não tem, e a
  * diferença para o arquivo do banco é desprezível. O sinal do backend e a contagem de robôs ficam
  * em memória.
@@ -123,10 +123,10 @@ function relayNow() {
 	return { last, state: relayState(last, new Date()) };
 }
 
-/** Só o necessário para a faixa do topo (barato: roda ao abrir o painel). null sem sessão. */
+/** Só o necessário para a faixa do topo (barato: roda ao abrir o painel). null sem sessão ou para o Colaborador (a Saúde fica em Configurações). */
 export async function getHealthIssues(): Promise<HealthIssue[] | null> {
-	if (!(await getSession())) return null;
-	return readAsUser(async tx => {
+	if (!(await isAdmin())) return null;
+	return readAsAdmin(async tx => {
 		const [bytes, maintenance, deliveryFailures] = await Promise.all([
 			dbBytes(tx),
 			lastMaintenance(tx),
@@ -142,8 +142,9 @@ export async function getHealthIssues(): Promise<HealthIssue[] | null> {
 	});
 }
 
+/** Aba Saúde de Configurações: só Administrador. */
 export function getHealthView(): Promise<HealthView> {
-	return readAsUser(async tx => {
+	return readAsAdmin(async tx => {
 		const bytes = await dbBytes(tx);
 		const maintenance = await lastMaintenance(tx);
 

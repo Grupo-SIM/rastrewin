@@ -10,7 +10,7 @@ import {
 	settings,
 	webhookEvents,
 } from "@/db/schema";
-import { readAsUser } from "@/lib/dal";
+import { readAsAdmin } from "@/lib/dal";
 import { env } from "@/lib/env";
 import { consentTextsSchema, DEFAULT_CONSENT_TEXTS } from "@/lib/privacy/consent-texts";
 import { DEFAULT_TIMEZONE } from "@/lib/time";
@@ -31,11 +31,11 @@ function testView(row: TestCols) {
 	};
 }
 
-/** Lê a configuração como app_reader (RLS). Colunas *_enc nem são selecionáveis por esse papel. */
+/** Lê a configuração como app_reader (RLS), SÓ para Administrador (readAsAdmin: Colaborador → /painel). Colunas *_enc nem são selecionáveis por esse papel. */
 export async function getConfigView(): Promise<ConfigView> {
 	const requestHeaders = await headers();
 	const production = env().APP_URL.startsWith("https://");
-	const data = await readAsUser(async tx => {
+	const data = await readAsAdmin(async tx => {
 		const [general] = await tx
 			.select({
 				allowedOrigins: settings.allowedOrigins,

@@ -6,11 +6,12 @@ import type { ReactNode } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
 import { Logo } from "./logo";
-import { isActive, NAV_ITEMS } from "./nav-items";
+import { isActive, navItemsFor } from "./nav-items";
 
 /** Navegação lateral — só aparece a partir de lg (desktop). */
-export function Sidebar({ footer }: { footer?: ReactNode }) {
+export function Sidebar({ footer, isAdmin = false }: { footer?: ReactNode; isAdmin?: boolean }) {
 	const pathname = usePathname();
+	const items = navItemsFor(isAdmin);
 
 	return (
 		<aside className="glass sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-y-0 border-l-0 lg:flex">
@@ -18,7 +19,7 @@ export function Sidebar({ footer }: { footer?: ReactNode }) {
 				<Logo />
 			</div>
 			<nav aria-label="Navegação principal" className="flex flex-1 flex-col gap-1 px-3 py-2">
-				{NAV_ITEMS.map(item => {
+				{items.map(item => {
 					const active = isActive(pathname, item.href);
 					const Icon = item.icon;
 					return (

@@ -6,6 +6,7 @@ import { HealthBanner } from "@/components/shell/health-banner";
 import { MobileNav } from "@/components/shell/mobile-nav";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
+import { ViewerMobileNav, ViewerSidebar } from "@/components/shell/viewer-nav";
 
 export default function PainelLayout({ children }: LayoutProps<"/painel">) {
 	// O shell é estático; sessão e conteúdo chegam por streaming atrás de <Suspense>.
@@ -16,12 +17,15 @@ export default function PainelLayout({ children }: LayoutProps<"/painel">) {
 	);
 	return (
 		<div className="flex min-h-dvh">
-			<Sidebar footer={user} />
+			{/* Menu pelo nível (o fallback não mostra itens de administrador) */}
+			<Suspense fallback={<Sidebar footer={user} />}>
+				<ViewerSidebar footer={user} />
+			</Suspense>
 			<div className="flex min-w-0 flex-1 flex-col">
 				<Topbar />
 				{/* pb extra no mobile para não ficar atrás da barra inferior */}
 				<main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-5 pb-28 sm:px-6 lg:px-8 lg:pt-8 lg:pb-10">
-					{/* Aviso dos bastidores (Saúde): não atrasa a página; aparece quando chega */}
+					{/* Aviso dos bastidores (Saúde), só para Administrador: não atrasa a página; aparece quando chega */}
 					<Suspense fallback={null}>
 						<HealthBanner />
 					</Suspense>
@@ -43,7 +47,9 @@ export default function PainelLayout({ children }: LayoutProps<"/painel">) {
 					</p>
 				</main>
 			</div>
-			<MobileNav footer={user} />
+			<Suspense fallback={<MobileNav footer={user} />}>
+				<ViewerMobileNav footer={user} />
+			</Suspense>
 		</div>
 	);
 }

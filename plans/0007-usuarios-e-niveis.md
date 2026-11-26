@@ -84,7 +84,7 @@ Volta atrás: reimplantar a imagem anterior no Komodo (as colunas novas não atr
 - [x] Decisões e mockup aprovados (25–26/11/2026)
 - [x] Etapa 0: worktree `feat/track-usuarios-niveis` e este plano
 - [x] Etapa 1: banco e login — migração 0014 testada em Postgres 15 e 18 (upgrade com usuário e sessão existentes: vira admin, sessão continua válida; `test:rls` 35/35, `test:retention` 30/30, auditoria com 15 migrations e checagem de administrador ativo); plugin admin com rotas `/api/auth/admin/*` em 404 (inclusive variações de grafia); conta desativada recebe "Conta desativada. Fale com o administrador."; `create-admin` cria administrador
-- [ ] Etapa 2: bloqueios de acesso
+- [x] Etapa 2: bloqueios de acesso — `requireAdmin`/`readAsAdmin`/`denyUnlessAdmin` em `dal.ts`; página e 10 actions de Configurações, Saúde e faixa só para Administrador; menu por nível (computador e celular); estados vazios mostram "Peça a um administrador para configurar."; teste `admin-guard.test.ts` (falha se uma action de admin perder a trava ou se surgir arquivo de actions não classificado). Ponta a ponta local: Colaborador redirecionado de `/painel/config`, `saveGeneral` repetida com a sessão dele = "Sem permissão" e banco intacto, troca de nível vale no próximo clique. Visto: aviso pré-existente do `pg` (consultas paralelas na mesma transação em `getHealthIssues`), fora do escopo
 - [ ] Etapa 3: mascaramento
 - [ ] Etapa 4: aba Usuários
 - [ ] Etapa 5: documentação

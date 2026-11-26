@@ -17,7 +17,7 @@ import {
 	privacySchema,
 	webhookSecretSchema,
 } from "@/lib/config/validation";
-import { requireSession } from "@/lib/dal";
+import { denyUnlessAdmin } from "@/lib/dal";
 import { requestRelayRetry } from "@/lib/health/relay";
 import { decryptSecret, encryptSecret, secretHint } from "@/lib/secrets";
 import { invalidateRuntimeConfig } from "@/lib/tracking/runtime-config";
@@ -26,7 +26,8 @@ import { invalidateRuntimeConfig } from "@/lib/tracking/runtime-config";
  * Todo acesso que cifra segredo fica em try/catch → dbError(), que só registra o código do erro:
  * a mensagem de erro do Drizzle traz os parâmetros (o token digitado e a ENCRYPTION_KEY).
  *
- * Server Actions são endpoints públicos: TODA função aqui chama requireSession()
+ * Server Actions são endpoints públicos: TODA função aqui começa com denyUnlessAdmin() (só Administrador;
+ * sem sessão → /login; o teste src/lib/admin-guard.test.ts confere)
  * e valida a entrada com Zod antes de tocar no banco (sempre como app_service).
  * Segredos nunca voltam ao navegador, exceto o token do webhook recém-gerado, exibido uma vez.
  */
@@ -85,7 +86,8 @@ function dbError(error: unknown): ActionResult {
 // ---------------------------------------------------------------- contas
 
 export async function saveAccount(kind: AccountKind, input: unknown): Promise<ActionResult> {
-	await requireSession();
+	const denied = await denyUnlessAdmin();
+	if (denied) return denied;
 	const k = kindSchema.parse(kind);
 	const parsed = accountSchema(k).safeParse(input);
 	if (!parsed.success) {
@@ -134,7 +136,8 @@ export async function saveAccount(kind: AccountKind, input: unknown): Promise<Ac
 }
 
 export async function deleteAccount(kind: AccountKind, id: string): Promise<ActionResult> {
-	await requireSession();
+	const denied = await denyUnlessAdmin();
+	if (denied) return denied;
 	const k = kindSchema.parse(kind);
 	const accountId = idSchema.parse(id);
 	const table = REGISTRY[k].table as AnyAccountTable;
@@ -149,7 +152,8 @@ export async function setAccountActive(
 	id: string,
 	active: boolean,
 ): Promise<ActionResult> {
-	await requireSession();
+	const denied = await denyUnlessAdmin();
+	if (denied) return denied;
 	const k = kindSchema.parse(kind);
 	const accountId = idSchema.parse(id);
 	const table = REGISTRY[k].table as AnyAccountTable;
@@ -163,7 +167,8 @@ export async function setAccountActive(
 }
 
 export async function testAccount(kind: AccountKind, id: string): Promise<ActionResult<TestResult>> {
-	await requireSession();
+	const denied = await denyUnlessAdmin();
+	if (denied) return denied;
 	const k = kindSchema.parse(kind);
 	const accountId = idSchema.parse(id);
 	const reg = REGISTRY[k];
@@ -193,7 +198,8 @@ export async function testAccount(kind: AccountKind, id: string): Promise<Action
 // ---------------------------------------------------------------- geral
 
 export async function saveGeneral(input: unknown): Promise<ActionResult> {
-	await requireSession();
+	const denied = await denyUnlessAdmin();
+	if (denied) return denied;
 	const parsed = generalSchema.safeParse(input);
 	if (!parsed.success) {
 		return { error: "Confira os campos destacados.", fieldErrors: fieldErrors(parsed.error), ok: false };
@@ -221,7 +227,8 @@ export async function saveGeneral(input: unknown): Promise<ActionResult> {
 
 /** Banner de consentimento (LGPD): versão do texto, link da política e textos (vazio = padrão). */
 export async function savePrivacy(input: unknown): Promise<ActionResult> {
-	await requireSession();
+	const denied = await denyUnlessAdmin();
+	if (denied) return denied;
 	const parsed = privacySchema.safeParse(input);
 	if (!parsed.success) {
 		return { error: "Confira os campos destacados.", fieldErrors: fieldErrors(parsed.error), ok: false };
@@ -251,7 +258,8 @@ export async function savePrivacy(input: unknown): Promise<ActionResult> {
  * é dado da pessoa) e registra quando.
  */
 export async function markErasureGaDone(id: unknown): Promise<ActionResult> {
-	await requireSession();
+	const denied = await denyUnlessAdmin();
+	if (denied) return denied;
 	const parsed = z.number().int().positive().safeParse(id);
 	if (!parsed.success) return { error: "Exclusão inválida.", ok: false };
 	try {
@@ -268,7 +276,8 @@ export async function markErasureGaDone(id: unknown): Promise<ActionResult> {
 
 /** Gera um segredo novo para o webhook. Ele é devolvido UMA vez para ser copiado. */
 export async function generateWebhookSecret(): Promise<ActionResult<{ secret: string }>> {
-	await requireSession();
+	const denied = await denyUnlessAdmin();
+	if (denied) return denied;
 	const secret = randomBytes(36).toString("base64url");
 	try {
 		await serviceDb()
@@ -285,7 +294,8 @@ export async function generateWebhookSecret(): Promise<ActionResult<{ secret: st
 
 /** Define um segredo que já existe na plataforma de venda. */
 export async function setWebhookSecret(value: unknown): Promise<ActionResult> {
-	await requireSession();
+	const denied = await denyUnlessAdmin();
+	if (denied) return denied;
 	const parsed = webhookSecretSchema.safeParse(value);
 	if (!parsed.success) {
 		return {
@@ -314,7 +324,8 @@ export async function setWebhookSecret(value: unknown): Promise<ActionResult> {
 
 /** "Tentar de novo": o backend recoloca na fila as vendas em que desistiu, no próximo sinal (até 1 min). */
 export async function retryBackendRelays(): Promise<ActionResult> {
-	await requireSession();
+	const denied = await denyUnlessAdmin();
+	if (denied) return denied;
 	requestRelayRetry();
 	refresh();
 	return {
