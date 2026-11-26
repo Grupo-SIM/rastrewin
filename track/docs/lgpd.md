@@ -134,6 +134,7 @@ Este guia é a **base** de conformidade com a LGPD (Lei 13.709/2018) do rastream
     - O email do visitante fica em texto, para a busca no painel. Telefone e nome ficam só em hash.
     - O registro de consentimento não guarda IP nem navegador.
     - O link de origem (`referrer`) é guardado sem parâmetros.
+- **No painel:** quem tem nível Colaborador vê nome, e-mail, telefone e IP de clientes **mascarados** (ex.: `m***@gmail.com`), sem o corpo bruto do webhook e sem busca por e-mail. Só o Administrador vê o dado completo. Detalhes em [usuarios.md](usuarios.md).
 
 ## 4. Retenção: por quanto tempo cada dado fica
 

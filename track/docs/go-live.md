@@ -84,7 +84,7 @@ docker compose up -d app
 curl -s http://127.0.0.1:3000/api/health      # deve responder {"ok":true}
 ```
 
-O `create-admin` pede a senha sem mostrá-la na tela. Não existe cadastro público: novos usuários só entram por este comando.
+O `create-admin` pede a senha sem mostrá-la na tela e cria um **Administrador**. Não existe cadastro público: depois do primeiro acesso, as outras pessoas são cadastradas pelo painel, na aba Usuários ([docs/usuarios.md](usuarios.md)).
 
 ## 7. HTTPS (escolha UM)
 
