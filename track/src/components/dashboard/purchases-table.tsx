@@ -371,7 +371,14 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 								)}
 							</TabsContent>
 							<TabsContent value="webhook">
-								<JsonBlock value={detail.webhookRaw} />
+								{detail.webhookHidden ? (
+									<p className="text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 text-sm">
+										Disponível só para Administrador: o corpo do webhook traz nome, e-mail
+										e telefone completos do comprador.
+									</p>
+								) : (
+									<JsonBlock value={detail.webhookRaw} />
+								)}
 							</TabsContent>
 						</Tabs>
 					)}

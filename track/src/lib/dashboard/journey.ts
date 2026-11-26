@@ -1,5 +1,7 @@
 import "server-only";
 import { sql } from "drizzle-orm";
+import { isAdmin } from "@/lib/dal";
+import { maskEmail, maskIp, maskName, maskPhone } from "@/lib/privacy/mask";
 import { type ReferrerSource, referrerSource } from "@/lib/tracking/referrer";
 import { TRCK_ID } from "@/lib/tracking/schemas";
 import { num, ownHosts, rows, withDashboard } from "./context";
@@ -136,9 +138,35 @@ export function journeyLimit(ver: string | null): number {
 	return Math.min(MAX_ITEMS, Math.ceil(n / JOURNEY_STEP) * JOURNEY_STEP);
 }
 
-/** null = ID inválido (formato) — a tela mostra a mensagem certa sem consultar o banco. */
-export function getJourney(id: string, ver: string | null): Promise<Journey | null> {
-	if (!TRCK_ID.test(id)) return Promise.resolve(null);
+/**
+ * null = ID inválido (formato) — a tela mostra a mensagem certa sem consultar o banco.
+ * Colaborador recebe nome, e-mail, telefone e IPs mascarados (src/lib/privacy/mask.ts).
+ */
+export async function getJourney(id: string, ver: string | null): Promise<Journey | null> {
+	if (!TRCK_ID.test(id)) return null;
+	const admin = await isAdmin();
+	const journey = await loadJourney(id, ver);
+	return journey && !admin ? maskJourney(journey) : journey;
+}
+
+/** Versão do Colaborador: o dado pessoal completo não sai do servidor. */
+export function maskJourney(j: Journey): Journey {
+	return {
+		...j,
+		items: j.items.map(item => (item.kind === "event" ? { ...item, ip: maskIp(item.ip) } : item)),
+		visitor: j.visitor
+			? {
+					...j.visitor,
+					email: maskEmail(j.visitor.email),
+					ip: maskIp(j.visitor.ip),
+					name: maskName(j.visitor.name),
+					phone: maskPhone(j.visitor.phone),
+				}
+			: null,
+	};
+}
+
+function loadJourney(id: string, ver: string | null): Promise<Journey> {
 	const limit = journeyLimit(ver);
 
 	return withDashboard({}, async ({ tx, tz, currency }) => {

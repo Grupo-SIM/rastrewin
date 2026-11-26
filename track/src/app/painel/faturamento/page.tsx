@@ -70,7 +70,9 @@ async function RevenueContent({ searchParams }: { searchParams: Promise<SearchPa
 						width="w-[14rem]"
 					/>
 					<AffiliateFilter options={d.affiliates} />
-					<SearchFilter placeholder="Pedido, email ou produto" />
+					<SearchFilter
+						placeholder={d.searchesEmail ? "Pedido, email ou produto" : "Pedido ou produto"}
+					/>
 				</FiltersBar>
 				<PendingArea className="flex flex-col gap-4">
 					<section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-3">

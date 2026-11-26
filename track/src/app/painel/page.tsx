@@ -24,6 +24,7 @@ import { ConfigButton } from "@/components/shell/config-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { roas } from "@/lib/campaigns/build";
 import { type AdSpend, getAdSpend } from "@/lib/campaigns/query";
+import { isAdmin } from "@/lib/dal";
 import type { SearchParams } from "@/lib/dashboard/context";
 import {
 	delta,
@@ -294,7 +295,9 @@ async function SpendCards({
 	}
 	const { spend, prevSpend } = ads;
 	const hint = !ads.configured
-		? "Cadastre a conta de anúncios em Configurações."
+		? (await isAdmin())
+			? "Cadastre a conta de anúncios em Configurações."
+			: "Nenhuma conta de anúncios cadastrada. Peça a um administrador."
 		: spend === null
 			? (ads.notice ?? "Sem dados da Meta ainda.")
 			: ads.incomplete

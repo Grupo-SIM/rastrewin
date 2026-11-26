@@ -1,11 +1,18 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { eventsLog, purchases } from "@/db/schema";
-import { readAsUser } from "@/lib/dal";
+import { isAdmin, readAsUser } from "@/lib/dal";
+import { maskEmail, maskIp, redactPersonal } from "@/lib/privacy/mask";
+
+/*
+ * Colaborador (src/lib/roles.ts): IP e e-mail mascarados, identificadores dos payloads como "oculto"
+ * e webhook bruto omitido (webhookHidden). Feito aqui, no servidor (src/lib/privacy/mask.ts).
+ */
 
 /** Detalhe de um evento (payload e resposta de Meta e GA4) — lido só quando o modal abre. */
 export async function getEventDetail(id: number) {
-	return readAsUser(async tx => {
+	const admin = await isAdmin();
+	const detail = await readAsUser(async tx => {
 		const [row] = await tx
 			.select({
 				createdAt: eventsLog.createdAt,
@@ -25,11 +32,19 @@ export async function getEventDetail(id: number) {
 			.where(eq(eventsLog.id, id));
 		return row ? { ...row, createdAt: row.createdAt.toISOString() } : null;
 	});
+	if (!detail || admin) return detail;
+	return {
+		...detail,
+		ip: maskIp(detail.ip),
+		payloadGa4: redactPersonal(detail.payloadGa4),
+		payloadMeta: redactPersonal(detail.payloadMeta),
+	};
 }
 
-/** Detalhe de uma compra: ligação, envios, respostas e o webhook bruto. */
+/** Detalhe de uma compra: ligação, envios, respostas e o webhook bruto (só Administrador). */
 export async function getPurchaseDetail(id: number) {
-	return readAsUser(async tx => {
+	const admin = await isAdmin();
+	const detail = await readAsUser(async tx => {
 		const [row] = await tx
 			.select({
 				affiliateCode: purchases.affiliateCode,
@@ -81,8 +96,18 @@ export async function getPurchaseDetail(id: number) {
 			refundedAt: iso(row.refundedAt),
 			refundSentAt: iso(row.refundSentAt),
 			value: Number(row.value),
+			webhookHidden: false,
 		};
 	});
+	if (!detail || admin) return detail;
+	return {
+		...detail,
+		email: maskEmail(detail.email),
+		payloadGa4: redactPersonal(detail.payloadGa4),
+		payloadMeta: redactPersonal(detail.payloadMeta),
+		webhookHidden: true,
+		webhookRaw: null,
+	};
 }
 
 export type EventDetail = NonNullable<Awaited<ReturnType<typeof getEventDetail>>>;

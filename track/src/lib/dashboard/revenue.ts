@@ -1,5 +1,6 @@
 import "server-only";
 import { sql } from "drizzle-orm";
+import { isAdmin } from "@/lib/dal";
 import { BANNER_REJECTED_REASON } from "@/lib/sales/consent";
 import {
 	ACTIVE_SALE,
@@ -74,6 +75,8 @@ export interface AffiliateStat {
 
 export interface Revenue {
 	affiliates: AffiliateOption[];
+	/** A busca olha o e-mail do comprador? Só para Administrador (o Colaborador não descobre se um e-mail comprou). */
+	searchesEmail: boolean;
 	byAffiliate: AffiliateStat[];
 	period: Period;
 	timeZone: string;
@@ -99,7 +102,8 @@ export interface Revenue {
 const PAYMENT_LABEL: Record<string, string> = { BOLETO: "Boleto", CREDIT_CARD: "Cartão", PIX: "PIX" };
 const PAGE_SIZE = 25;
 
-export function getRevenue(sp: SearchParams): Promise<Revenue> {
+export async function getRevenue(sp: SearchParams): Promise<Revenue> {
+	const searchesEmail = await isAdmin();
 	return withDashboard(sp, async ({ tx, tz, period, currency }) => {
 		// Período anterior = [ps, pe). Nos filtros de mês ele não encosta no atual (01–08/10 × 01–08/11).
 		const { start: s, end: e, prevStart: ps, prevEnd: pe } = period;
@@ -173,7 +177,9 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 				...(STATUS_SQL[status] ? [STATUS_SQL[status]] : []),
 				...(q
 					? [
-							sql`(p.transaction_id ilike ${`%${q}%`} or p.email ilike ${`%${q}%`} or p.product ilike ${`%${q}%`})`,
+							searchesEmail
+								? sql`(p.transaction_id ilike ${`%${q}%`} or p.email ilike ${`%${q}%`} or p.product ilike ${`%${q}%`})`
+								: sql`(p.transaction_id ilike ${`%${q}%`} or p.product ilike ${`%${q}%`})`,
 						]
 					: []),
 			],
@@ -229,6 +235,7 @@ export function getRevenue(sp: SearchParams): Promise<Revenue> {
 			},
 			period,
 			revenueByDay: fillDays(period, byDay),
+			searchesEmail,
 			table: {
 				page,
 				pageSize: PAGE_SIZE,
