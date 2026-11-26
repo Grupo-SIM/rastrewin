@@ -259,6 +259,17 @@
 }
 
 @layer components {
+	/* Aba Usuários: no computador (com mouse) as ações da linha aparecem ao passar o mouse ou focar, como no mockup. */
+	@media (hover: hover) and (min-width: 48rem) {
+		tr .user-row-actions {
+			visibility: hidden;
+		}
+		tr:hover .user-row-actions,
+		tr:focus-within .user-row-actions {
+			visibility: visible;
+		}
+	}
+
 	/* Cartão "glass": fundo translúcido + leve blur */
 	.glass {
 		background-color: color-mix(in hsl, var(--card) var(--glass-alpha), transparent);

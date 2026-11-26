@@ -118,11 +118,9 @@ function checkServerActions() {
 				`só ${parsed.length} de ${declared} funções exportadas puderam ser lidas`,
 			);
 		for (const fn of parsed) {
-			const session = /\brequireSession\(/.test(fn.body)
-				? "requireSession"
-				: reachesReadAsUser(fn.body, code)
-					? "readAsUser"
-					: null;
+			// denyUnlessAdmin/requireAdmin (src/lib/dal.ts) chamam requireSession e ainda exigem Administrador.
+			const guard = fn.body.match(/\b(requireSession|denyUnlessAdmin|requireAdmin)\(/)?.[1];
+			const session = guard ? guard : reachesReadAsUser(fn.body, code) ? "readAsUser" : null;
 			const zod = !fn.params || /\.(safeParse|parse)\(/.test(fn.body);
 			const ok = !!session && zod;
 			record(

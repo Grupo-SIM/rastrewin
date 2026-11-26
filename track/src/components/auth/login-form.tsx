@@ -30,10 +30,13 @@ export function LoginForm() {
 		});
 		setPending(false);
 		if (error) {
+			// Conta desativada só chega depois da senha certa (o Better Auth confere a senha antes).
 			setError(
 				error.status === 429
 					? "Muitas tentativas. Aguarde um minuto e tente de novo."
-					: "Email ou senha incorretos.",
+					: error.code === "BANNED_USER"
+						? "Conta desativada. Fale com o administrador."
+						: "Email ou senha incorretos.",
 			);
 			return;
 		}

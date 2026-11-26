@@ -7,6 +7,7 @@ import {
 	type LucideIcon,
 	MegaphoneIcon,
 	SettingsIcon,
+	UsersIcon,
 	VideoIcon,
 } from "lucide-react";
 
@@ -37,6 +38,14 @@ export const NAV_ITEMS: NavItem[] = [
 		label: "Configurações",
 		primary: false,
 		short: "Config",
+	},
+	{
+		adminOnly: true,
+		href: "/painel/usuarios",
+		icon: UsersIcon,
+		label: "Usuários",
+		primary: false,
+		short: "Usuários",
 	},
 ];
 
