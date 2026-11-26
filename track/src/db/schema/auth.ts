@@ -1,22 +1,32 @@
 // GERADO por: npx auth@latest generate --config scripts/auth-schema.config.ts --output src/db/schema/auth.ts
 // Ajuste manual após gerar: timestamps com timezone ({ withTimezone: true }) — a RLS compara expires_at com now().
 // Regenere se mudar opções do Better Auth que afetem o schema e reaplique o ajuste.
+// Ajuste manual do plugin admin: role/banned NOT NULL com padrão e CHECK dos níveis (src/lib/roles.ts).
 
-import { relations } from "drizzle-orm";
-import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
+import { boolean, check, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
-export const user = pgTable("user", {
-	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-	email: text("email").notNull().unique(),
-	emailVerified: boolean("email_verified").default(false).notNull(),
-	id: text("id").primaryKey(),
-	image: text("image"),
-	name: text("name").notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true })
-		.defaultNow()
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull(),
-});
+export const user = pgTable(
+	"user",
+	{
+		banExpires: timestamp("ban_expires", { withTimezone: true }),
+		banned: boolean("banned").default(false).notNull(),
+		banReason: text("ban_reason"),
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		email: text("email").notNull().unique(),
+		emailVerified: boolean("email_verified").default(false).notNull(),
+		id: text("id").primaryKey(),
+		image: text("image"),
+		name: text("name").notNull(),
+		/** Nível de acesso ao painel: "admin" ou "colaborador" (src/lib/roles.ts). */
+		role: text("role").default("colaborador").notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	table => [check("user_role_check", sql`${table.role} in ('admin', 'colaborador')`)],
+);
 
 export const session = pgTable(
 	"session",
@@ -24,6 +34,8 @@ export const session = pgTable(
 		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 		id: text("id").primaryKey(),
+		/** Exigida pelo plugin admin; fica sempre vazia (personificação desligada). */
+		impersonatedBy: text("impersonated_by"),
 		ipAddress: text("ip_address"),
 		token: text("token").notNull().unique(),
 		updatedAt: timestamp("updated_at", { withTimezone: true })

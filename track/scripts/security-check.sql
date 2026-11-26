@@ -13,7 +13,7 @@
 begin transaction read only;
 
 with
-params as (select 14 as esperado_migrations),
+params as (select 15 as esperado_migrations),
 tabelas as (
   select c.oid, c.relname, c.relrowsecurity, c.relforcerowsecurity,
          exists (select 1 from pg_policy p where p.polrelid = c.oid and p.polname = 'reader_select') as painel_le
@@ -74,6 +74,13 @@ checks (ordem, verificacao, resultado) as (
   select 11, 'limpeza diária rodou nas últimas 26 h',
     (select case when max(started_at) > now() - interval '26 hours' then 'OK' else 'ATENÇÃO: última em ' || coalesce(max(started_at)::text, 'nunca') end
      from maintenance_runs where error is null)
+  union all
+  select 12, 'painel tem administrador ativo (e só níveis válidos)',
+    (select case when count(*) filter (where role = 'admin' and not banned) = 0 then 'FALHA: nenhum administrador ativo'
+                 when count(*) filter (where role not in ('admin', 'colaborador')) > 0 then 'FALHA: nível desconhecido'
+                 else 'OK: ' || count(*) filter (where role = 'admin' and not banned) || ' administrador(es), '
+                      || count(*) filter (where role = 'colaborador' and not banned) || ' colaborador(es) ativos' end
+     from "user")
 )
 select verificacao, resultado from checks order by ordem;
 

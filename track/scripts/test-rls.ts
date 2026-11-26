@@ -347,6 +347,37 @@ async function main() {
 			"select count(*) as n from settings",
 		);
 		record("settings tem exatamente 1 linha", settingsRows === 1);
+
+		// ---------------------------------------------------------------- níveis de acesso (0014)
+		const defaultRole = await asRole(
+			app,
+			"app_service",
+			null,
+			async () =>
+				(await app.query<{ role: string }>(`select role from "user" where id = $1`, [validUser]))
+					.rows[0]?.role,
+		);
+		record(
+			"usuário novo nasce Colaborador (não admin)",
+			defaultRole === "colaborador",
+			`veio ${defaultRole}`,
+		);
+		try {
+			await asRole(app, "app_service", null, () =>
+				app.query(`update "user" set role = 'root' where id = $1`, [validUser]),
+			);
+			record("o banco recusa nível desconhecido (CHECK)", false, "o update passou");
+		} catch (error) {
+			const code = (error as { code?: string }).code;
+			record("o banco recusa nível desconhecido (CHECK)", code === "23514", `código ${code}`);
+		}
+		await expectDenied(
+			app,
+			"app_reader NÃO lê o nível nem a situação dos usuários",
+			"app_reader",
+			validUser,
+			`select role, banned from "user"`,
+		);
 	} finally {
 		await app.query("ROLLBACK").catch(() => {});
 		await app.query("BEGIN");

@@ -83,7 +83,7 @@ Volta atrás: reimplantar a imagem anterior no Komodo (as colunas novas não atr
 
 - [x] Decisões e mockup aprovados (25–26/11/2026)
 - [x] Etapa 0: worktree `feat/track-usuarios-niveis` e este plano
-- [ ] Etapa 1: banco e login
+- [x] Etapa 1: banco e login — migração 0014 testada em Postgres 15 e 18 (upgrade com usuário e sessão existentes: vira admin, sessão continua válida; `test:rls` 35/35, `test:retention` 30/30, auditoria com 15 migrations e checagem de administrador ativo); plugin admin com rotas `/api/auth/admin/*` em 404 (inclusive variações de grafia); conta desativada recebe "Conta desativada. Fale com o administrador."; `create-admin` cria administrador
 - [ ] Etapa 2: bloqueios de acesso
 - [ ] Etapa 3: mascaramento
 - [ ] Etapa 4: aba Usuários

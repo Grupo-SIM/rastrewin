@@ -98,6 +98,13 @@
 			"tag": "0013_affiliates",
 			"version": "7",
 			"when": 1795227887372
+		},
+		{
+			"breakpoints": true,
+			"idx": 14,
+			"tag": "0014_user_roles",
+			"version": "7",
+			"when": 1795703593492
 		}
 	],
 	"version": "7"

@@ -1,7 +1,9 @@
 import readline from "node:readline";
 import { parseArgs } from "node:util";
 /**
- * Cria um usuário do painel (o cadastro público é desligado).
+ * Cria um ADMINISTRADOR do painel (o cadastro público é desligado; Colaboradores são criados na aba Usuários).
+ * Também é o caminho de recuperação: se o único administrador perder a senha, crie outro com um e-mail
+ * diferente e redefina a senha da conta antiga em Usuários (ver docs/usuarios.md).
  *
  *   npm run create-admin -- --email voce@empresa.com --name "Seu Nome"
  *   docker compose run --rm -it app node scripts/create-admin.mjs --email ... --name ...
@@ -72,8 +74,8 @@ async function main() {
 		const accountId = generateRandomString(32, "a-z", "A-Z", "0-9");
 		const hash = await hashPassword(password);
 		await client.query(
-			`insert into "user" (id, name, email, email_verified, created_at, updated_at)
-       values ($1, $2, $3, true, now(), now())`,
+			`insert into "user" (id, name, email, email_verified, role, created_at, updated_at)
+       values ($1, $2, $3, true, 'admin', now(), now())`,
 			[userId, name, email],
 		);
 		await client.query(

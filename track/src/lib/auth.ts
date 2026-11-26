@@ -2,12 +2,32 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { createAccessControl } from "better-auth/plugins/access";
+import { admin } from "better-auth/plugins/admin";
+import { defaultStatements } from "better-auth/plugins/admin/access";
 import { serviceDb } from "@/db";
 import * as schema from "@/db/schema";
+import { ADMIN_API_PATHS } from "@/lib/auth-admin-paths";
 import { env } from "@/lib/env";
+import { DEFAULT_ROLE } from "@/lib/roles";
 
 /*
- * Login do painel. Cadastro público DESLIGADO: usuários só via `npm run create-admin`.
+ * Permissões do plugin admin. "admin" pode gerir usuários e sessões, SEM personificação
+ * ("impersonate"/"impersonate-admins" ficam de fora). "colaborador" não pode nada no plugin.
+ * Os nomes precisam bater com ROLES (src/lib/roles.ts) e com o CHECK do banco.
+ */
+const accessControl = createAccessControl(defaultStatements);
+const roles = {
+	admin: accessControl.newRole({
+		session: ["list", "revoke", "delete"],
+		user: ["create", "list", "set-role", "ban", "delete", "set-password", "set-email", "get", "update"],
+	}),
+	colaborador: accessControl.newRole({ session: [], user: [] }),
+};
+
+/*
+ * Login do painel. Cadastro público DESLIGADO: usuários via `npm run create-admin` ou pela aba Usuários.
+ * Níveis (admin/colaborador) pelo plugin admin; as rotas HTTP dele ficam fechadas (src/lib/auth-admin-paths.ts).
  * Se mudar opções que afetam o schema, espelhe em scripts/auth-schema.config.ts e regenere.
  */
 function createAuth() {
@@ -22,13 +42,24 @@ function createAuth() {
 		appName: "Rastrewin",
 		baseURL: APP_URL,
 		database: drizzleAdapter(serviceDb(), { provider: "pg", schema }),
+		// Rotas HTTP do plugin admin fechadas (404): gestão só pelas Server Actions do painel.
+		disabledPaths: [...ADMIN_API_PATHS],
 		emailAndPassword: {
 			autoSignIn: false,
 			disableSignUp: true,
 			enabled: true,
 			minPasswordLength: 12,
 		},
-		plugins: [nextCookies()],
+		plugins: [
+			admin({
+				ac: accessControl,
+				adminRoles: ["admin"],
+				bannedUserMessage: "Conta desativada. Fale com o administrador.",
+				defaultRole: DEFAULT_ROLE,
+				roles,
+			}),
+			nextCookies(), // sempre o último plugin
+		],
 		rateLimit: {
 			customRules: {
 				"/sign-in/email": { max: 5, window: 60 },
