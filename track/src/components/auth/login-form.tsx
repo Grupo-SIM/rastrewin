@@ -1,7 +1,7 @@
 "use client";
 
 import { LoaderCircleIcon } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,6 @@ function safeNext(value: string | null) {
 }
 
 export function LoginForm() {
-	const router = useRouter();
 	const params = useSearchParams();
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
@@ -28,8 +27,8 @@ export function LoginForm() {
 			email: String(form.get("email") ?? ""),
 			password: String(form.get("password") ?? ""),
 		});
-		setPending(false);
 		if (error) {
+			setPending(false);
 			// Conta desativada só chega depois da senha certa (o Better Auth confere a senha antes).
 			setError(
 				error.status === 429
@@ -40,8 +39,10 @@ export function LoginForm() {
 			);
 			return;
 		}
-		router.replace(safeNext(params.get("next")));
-		router.refresh();
+		// Navegação completa, não router.replace: o logo desta tela pré-carrega /painel ainda sem sessão,
+		// e o roteador reaproveitava esse redirecionamento para o login (era preciso clicar duas vezes).
+		// O botão segue em "carregando" até o painel abrir.
+		window.location.replace(safeNext(params.get("next")));
 	}
 
 	return (
