@@ -14,16 +14,32 @@ export interface StructureItem {
 	daily: number | null;
 	lifetime: number | null;
 	remaining: number | null;
+	/** Conta que não entrega mais (a Meta mantém o status das campanhas como estava). */
+	account?: AccountState;
 }
 export interface CampaignItem extends StructureItem {
 	name: string;
 }
 export interface AdsetItem extends StructureItem {
 	campaignId: string;
+	/** Ausente em estruturas gravadas antes do nome ser buscado. */
+	name?: string;
 }
 export interface AdItem {
 	status: string;
 	adsetId: string;
+	name?: string;
+	account?: AccountState;
+}
+
+/** Situação da CONTA de anúncios quando ela impede a entrega. */
+export type AccountState = "desativada" | "encerrada";
+
+/** account_status da Meta → situação que bloqueia a entrega (null = a conta pode entregar). */
+export function accountState(code: number | undefined): AccountState | null {
+	if (code === 2) return "desativada";
+	if (code === 100 || code === 101) return "encerrada";
+	return null;
 }
 export interface AdStructure {
 	campaigns: Record<string, CampaignItem>;
@@ -43,6 +59,7 @@ export type StatusKey =
 	| "pagamento"
 	| "arquivada"
 	| "concluida"
+	| "conta"
 	| "outra";
 export interface NodeStatus {
 	key: StatusKey;
@@ -55,13 +72,14 @@ const STATUS: Record<Exclude<StatusKey, "outra">, { label: string; tone: StatusT
 	arquivada: { label: "Arquivada", tone: "muted" },
 	ativa: { label: "Ativa", tone: "good" },
 	concluida: { label: "Concluída", tone: "muted" },
+	conta: { label: "Conta desativada", tone: "critical" },
 	pagamento: { label: "Pagamento pendente", tone: "warning" },
 	pausada: { label: "Pausada", tone: "muted" },
 	problema: { label: "Com problema", tone: "warning" },
 	reprovada: { label: "Reprovada", tone: "critical" },
 };
 
-const BY_META: Record<string, Exclude<StatusKey, "outra" | "concluida">> = {
+const BY_META: Record<string, Exclude<StatusKey, "outra" | "concluida" | "conta">> = {
 	ACTIVE: "ativa",
 	ADSET_PAUSED: "pausada",
 	ARCHIVED: "arquivada",
@@ -78,10 +96,23 @@ const BY_META: Record<string, Exclude<StatusKey, "outra" | "concluida">> = {
 
 /**
  * effective_status da Meta → selo do painel. Arquivada/excluída vence tudo (vai para o grupo
- * "Arquivadas ou excluídas"); depois, data de fim já passada vira "Concluída".
+ * "Arquivadas ou excluídas"); depois, conta desativada/encerrada (a Meta não muda o status das
+ * campanhas quando bloqueia a conta, e elas não entregam); depois, data de fim já passada vira
+ * "Concluída".
  */
-export function statusOf(effective: string, end: string | null, now: Date = new Date()): NodeStatus {
+export function statusOf(
+	effective: string,
+	end: string | null,
+	now: Date = new Date(),
+	account?: AccountState,
+): NodeStatus {
 	if (BY_META[effective] === "arquivada") return { key: "arquivada", ...STATUS.arquivada };
+	if (account)
+		return {
+			key: "conta",
+			label: account === "encerrada" ? "Conta encerrada" : STATUS.conta.label,
+			tone: STATUS.conta.tone,
+		};
 	if (end) {
 		const t = Date.parse(end);
 		if (Number.isFinite(t) && t <= now.getTime()) return { key: "concluida", ...STATUS.concluida };
@@ -122,7 +153,7 @@ export function budgetOf(item: StructureItem, currency: string): string | null {
 export type StructuredNode = Omit<TreeNode, "children"> & {
 	status?: NodeStatus;
 	budget?: string | null;
-	/** Campanha ativa sem nenhuma linha de gasto no período. */
+	/** Campanha ativa sem nenhuma linha de gasto no período (e os conjuntos/anúncios dela). */
 	idle?: boolean;
 	children: StructuredNode[];
 };
@@ -140,7 +171,9 @@ const zeroMetrics = (): Metrics => ({
 
 /**
  * Junta situação e orçamento à árvore (sem mudar números nem ordem) e acrescenta, no fim, as
- * campanhas ATIVAS da estrutura que não tiveram gasto no período (métricas zeradas, idle).
+ * campanhas ATIVAS da estrutura que não tiveram gasto no período (métricas zeradas, idle), já com
+ * os conjuntos e anúncios delas (para ver a situação de cada um antes do 1º gasto). Arquivados
+ * ficam de fora; sem nome (estrutura antiga no cache), o item aparece pelo ID.
  */
 export function mergeStructure(
 	tree: TreeNode[],
@@ -163,23 +196,56 @@ export function mergeStructure(
 			...n,
 			budget: "daily" in item ? budgetOf(item, currency) : null,
 			children,
-			status: statusOf(item.status, end, now),
+			status: statusOf(item.status, end, now, item.account),
 		};
 	};
 	const merged = tree.map(visit);
 	const present = new Set(tree.map(n => n.id));
+
+	const byName = (a: StructuredNode, b: StructuredNode) => a.name.localeCompare(b.name, "pt-BR");
+	const visible = (s: NodeStatus) => s.key !== "arquivada";
+	const idleAds = (adsetId: string): StructuredNode[] =>
+		Object.entries(structure.ads)
+			.filter(([, a]) => a.adsetId === adsetId)
+			.map(([id, a]): StructuredNode => ({
+				...zeroMetrics(),
+				children: [],
+				id,
+				idle: true,
+				level: "ad",
+				name: a.name ?? id,
+				status: statusOf(a.status, null, now, a.account),
+			}))
+			.filter(n => visible(n.status!))
+			.sort(byName);
+	const idleAdsets = (campaignId: string): StructuredNode[] =>
+		Object.entries(structure.adsets)
+			.filter(([, s]) => s.campaignId === campaignId)
+			.map(([id, s]): StructuredNode => ({
+				...zeroMetrics(),
+				budget: budgetOf(s, currency),
+				children: idleAds(id),
+				id,
+				idle: true,
+				level: "adset",
+				name: s.name ?? id,
+				status: statusOf(s.status, s.end, now, s.account),
+			}))
+			.filter(n => visible(n.status!))
+			.sort(byName);
+
 	const idle: StructuredNode[] = Object.entries(structure.campaigns)
-		.filter(([id, c]) => !present.has(id) && statusOf(c.status, c.end, now).key === "ativa")
+		.filter(([id, c]) => !present.has(id) && statusOf(c.status, c.end, now, c.account).key === "ativa")
 		.sort(([, a], [, b]) => a.name.localeCompare(b.name, "pt-BR"))
 		.map(([id, c]) => ({
 			...zeroMetrics(),
 			budget: budgetOf(c, currency),
-			children: [],
+			children: idleAdsets(id),
 			id,
 			idle: true,
 			level: "campaign",
 			name: c.name,
-			status: statusOf(c.status, c.end, now),
+			status: statusOf(c.status, c.end, now, c.account),
 		}));
 	return [...merged, ...idle];
 }

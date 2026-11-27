@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { TreeNode } from "./build";
 import {
+	accountState,
 	type AdStructure,
 	budgetOf,
 	combineStructures,
@@ -79,6 +80,25 @@ test("statusOf: situação desconhecida aparece legível e neutra", () => {
 	assert.equal(s.key, "outra");
 	assert.equal(s.label, "some new status");
 	assert.equal(s.tone, "muted");
+});
+
+test("accountState: só desativada e encerrada bloqueiam; ativa e desconhecida não", () => {
+	assert.equal(accountState(2), "desativada");
+	assert.equal(accountState(100), "encerrada");
+	assert.equal(accountState(101), "encerrada");
+	assert.equal(accountState(1), null);
+	assert.equal(accountState(3), null);
+	assert.equal(accountState(undefined), null);
+});
+
+test("statusOf: conta bloqueada vence ativa e data de fim, mas não vence arquivada", () => {
+	const off = statusOf("ACTIVE", null, NOW, "desativada");
+	assert.equal(off.key, "conta");
+	assert.equal(off.label, "Conta desativada");
+	assert.equal(off.tone, "critical");
+	assert.equal(statusOf("ACTIVE", null, NOW, "encerrada").label, "Conta encerrada");
+	assert.equal(statusOf("PAUSED", "2026-11-01T00:00:00Z", NOW, "desativada").key, "conta");
+	assert.equal(statusOf("ARCHIVED", null, NOW, "desativada").key, "arquivada");
 });
 
 test("fromMinor: centavos no real; moedas sem centavos na Meta ficam como vieram", () => {
@@ -163,6 +183,86 @@ test("mergeStructure: campanhas ativas sem gasto entram no fim, em ordem de nome
 	assert.equal(nbsp(alfa.budget), "R$ 300,00 no total · restam R$ 10,00");
 	assert.equal(nbsp(zeta.budget), "R$ 100,00/dia");
 	assert.equal(out[0].idle, undefined);
+});
+
+test("mergeStructure: campanha sem gasto traz conjuntos e anúncios (zerados, com selo, sem arquivados)", () => {
+	const s: AdStructure = {
+		ads: {
+			a1: { adsetId: "s1", name: "V03 sala", status: "ACTIVE" },
+			a2: { adsetId: "s1", name: "V01 varanda", status: "IN_PROCESS" },
+			a3: { adsetId: "s1", name: "Velho", status: "ARCHIVED" },
+			a4: { adsetId: "s1", status: "DISAPPROVED" },
+			aOutro: { adsetId: "sX", name: "De outro conjunto", status: "ACTIVE" },
+		},
+		adsets: {
+			s1: { ...item({ daily: 7000 }), campaignId: "n1", name: "Aberto BR" },
+			s2: { ...item({ status: "ARCHIVED" }), campaignId: "n1", name: "Arquivado" },
+			sX: { ...item(), campaignId: "c1", name: "Da campanha com gasto" },
+		},
+		campaigns: {
+			c1: { ...item(), name: "Com gasto" },
+			n1: { ...item({ daily: 7000 }), name: "Nova" },
+		},
+		truncated: false,
+	};
+	const out = mergeStructure([node({ id: "c1", level: "campaign", spend: 9 })], s, "BRL", NOW);
+	assert.equal(out[0].children.length, 0, "campanha com gasto: árvore continua só com o que gastou");
+	const nova = out[1];
+	assert.equal(nova.idle, true);
+	assert.deepEqual(
+		nova.children.map(n => n.id),
+		["s1"],
+	);
+	const [s1] = nova.children;
+	assert.equal(s1.level, "adset");
+	assert.equal(s1.idle, true);
+	assert.equal(s1.name, "Aberto BR");
+	assert.equal(s1.spend, 0);
+	assert.equal(nbsp(s1.budget), "R$ 70,00/dia");
+	assert.deepEqual(
+		s1.children.map(n => [n.id, n.name, n.status?.label, n.level, n.idle]),
+		[
+			["a4", "a4", "Reprovada", "ad", true],
+			["a2", "V01 varanda", "Em análise", "ad", true],
+			["a1", "V03 sala", "Ativa", "ad", true],
+		],
+	);
+});
+
+test("mergeStructure: conta desativada marca a árvore e não lista campanha parada como ativa", () => {
+	const s: AdStructure = {
+		ads: { ad1: { account: "desativada", adsetId: "as1", status: "ACTIVE" } },
+		adsets: { as1: { ...item({ account: "desativada" }), campaignId: "c1" } },
+		campaigns: {
+			c1: { ...item({ account: "desativada" }), name: "Com gasto" },
+			c9: { ...item({ account: "desativada" }), name: "Parada na conta bloqueada" },
+		},
+		truncated: false,
+	};
+	const tree = [
+		node({
+			children: [
+				node({
+					children: [node({ id: "ad1", level: "ad", spend: 3 })],
+					id: "as1",
+					level: "adset",
+					spend: 3,
+				}),
+			],
+			id: "c1",
+			level: "campaign",
+			spend: 3,
+		}),
+	];
+	const out = mergeStructure(tree, s, "BRL", NOW);
+	assert.deepEqual(
+		out.map(n => n.id),
+		["c1"],
+	);
+	assert.equal(out[0].status?.label, "Conta desativada");
+	assert.equal(out[0].children[0].status?.label, "Conta desativada");
+	assert.equal(out[0].children[0].children[0].status?.label, "Conta desativada");
+	assert.equal(out[0].spend, 3);
 });
 
 test("mergeStructure: sem estrutura, a árvore volta igual", () => {

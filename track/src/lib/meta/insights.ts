@@ -1,6 +1,6 @@
 import "server-only";
 import { type AccountTotals, type InsightRow, metaPurchase } from "@/lib/campaigns/build";
-import type { AdStructure } from "@/lib/campaigns/structure";
+import { accountState, type AdStructure } from "@/lib/campaigns/structure";
 import { type GraphError, graphGet, graphGetUrl, type GraphUsage } from "./graph";
 
 /*
@@ -218,6 +218,7 @@ interface RawCampaign {
 }
 interface RawAdset {
 	id: string;
+	name?: string;
 	campaign_id?: string;
 	effective_status?: string;
 	daily_budget?: string;
@@ -227,6 +228,7 @@ interface RawAdset {
 }
 interface RawAd {
 	id: string;
+	name?: string;
 	adset_id?: string;
 	effective_status?: string;
 }
@@ -284,9 +286,11 @@ async function listLevel<T>(
 }
 
 /**
- * Situação (effective_status) e orçamento de campanhas, conjuntos e anúncios da conta.
+ * Situação (effective_status), nome e orçamento de campanhas, conjuntos e anúncios da conta.
  * Três listas simples (até 5 páginas de 500 cada); não dependem do período. Orçamentos chegam na
  * menor unidade da moeda e são convertidos na tela (src/lib/campaigns/structure.ts).
+ * Mais uma chamada lê o account_status: conta desativada/encerrada marca todos os itens (a Meta
+ * deixa as campanhas como "ACTIVE" mesmo sem poder entregar). Se essa leitura falhar, segue sem.
  */
 export async function fetchAdStructure(adAccountId: string, token: string): Promise<StructureFetch> {
 	const budget = "effective_status,daily_budget,lifetime_budget,budget_remaining";
@@ -306,12 +310,16 @@ export async function fetchAdStructure(adAccountId: string, token: string): Prom
 		adAccountId,
 		token,
 		"adsets",
-		`id,campaign_id,${budget},end_time`,
+		`id,name,campaign_id,${budget},end_time`,
 	);
 	if (!adsets.ok) return { ...adsets, calls: campaigns.calls + adsets.calls };
-	const ads = await listLevel<RawAd>(adAccountId, token, "ads", "id,adset_id,effective_status");
-	const calls = campaigns.calls + adsets.calls + ads.calls;
-	if (!ads.ok) return { ...ads, calls };
+	const ads = await listLevel<RawAd>(adAccountId, token, "ads", "id,name,adset_id,effective_status");
+	if (!ads.ok) return { ...ads, calls: campaigns.calls + adsets.calls + ads.calls };
+	const acct = await graphGet<{ account_status?: number }>(`act_${adAccountId}`, token, {
+		fields: "account_status",
+	});
+	const calls = campaigns.calls + adsets.calls + ads.calls + (acct.status !== 0 ? 1 : 0);
+	const account = (acct.ok ? accountState(acct.data.account_status) : null) ?? undefined;
 
 	const structure: AdStructure = {
 		ads: {},
@@ -327,6 +335,7 @@ export async function fetchAdStructure(adAccountId: string, token: string): Prom
 			name: c.name ?? c.id,
 			remaining: num(c.budget_remaining),
 			status: c.effective_status ?? "",
+			...(account && { account }),
 		};
 	for (const s of adsets.items)
 		structure.adsets[s.id] = {
@@ -334,10 +343,17 @@ export async function fetchAdStructure(adAccountId: string, token: string): Prom
 			daily: num(s.daily_budget),
 			end: s.end_time ?? null,
 			lifetime: num(s.lifetime_budget),
+			name: s.name ?? s.id,
 			remaining: num(s.budget_remaining),
 			status: s.effective_status ?? "",
+			...(account && { account }),
 		};
 	for (const a of ads.items)
-		structure.ads[a.id] = { adsetId: a.adset_id ?? "", status: a.effective_status ?? "" };
-	return { calls, ok: true, structure, usage: ads.usage };
+		structure.ads[a.id] = {
+			adsetId: a.adset_id ?? "",
+			name: a.name ?? a.id,
+			status: a.effective_status ?? "",
+			...(account && { account }),
+		};
+	return { calls, ok: true, structure, usage: acct.ok ? acct.usage : ads.usage };
 }

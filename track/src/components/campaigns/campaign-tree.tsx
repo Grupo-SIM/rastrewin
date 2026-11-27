@@ -2,6 +2,7 @@
 
 import {
 	ArchiveIcon,
+	BanIcon,
 	ChevronRightIcon,
 	CircleAlertIcon,
 	CircleCheckIcon,
@@ -65,6 +66,7 @@ const STATUS_ICON: Record<StatusKey, typeof CircleCheckIcon> = {
 	arquivada: ArchiveIcon,
 	ativa: CircleCheckIcon,
 	concluida: FlagIcon,
+	conta: BanIcon,
 	outra: CircleDashedIcon,
 	pagamento: CircleAlertIcon,
 	pausada: CirclePauseIcon,
