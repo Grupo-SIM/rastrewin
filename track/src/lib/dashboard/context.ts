@@ -5,7 +5,7 @@ import { settings } from "@/db/schema";
 import { readAsUser } from "@/lib/dal";
 import { DEFAULT_TIMEZONE } from "@/lib/time";
 import { ownHostsOf } from "@/lib/tracking/referrer";
-import { AFFILIATE_PARAM, NO_AFFILIATE } from "./affiliate";
+import { AFFILIATE_PARAM, ANY_AFFILIATE, isAffiliateGroup, NO_AFFILIATE } from "./affiliate";
 import { type Period, resolvePeriod } from "./period";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
@@ -105,10 +105,13 @@ export async function testExcluded(tx: ReaderTx, period: Period): Promise<TestEx
 export const ACTIVE_SALE = sql`('approved', 'refund_requested')`;
 export const REFUNDED = sql`('refunded', 'chargeback')`;
 
-/** Filtro de afiliado da URL: um código, `NO_AFFILIATE` ou null (todos). Valor inválido = sem filtro. */
+/**
+ * Filtro de afiliado da URL: um código, `NO_AFFILIATE`, `ANY_AFFILIATE` ou null (sem filtro: sem afiliados
+ * + todos os afiliados). Valor inválido = sem filtro.
+ */
 export function affiliateParam(sp: SearchParams): string | null {
 	const v = param(sp, "afiliado");
-	return v === NO_AFFILIATE || (v !== null && AFFILIATE_PARAM.test(v)) ? v : null;
+	return v !== null && (isAffiliateGroup(v) || AFFILIATE_PARAM.test(v)) ? v : null;
 }
 
 /**
@@ -122,6 +125,7 @@ export function affiliateFilter(sp: SearchParams, column = "affiliate_code"): SQ
 	const col = sql.raw(column);
 	if (selected === null) return sql`true`;
 	if (selected === NO_AFFILIATE) return sql`${col} is null`;
+	if (selected === ANY_AFFILIATE) return sql`${col} is not null`;
 	return sql`${col} = ${selected}`;
 }
 
@@ -148,7 +152,7 @@ export async function affiliateOptions(tx: ReaderTx, sp: SearchParams): Promise<
       from codes c order by lower(c.code) limit 300`,
 	);
 	const selected = affiliateParam(sp);
-	if (selected && selected !== NO_AFFILIATE && !list.some(o => o.code === selected))
+	if (selected && !isAffiliateGroup(selected) && !list.some(o => o.code === selected))
 		list.push({ code: selected, name: null });
 	return list;
 }

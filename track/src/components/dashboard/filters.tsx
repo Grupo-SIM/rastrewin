@@ -13,9 +13,18 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectLabel,
+	SelectSeparator,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { NO_AFFILIATE } from "@/lib/dashboard/affiliate";
+import { ANY_AFFILIATE, NO_AFFILIATE } from "@/lib/dashboard/affiliate";
 import { parseEventTypes, serializeEventTypes } from "@/lib/dashboard/event-types";
 import { DEFAULT_PRESET, PRESETS } from "@/lib/dashboard/period";
 import { cn } from "@/lib/utils";
@@ -187,19 +196,42 @@ export function SelectFilter({
 	);
 }
 
-/** Filtro "Afiliado" (?afiliado=CODE | ~sem): Todos, Sem afiliado e cada código (com o nome, se houver). */
+/**
+ * Filtro "Afiliado" (?afiliado=~sem | ~todos | CODE; sem o parâmetro = tudo): "Sem afiliados", "Todos os
+ * afiliados", "Sem afiliados + todos os afiliados" (padrão) e, sob o título Afiliados, cada um pelo nome
+ * (código apagado à direita; sem nome, só o código).
+ */
 export function AffiliateFilter({ options }: { options: { code: string; name: string | null }[] }) {
+	const { setParams } = useFilters();
+	const params = useSearchParams();
+	const ALL = "__all__";
 	return (
-		<SelectFilter
-			name="afiliado"
-			label="Afiliado"
-			allLabel="Todos os afiliados"
-			options={[
-				{ label: "Sem afiliado", value: NO_AFFILIATE },
-				...options.map(o => ({ label: o.name ? `${o.name} · ${o.code}` : o.code, value: o.code })),
-			]}
-			width="w-[13rem]"
-		/>
+		<Select
+			value={params.get("afiliado") || ALL}
+			onValueChange={v => setParams({ afiliado: v === ALL ? null : v })}
+		>
+			<SelectTrigger aria-label="Afiliado" className={cn(trigger, "w-[18rem] max-w-full")}>
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value={NO_AFFILIATE}>Sem afiliados</SelectItem>
+				<SelectItem value={ANY_AFFILIATE}>Todos os afiliados</SelectItem>
+				<SelectItem value={ALL}>Sem afiliados + todos os afiliados</SelectItem>
+				{options.length > 0 && (
+					<>
+						<SelectSeparator />
+						<SelectGroup className="p-0">
+							<SelectLabel>Afiliados</SelectLabel>
+							{options.map(o => (
+								<SelectItem key={o.code} value={o.code} aside={o.name ? o.code : undefined}>
+									{o.name ?? o.code}
+								</SelectItem>
+							))}
+						</SelectGroup>
+					</>
+				)}
+			</SelectContent>
+		</Select>
 	);
 }
 

@@ -97,7 +97,15 @@ function SelectLabel({ className, ...props }: React.ComponentProps<typeof Select
 	);
 }
 
-function SelectItem({ className, children, ...props }: React.ComponentProps<typeof SelectPrimitive.Item>) {
+function SelectItem({
+	className,
+	children,
+	aside,
+	...props
+}: React.ComponentProps<typeof SelectPrimitive.Item> & {
+	/** Texto secundário à direita, fora do valor (não aparece no botão quando selecionado). */
+	aside?: React.ReactNode;
+}) {
 	return (
 		<SelectPrimitive.Item
 			data-slot="select-item"
@@ -113,6 +121,7 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
 				</SelectPrimitive.ItemIndicator>
 			</span>
 			<SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+			{aside && <span className="text-muted-foreground ml-auto pl-3 font-mono text-xs">{aside}</span>}
 		</SelectPrimitive.Item>
 	);
 }
