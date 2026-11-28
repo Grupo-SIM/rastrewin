@@ -288,7 +288,8 @@ export function ShowTestsFilter() {
 	const { setParams } = useFilters();
 	const show = useSearchParams().get("testes") !== "ocultar";
 	return (
-		<div className="flex h-10 items-center gap-2 px-1 sm:ml-auto">
+		// No celular fica numa linha própria (não aperta a busca); em tela larga, no fim da linha.
+		<div className="flex h-10 basis-full items-center gap-2 px-1 sm:ml-auto sm:basis-auto">
 			<Switch
 				id="mostrar-testes"
 				checked={show}

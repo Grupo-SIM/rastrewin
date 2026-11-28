@@ -56,7 +56,8 @@ export function VisitorTestBanner({
 				style={{ color: "var(--test)" }}
 				aria-hidden
 			/>
-			<div className="min-w-0 flex-1 text-sm">
+			{/* Largura mínima: no celular o botão desce para a linha de baixo em vez de espremer o texto. */}
+			<div className="min-w-[14rem] flex-1 text-sm">
 				<p className="font-semibold">Visitante de teste</p>
 				<p className="text-muted-foreground">
 					Fora dos números e dos envios à Meta e ao GA4
