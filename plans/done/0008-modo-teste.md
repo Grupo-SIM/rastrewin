@@ -32,8 +32,16 @@ Migração `0015`: `visitors.is_test boolean not null default false`, `visitors.
 3. [x] Servidor: schemas, upsert do visitante, CAPI, AddPaymentInfo, Purchase/GA4, reenvio.
 4. [x] Painel: Eventos (selo, filtro, chave), relatórios sem testes + nota, Faturamento, Jornada (marcar/desmarcar).
 5. [x] Documentação (AGENTS do track, business-rules) e testes unitários.
-6. [ ] Validação com screenshots num banco local descartável.
+6. [x] Validação com screenshots num banco local descartável.
+
+## Validação local (28/11/2026)
+
+Postgres 15 descartável (a versão da produção), removido no fim. As 16 migrações aplicam; `test:rls` 35/35; a auditoria do banco conta 16 migrações; testes unitários 186/186.
+
+- Site local com o `t.js`: visitante comum carrega o GA4 e grava eventos normais; com `?rw_teste=1`, nenhuma requisição à Meta nem ao Google, faixa visível, visitante marcado e eventos com `{"test": true}` mesmo com pixel ativo; "Sair" apaga a marca, troca o id e não leva as UTMs do teste.
+- Painel (1440 e 390 px, Administrador e Colaborador): Visão geral, Páginas, Vídeos, Geo e Faturamento sem os números do visitante de teste e com a nota; Eventos com o selo, o filtro "Teste" e a chave; Faturamento lista a venda de teste fora dos totais; Jornada marca e desmarca (Colaborador vê o aviso, sem botões). O reenvio automático pula a venda de teste.
+- Não validado localmente: a árvore de Campanhas com conta de anúncios real (a consulta de vendas com o filtro roda sem erro).
 
 ## Pendências de validação
 
-- Desenvolvedores validam em produção depois do deploy.
+- Desenvolvedores validam em produção depois do deploy (a migração 0015 roda no deploy).
