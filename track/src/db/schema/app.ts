@@ -143,10 +143,21 @@ export const visitors = pgTable(
 		referrer: text("referrer"),
 		...clientColumns(),
 		...geoColumns(),
+		/**
+		 * Modo teste: navegador da equipe (`?rw_teste=1` no site) ou marcado na jornada. Nada dele vai
+		 * à Meta nem ao GA4, e os relatórios ignoram seus eventos, plays e compras. Só o painel desmarca.
+		 */
+		isTest: boolean("is_test").notNull().default(false),
 		pixelId: text("pixel_id"),
+		/** Quando o visitante virou teste (o painel mostra na jornada). */
+		testMarkedAt: timestamp("test_marked_at", { withTimezone: true }),
 		...timestamps(),
 	},
 	t => [
+		// Relatórios: "tirar os visitantes de teste" consulta só estas poucas linhas.
+		index("visitors_test_idx")
+			.on(t.trckUserId)
+			.where(sql`${t.isTest}`),
 		index("visitors_em_hash_idx").on(t.emHash),
 		index("visitors_ph_hash_idx").on(t.phHash),
 		index("visitors_created_at_idx").on(t.createdAt),

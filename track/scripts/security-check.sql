@@ -13,7 +13,7 @@
 begin transaction read only;
 
 with
-params as (select 15 as esperado_migrations),
+params as (select 16 as esperado_migrations),
 tabelas as (
   select c.oid, c.relname, c.relrowsecurity, c.relforcerowsecurity,
          exists (select 1 from pg_policy p where p.polrelid = c.oid and p.polname = 'reader_select') as painel_le
