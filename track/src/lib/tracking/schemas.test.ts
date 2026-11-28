@@ -133,3 +133,12 @@ test("captura sem o campo consent continua válida (a rota é que ignora)", () =
 	assert.equal(parsed.success && parsed.data.consent, undefined);
 	assert.equal(eventSchema.safeParse({ ...base, consent: "1" }).success, true);
 });
+
+test("modo teste: o campo test é opcional e só aceita booleano", () => {
+	const parsed = eventSchema.safeParse({ ...base, test: true });
+	assert.equal(parsed.success && parsed.data.test, true);
+	assert.equal(eventSchema.safeParse(base).success, true);
+	assert.equal(eventSchema.safeParse({ ...base, test: "sim" }).success, false);
+	assert.equal(identifySchema.safeParse({ test: true }).success, true);
+	assert.equal(identifySchema.safeParse({ test: 1 }).success, false);
+});

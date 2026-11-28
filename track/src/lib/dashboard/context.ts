@@ -73,19 +73,7 @@ export async function rows<T>(tx: ReaderTx, query: SQL): Promise<T[]> {
 
 export const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
 
-/**
- * ÚNICO ponto da regra do modo teste nos relatórios (plano 0008): tira as linhas de visitante de teste.
- * `column` é a coluna trck_user_id QUALIFICADA da tabela consultada ("events_log.trck_user_id",
- * "l.trck_user_id"), sempre um literal do código. Sem a tabela, dentro da subconsulta o nome cairia
- * na coluna de `visitors` e a condição tiraria TUDO: por isso só aceita "tabela.coluna".
- * Linha sem visitante (venda sem ligação) fica. Usa o índice parcial `visitors_test_idx`.
- * A aba Eventos e a jornada mostram tudo (com o selo); os demais relatórios usam isto em toda consulta.
- */
-export function notTest(column: string): SQL {
-	if (!/^[a-z_]+\.trck_user_id$/.test(column))
-		throw new Error(`notTest: coluna não qualificada (${column})`);
-	return sql`not exists (select 1 from visitors tv where tv.is_test and tv.trck_user_id = ${sql.raw(column)})`;
-}
+export { notTest } from "@/lib/tracking/test-mode";
 
 /** Visitantes de teste com atividade no período (evento ou venda): a nota "ficaram fora destes números". */
 export interface TestExcluded {
