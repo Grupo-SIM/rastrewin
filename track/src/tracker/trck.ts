@@ -30,9 +30,14 @@
  *     → só para a aba Vídeos do painel (nunca vai à Meta nem ao GA4).
  *
  * "Purchase" NÃO é aceito aqui: a compra vem do webhook da plataforma de venda (servidor).
+ *
+ * Modo teste (navegador da equipe): abrir uma vez qualquer página com ?rw_teste=1 liga em todos os
+ * subdomínios (cookie _trck_teste, 365 dias); ?rw_teste=0 ou "Sair" na faixa roxa desliga e começa um
+ * visitante novo. Ligado, Pixel e gtag não carregam e o servidor não envia nada à Meta nem ao GA4.
  */
 
 import { type BannerAction, type BannerTexts, showConsentBanner } from "./consent-banner";
+import { showTestBadge } from "./test-badge";
 
 type Dict = Record<string, unknown>;
 interface PublicConfig {
@@ -171,6 +176,17 @@ type TrckWindow = Window & {
 		const code = affiliate();
 		return code ? { aff: code } : {};
 	};
+
+	// ---------------------------------------------------------------- modo teste (navegador da equipe)
+	// ?rw_teste=1 liga (cookie no domínio raiz: vale nos dois sites); ?rw_teste=0 ou "Sair" na faixa desliga.
+	// Ligado: Pixel e gtag não carregam e os envios vão com test: true (o servidor marca o visitante, não
+	// envia à Meta e os relatórios o ignoram). O banner de cookies vale igual: sem aceite, nada é gravado.
+	const TEST_KEY = "_trck_teste";
+	const TEST_SEEN_KEY = "_trck_teste_visto"; // localStorage: este site guardou id/UTMs em modo teste
+	const TEST_DAYS = 365;
+	const testParam = params.get("rw_teste");
+	if (testParam === "1") setCookie(TEST_KEY, "1", TEST_DAYS);
+	let testMode = getCookie(TEST_KEY) === "1";
 
 	// ---------------------------------------------------------------- identidade (SÓ depois do aceite)
 	// Nada aqui roda antes do aceite de marketing no banner (LGPD): sem cookie _trck, sem UTMs
@@ -332,7 +348,10 @@ type TrckWindow = Window & {
 
 	function send(path: string, body: Dict) {
 		// Todo envio de captura leva a versão do consentimento aceito (o servidor ignora sem ela).
-		const withConsent = path === "/api/consent" ? body : { ...body, consent: cfg?.consent.version };
+		const withConsent =
+			path === "/api/consent"
+				? body
+				: { ...body, consent: cfg?.consent.version, ...(testMode ? { test: true } : {}) };
 		const payload = JSON.stringify(automated ? { ...withConsent, wd: true } : withConsent);
 		const beacon = () => navigator.sendBeacon?.(BASE + path, payload);
 		try {
@@ -462,16 +481,17 @@ type TrckWindow = Window & {
 			else if (!custom.currency) custom.currency = cfg?.currency;
 		}
 
-		// Navegador: Pixel (mesmo eventID → a Meta deduplica com o servidor) e gtag
-		w.fbq?.(
-			STANDARD.has(name) ? "track" : "trackCustom",
-			name,
-			{ ...params, ...custom },
-			{ eventID: eventId },
-		);
+		// Navegador: Pixel (mesmo eventID → a Meta deduplica com o servidor) e gtag. Em modo teste, nenhum.
+		if (!testMode)
+			w.fbq?.(
+				STANDARD.has(name) ? "track" : "trackCustom",
+				name,
+				{ ...params, ...custom },
+				{ eventID: eventId },
+			);
 		const ga4Name =
 			typeof ga4Opt === "string" && /^[a-z][a-z0-9_]{0,39}$/.test(ga4Opt) ? ga4Opt : gaName(name);
-		if (name !== "PageView" && ga4Opt !== false && w.gtag && cfg?.ga4.length) {
+		if (!testMode && name !== "PageView" && ga4Opt !== false && w.gtag && cfg?.ga4.length) {
 			const ids = (custom.content_ids as string[] | undefined) ?? [];
 			// O GA4 exige items em begin_checkout/view_item/add_to_cart: sem ids, vai o nome.
 			const items = ids.length
@@ -643,6 +663,35 @@ type TrckWindow = Window & {
 		}
 	}
 
+	/** Desliga o modo teste: a próxima visita é um visitante novo e comum (sem o id e as UTMs do teste). */
+	function exitTestMode() {
+		deleteCookie(TEST_KEY);
+		testMode = false;
+		clearMarketingStorage();
+		try {
+			localStorage.removeItem(TEST_SEEN_KEY);
+		} catch {
+			/* modo privado */
+		}
+	}
+
+	/**
+	 * O id e as UTMs também ficam no localStorage, que é de CADA site. Quem saiu do teste no outro site
+	 * ainda tem o id de teste guardado aqui: sem o modo ligado, este site esquece o que guardou no teste.
+	 */
+	function syncTestStorage() {
+		if (testParam === "0" && testMode) exitTestMode();
+		else if (!testMode && store.get(TEST_SEEN_KEY)) exitTestMode();
+		if (testMode) store.set(TEST_SEEN_KEY, "1");
+	}
+
+	function leaveTestFromBadge() {
+		exitTestMode();
+		const url = new URL(location.href);
+		url.searchParams.delete("rw_teste");
+		location.replace(url.toString());
+	}
+
 	function choose(marketing: boolean, action: BannerAction) {
 		if (!cfg) return;
 		const previousId = trckId || getCookie(ID_KEY) || store.get(ID_KEY);
@@ -693,19 +742,24 @@ type TrckWindow = Window & {
 		if (started || !cfg) return;
 		started = true;
 		startIdentity();
-		if (!opt("no-pixel") && cfg.pixels.length) loadPixel(cfg.pixels);
-		else w.fbq?.("consent", "grant");
-		if (!opt("no-ga") && cfg.ga4.length) loadGtag(cfg.ga4);
-		else w.gtag?.("consent", "update", GOOGLE_GRANTED);
+		// Modo teste: nada da Meta nem do Google neste navegador (o servidor também não envia).
+		if (!testMode) {
+			if (!opt("no-pixel") && cfg.pixels.length) loadPixel(cfg.pixels);
+			else w.fbq?.("consent", "grant");
+			if (!opt("no-ga") && cfg.ga4.length) loadGtag(cfg.ga4);
+			else w.gtag?.("consent", "update", GOOGLE_GRANTED);
+		}
 		document.querySelectorAll<HTMLAnchorElement>("a[href]").forEach(decorate);
 		ga = await readGaIds();
 		identify();
 		track("PageView");
-		if (cfg.ga4.length) void refreshGaIds();
+		if (!testMode && cfg.ga4.length) void refreshGaIds();
 	}
 
 	// ---------------------------------------------------------------- inicialização
 	const ready: Promise<boolean> = (async () => {
+		// Antes de qualquer identidade: entra/sai do modo teste e esquece o id/UTMs de um teste anterior.
+		syncTestStorage();
 		try {
 			const response = await fetch(`${BASE}/api/config/public`, { credentials: "omit" });
 			cfg = response.ok ? ((await response.json()) as PublicConfig) : null;
@@ -717,6 +771,11 @@ type TrckWindow = Window & {
 				"[trck] este site não está autorizado no Rastrewin (Configurações › Sites autorizados).",
 			);
 			return false;
+		}
+		if (testMode) {
+			const badge = () => showTestBadge(leaveTestFromBadge);
+			if (document.body) badge();
+			else document.addEventListener("DOMContentLoaded", badge, { once: true });
 		}
 		if (marketingOn()) await start();
 		// Sem escolha para a versão atual do texto: pergunta (de novo, se o texto mudou).
