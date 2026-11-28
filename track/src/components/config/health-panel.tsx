@@ -264,7 +264,7 @@ function DeliveriesCard({ d, timeZone }: { d: HealthView["deliveries"]; timeZone
 		<Section
 			icon={SendIcon}
 			title="Envio das vendas à Meta e ao GA4"
-			description="Cada venda nova vai para todos os pixels e propriedades ativos. Se falhar, o painel tenta de novo a cada 5 minutos, até 5 vezes, por até 7 dias."
+			description="Cada venda nova vai para todos os pixels e propriedades ativos. Se falhar, o painel tenta de novo com intervalos crescentes (5 min, 15 min, 30 min, 1 h... até a cada 12 h), em até 21 tentativas por até 7 dias. No detalhe da venda, o Administrador pode reenviar na hora."
 		>
 			<dl className="flex flex-col gap-3">
 				<Row label="Últimos 7 dias">
@@ -274,7 +274,7 @@ function DeliveriesCard({ d, timeZone }: { d: HealthView["deliveries"]; timeZone
 								? BAD(
 										`${formatInt(d.total)} ${d.total === 1 ? "venda não chegou" : "vendas não chegaram"}`,
 									)
-								: GOOD("Todas chegaram")
+								: GOOD("Nenhuma venda esgotou as tentativas")
 						}
 					/>
 				</Row>

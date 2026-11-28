@@ -16,7 +16,12 @@ import { test } from "node:test";
 const PAINEL = path.join(import.meta.dirname, "..", "app", "painel");
 
 /** Só Administrador. */
-const ADMIN_ONLY = ["config/actions.ts", "usuarios/actions.ts", "visitante/[id]/actions.ts"];
+const ADMIN_ONLY = [
+	"config/actions.ts",
+	"faturamento/admin-actions.ts",
+	"usuarios/actions.ts",
+	"visitante/[id]/actions.ts",
+];
 /** Abertos ao Colaborador (dados pessoais saem mascarados no servidor, ver src/lib/privacy/mask.ts). */
 const OPEN_TO_ALL = ["campanhas/actions.ts", "eventos/actions.ts", "faturamento/actions.ts"];
 

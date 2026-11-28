@@ -1,21 +1,58 @@
 "use client";
 
-import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
+import { ChevronRightIcon, LoaderCircleIcon, RotateCwIcon } from "lucide-react";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { loadPurchaseDetail } from "@/app/painel/faturamento/actions";
+import { resendPurchase } from "@/app/painel/faturamento/admin-actions";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { PurchaseDetail } from "@/lib/dashboard/details";
 import { formatMoney } from "@/lib/dashboard/format";
 import type { PurchaseRow } from "@/lib/dashboard/revenue";
 import { isBannerRejected } from "@/lib/sales/consent";
+import { type DeliveryState, deliveryText, type Destination } from "@/lib/sales/delivery-state";
 import { formatDateTime } from "@/lib/time";
 import { JourneyLink } from "./back-button";
 import { JsonBlock } from "./json-block";
 import { BannerRejectedBadge, DeliveryStatus, PurchaseStatus, TestChip } from "./status-badge";
 
-/** LGPD: a venda não está ligada a um visitante que aceitou marketing no banner. */
-const NO_CONSENT = "Não enviado: o comprador não aceitou marketing no banner (LGPD)";
+/** Linha Meta/GA4 do Resumo: data do envio, ou a situação (próxima tentativa, desistiu, LGPD...). */
+function deliveryLine(state: DeliveryState, destination: Destination, timeZone: string) {
+	return state.kind === "enviado"
+		? `Enviado em ${formatDateTime(state.at, timeZone)}`
+		: deliveryText(state, destination, new Date(), timeZone);
+}
+
+/** "Reenviar agora" (só Administrador): não espera a próxima tentativa automática. */
+function ResendBox({ purchaseId, onDone }: { purchaseId: number; onDone: () => void }) {
+	const [pending, start] = useTransition();
+	return (
+		<div className="bg-muted/40 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3">
+			<p className="text-muted-foreground min-w-[14rem] flex-1 text-sm">
+				Já corrigiu o problema (ex.: token novo)? Reenvie agora em vez de esperar a próxima tentativa.
+			</p>
+			<Button
+				type="button"
+				size="sm"
+				className="h-10"
+				disabled={pending}
+				onClick={() =>
+					start(async () => {
+						const result = await resendPurchase(purchaseId);
+						if (result.ok) toast.success(result.message);
+						else toast.error(result.error);
+						onDone();
+					})
+				}
+			>
+				<RotateCwIcon className={pending ? "animate-spin" : undefined} aria-hidden />
+				{pending ? "Reenviando..." : "Reenviar agora"}
+			</Button>
+		</div>
+	);
+}
 
 const MATCH_LABEL: Record<string, string> = {
 	email: "Email",
@@ -319,20 +356,10 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 										)}
 									</dd>
 									<dt className="text-muted-foreground">Meta</dt>
-									<dd>
-										{detail.metaSentAt
-											? `Enviado em ${formatDateTime(detail.metaSentAt, timeZone)}`
-											: detail.marketingConsent !== true
-												? NO_CONSENT
-												: `Não enviado (${detail.metaAttempts} tentativa(s))`}
-									</dd>
+									<dd>{deliveryLine(detail.delivery.meta, "meta", timeZone)}</dd>
 									<dt className="text-muted-foreground">GA4</dt>
 									<dd>
-										{detail.ga4SentAt
-											? `Enviado em ${formatDateTime(detail.ga4SentAt, timeZone)}`
-											: detail.marketingConsent !== true
-												? NO_CONSENT
-												: `Não enviado (${detail.ga4Attempts} tentativa(s))`}
+										{deliveryLine(detail.delivery.ga4, "ga4", timeZone)}
 										{detail.refundSentAt &&
 											` · refund em ${formatDateTime(detail.refundSentAt, timeZone)}`}
 									</dd>
@@ -343,6 +370,16 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 										</>
 									)}
 								</dl>
+								{detail.delivery.canResend && (
+									<ResendBox
+										purchaseId={detail.id}
+										onDone={() =>
+											startLoading(async () =>
+												setDetail(await loadPurchaseDetail(detail.id)),
+											)
+										}
+									/>
+								)}
 							</TabsContent>
 							<TabsContent value="meta" className="flex flex-col gap-2">
 								<h3 className="text-muted-foreground text-xs font-medium">

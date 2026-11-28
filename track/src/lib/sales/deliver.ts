@@ -10,18 +10,29 @@ import {
 	fbcFromFbclid,
 	sendToPixels,
 } from "@/lib/meta/capi";
+import { capiFailureReason } from "@/lib/meta/capi-errors";
 import { getRuntimeConfig } from "@/lib/tracking/runtime-config";
+import { isAttemptDue, MAX_ATTEMPTS, RETRY_OFFSETS_SECONDS } from "./retry-schedule";
 import { isRefunded, isSaleActive, META_MAX_AGE_MS, type PurchaseItem } from "./simintpay";
 
 /*
  * Envio da compra (Purchase) para TODOS os pixels (CAPI) e TODAS as propriedades GA4 (MP),
  * e do reembolso (refund) ao GA4. Idempotente: usa meta_sent_at / ga4_sent_at / refund_sent_at.
- * Chamado pelo webhook (em after()) e pelo reenvio automático.
+ * Chamado pelo webhook (em after()), pelo reenvio automático e pelo botão "Reenviar agora".
  */
 
 /** A Meta pede country sempre; o SimIntPay só vende no Brasil, então é o padrão sem geo do visitante. */
 const DEFAULT_COUNTRY = "br";
-export const MAX_ATTEMPTS = 5;
+export { MAX_ATTEMPTS };
+
+/**
+ * Quem pede o envio:
+ *   - webhook: venda nova ou mudança de status; tenta na hora enquanto houver tentativas;
+ *   - retry: reenvio automático; só o destino cuja próxima tentativa já chegou (retry-schedule.ts);
+ *   - manual: "Reenviar agora" do Administrador; ignora o calendário e o limite de tentativas
+ *     e não conta como tentativa (o prazo de 7 dias da Meta continua valendo).
+ */
+export type DeliveryMode = "webhook" | "retry" | "manual";
 
 interface DeliveryReport {
 	meta?: string;
@@ -96,17 +107,20 @@ export function saleSourceUrl(visitor: VisitorRow | undefined, allowedOrigins: s
 const g = globalThis as unknown as { __purchaseInFlight?: Set<number> };
 const inFlight = (g.__purchaseInFlight ??= new Set<number>());
 
-export async function deliverPurchase(purchaseId: number): Promise<DeliveryReport> {
+export async function deliverPurchase(
+	purchaseId: number,
+	mode: DeliveryMode = "webhook",
+): Promise<DeliveryReport> {
 	if (inFlight.has(purchaseId)) return {};
 	inFlight.add(purchaseId);
 	try {
-		return await deliverPurchaseUnlocked(purchaseId);
+		return await deliverPurchaseUnlocked(purchaseId, mode);
 	} finally {
 		inFlight.delete(purchaseId);
 	}
 }
 
-async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryReport> {
+async function deliverPurchaseUnlocked(purchaseId: number, mode: DeliveryMode): Promise<DeliveryReport> {
 	const db = serviceDb();
 	const [p] = await db.select().from(purchases).where(eq(purchases.id, purchaseId));
 	if (!p) return {};
@@ -127,6 +141,13 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 	const value = Number(p.value);
 	const items = itemsOf(p);
 	const occurredAt = p.occurredAt ?? p.createdAt;
+	const now = new Date();
+	const mayTry = (attempts: number) =>
+		mode === "manual" ||
+		(mode === "retry" ? isAttemptDue(occurredAt, attempts, now) : attempts < MAX_ATTEMPTS);
+	// O clique manual não gasta tentativa: senão, cliques repetidos numa pane adiantariam o calendário
+	// e o reenvio automático desistiria antes dos 7 dias.
+	const countsAsAttempt = mode === "manual" ? 0 : 1;
 	const visit = {
 		city: p.geoCity,
 		country: p.geoCountry,
@@ -141,7 +162,7 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 		isSaleActive(p.status) &&
 		!p.metaSentAt &&
 		config.pixels.length &&
-		p.metaAttempts < MAX_ATTEMPTS
+		mayTry(p.metaAttempts)
 	) {
 		if (Date.now() - occurredAt.getTime() > META_MAX_AGE_MS) {
 			await db
@@ -169,12 +190,12 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 			const allOk = config.pixels.every(px => responses[px.pixelId]?.ok);
 			const errors = Object.entries(sent.responses)
 				.filter(([, r]) => !r.ok)
-				.map(([id, r]) => `pixel ${id}: HTTP ${r.status}`);
+				.map(([id, r]) => `pixel ${id}: ${capiFailureReason(r)}`);
 			await db
 				.update(purchases)
 				.set({
 					lastDeliveryError: allOk ? null : `Meta: ${errors.join("; ")}`,
-					metaAttempts: sql`${purchases.metaAttempts} + 1`,
+					metaAttempts: sql`${purchases.metaAttempts} + ${countsAsAttempt}`,
 					metaSentAt: allOk ? new Date() : null,
 					payloadMeta: payload,
 					responseMeta: responses,
@@ -192,13 +213,7 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 		quantity: 1,
 		...(i.type ? { item_category: i.type } : {}),
 	}));
-	if (
-		sendable &&
-		isSaleActive(p.status) &&
-		!p.ga4SentAt &&
-		config.ga4.length &&
-		p.ga4Attempts < MAX_ATTEMPTS
-	) {
+	if (sendable && isSaleActive(p.status) && !p.ga4SentAt && config.ga4.length && mayTry(p.ga4Attempts)) {
 		const body = buildMpBody({
 			clientId: p.gaClientId,
 			currency: p.currency,
@@ -218,7 +233,7 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 		await db
 			.update(purchases)
 			.set({
-				ga4Attempts: sql`${purchases.ga4Attempts} + 1`,
+				ga4Attempts: sql`${purchases.ga4Attempts} + ${countsAsAttempt}`,
 				ga4SentAt: allOk ? new Date() : null,
 				payloadGa4: body,
 				responseGa4: responses,
@@ -257,14 +272,20 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 	return report;
 }
 
-/** Compras com envio pendente (para o reenvio automático). */
+/** Hora da tentativa seguinte de um destino, pelo calendário (null depois da última). Constantes: SQL fixo. */
+const OFFSETS = sql.raw(`array[${RETRY_OFFSETS_SECONDS.join(",")}]::int[]`);
+const dueAt = (attempts: "meta_attempts" | "ga4_attempts") =>
+	sql`coalesce(occurred_at, created_at) + (${OFFSETS})[${sql.raw(attempts)} + 1] * interval '1 second'`;
+
+/** Compras com envio pendente cuja próxima tentativa já chegou (para o reenvio automático). */
 export async function pendingPurchaseIds(limit = 50): Promise<number[]> {
 	const rows = await serviceDb().execute<{ id: number }>(sql`
     select id from purchases
     where not is_renewal and (
       marketing_consent is true and status in ('approved', 'refund_requested')
       and not exists (select 1 from visitors v where v.trck_user_id = purchases.trck_user_id and v.is_test)
-      and (meta_sent_at is null and meta_attempts < ${MAX_ATTEMPTS} or ga4_sent_at is null and ga4_attempts < ${MAX_ATTEMPTS})
+      and (meta_sent_at is null and ${dueAt("meta_attempts")} <= now()
+        or ga4_sent_at is null and ${dueAt("ga4_attempts")} <= now())
       and coalesce(occurred_at, created_at) > now() - interval '7 days'
     ) or (
       status in ('refunded', 'chargeback') and ga4_sent_at is not null and refund_sent_at is null
