@@ -5,6 +5,7 @@ import { eventsLog, purchases, visitors } from "@/db/schema";
 import { safeErrorMessage } from "@/lib/errors";
 import { buildEvent, sendToPixels } from "@/lib/meta/capi";
 import { getRuntimeConfig } from "@/lib/tracking/runtime-config";
+import { TEST_RESPONSE } from "@/lib/tracking/test-mode";
 import { itemsOf, saleCustomData, salePerson, saleSourceUrl } from "./deliver";
 import { addPaymentInfoSkipReason, metaPaymentMethod, type SalesEventType } from "./simintpay";
 
@@ -80,6 +81,11 @@ export async function deliverAddPaymentInfo(
 		.returning({ id: eventsLog.id });
 	if (!row) return "já enviado";
 
+	// Modo teste: o evento aparece no painel, mas não vai à Meta.
+	if (visitor.isTest) {
+		await db.update(eventsLog).set({ responseMeta: TEST_RESPONSE }).where(eq(eventsLog.id, row.id));
+		return "teste";
+	}
 	if (!config.pixels.length) {
 		await db
 			.update(eventsLog)

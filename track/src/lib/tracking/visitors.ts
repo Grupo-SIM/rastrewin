@@ -30,6 +30,8 @@ export interface VisitorInput {
 	userAgent?: string | null;
 	geo: Geo;
 	pixelId?: string | null;
+	/** Modo teste do t.js: marca o visitante como teste. Sem o campo, mantém (só o painel desmarca). */
+	isTest?: boolean;
 }
 
 export type VisitorRow = typeof visitors.$inferSelect;
@@ -39,7 +41,8 @@ export type VisitorRow = typeof visitors.$inferSelect;
  * - dados novos só sobrescrevem se vierem preenchidos (coalesce);
  * - UTMs: última origem com UTM (o conjunto inteiro é trocado junto);
  * - referrer: a PRIMEIRA origem externa (a rota já descarta o próprio site); landing_url: a da 1ª visita;
- * - email fica em texto (painel); telefone e nomes, só o hash.
+ * - email fica em texto (painel); telefone e nomes, só o hash;
+ * - modo teste: liga e marca a data na 1ª vez; nunca desliga por aqui (só pelo painel).
  */
 export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
 	const email = normEmail(input.email);
@@ -62,11 +65,13 @@ export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
 		geoCountry: input.geo.country,
 		geoRegion: input.geo.region,
 		ip: input.ip ?? null,
+		isTest: input.isTest === true,
 		landingUrl: input.landingUrl ?? null,
 		lnHash: hashed(normLastName(input.lastName)),
 		phHash: hashed(normPhone(input.phone)),
 		pixelId: input.pixelId ?? null,
 		referrer: input.referrer ?? null,
+		testMarkedAt: input.isTest ? sql`now()` : null,
 		trckUserId: input.trckUserId,
 		userAgent: input.userAgent ?? null,
 		utmCampaign: hasUtm ? (input.utmCampaign ?? null) : null,
@@ -109,11 +114,15 @@ export async function upsertVisitor(input: VisitorInput): Promise<VisitorRow> {
 				geoCountry: geo("geo_country"),
 				geoRegion: geo("geo_region"),
 				ip: keepOld("ip"),
+				isTest: input.isTest ? sql.raw("true") : sql.raw("visitors.is_test"),
 				landingUrl: keepFirst("landing_url"),
 				lnHash: keepOld("ln_hash"),
 				phHash: keepOld("ph_hash"),
 				pixelId: keepFirst("pixel_id"),
 				referrer: keepFirst("referrer"),
+				testMarkedAt: input.isTest
+					? sql.raw("case when visitors.is_test then visitors.test_marked_at else now() end")
+					: sql.raw("visitors.test_marked_at"),
 				updatedAt: sql`now()`,
 				userAgent: keepOld("user_agent"),
 				utmCampaign: utm("utm_campaign"),

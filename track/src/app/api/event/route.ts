@@ -73,6 +73,7 @@ export async function POST(request: Request) {
 		gaSessionId: d.ga_session_id,
 		geo,
 		ip,
+		isTest: d.test === true,
 		lastName: d.user_data?.last_name,
 		phone: d.user_data?.phone,
 		trckUserId: d.trck_user_id,

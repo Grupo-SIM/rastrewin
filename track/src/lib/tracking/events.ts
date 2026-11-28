@@ -6,6 +6,7 @@ import { safeErrorMessage } from "@/lib/errors";
 import type { Geo } from "@/lib/geo";
 import { buildEvent, type CapiCustomData, sendToPixels } from "@/lib/meta/capi";
 import type { RuntimeConfig } from "./runtime-config";
+import { TEST_RESPONSE } from "./test-mode";
 import type { VisitorRow } from "./visitors";
 
 export interface RecordEventInput {
@@ -52,6 +53,14 @@ export async function insertEvent(input: RecordEventInput): Promise<number | nul
 
 /** Envia para todos os pixels ativos e salva payload + resposta de cada um no log. */
 export async function deliverEventToMeta(rowId: number, input: RecordEventInput, config: RuntimeConfig) {
+	// Modo teste: o evento fica no painel ("Teste (não enviado)") e não vai à Meta.
+	if (input.visitor.isTest) {
+		await serviceDb()
+			.update(eventsLog)
+			.set({ responseMeta: TEST_RESPONSE })
+			.where(eq(eventsLog.id, rowId));
+		return;
+	}
 	if (!config.pixels.length) {
 		await serviceDb()
 			.update(eventsLog)

@@ -78,6 +78,7 @@ export async function POST(request: Request) {
 		gaSessionId: d.ga_session_id,
 		geo: lookupGeo(ip),
 		ip,
+		isTest: d.test === true,
 		landingUrl: d.landing_url,
 		lastName: d.last_name,
 		phone: d.phone,

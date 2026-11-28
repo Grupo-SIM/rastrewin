@@ -119,7 +119,11 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 	const [visitor] = p.trckUserId
 		? await db.select().from(visitors).where(eq(visitors.trckUserId, p.trckUserId)).limit(1)
 		: [];
+	// Modo teste (decisão A do plano 0008): a compra fica no Faturamento, sem Purchase à Meta nem ao GA4.
+	// O refund continua: só sai para compra já enviada (visitante marcado depois), e desfaz o envio.
+	const sendable = consented && visitor?.isTest !== true;
 	const report: DeliveryReport = {};
+	if (consented && !sendable) report.meta = report.ga4 = "teste";
 	const value = Number(p.value);
 	const items = itemsOf(p);
 	const occurredAt = p.occurredAt ?? p.createdAt;
@@ -133,7 +137,7 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 
 	// ------------------------------------------------------------ Purchase → Meta (CAPI)
 	if (
-		consented &&
+		sendable &&
 		isSaleActive(p.status) &&
 		!p.metaSentAt &&
 		config.pixels.length &&
@@ -189,7 +193,7 @@ async function deliverPurchaseUnlocked(purchaseId: number): Promise<DeliveryRepo
 		...(i.type ? { item_category: i.type } : {}),
 	}));
 	if (
-		consented &&
+		sendable &&
 		isSaleActive(p.status) &&
 		!p.ga4SentAt &&
 		config.ga4.length &&
@@ -259,6 +263,7 @@ export async function pendingPurchaseIds(limit = 50): Promise<number[]> {
     select id from purchases
     where not is_renewal and (
       marketing_consent is true and status in ('approved', 'refund_requested')
+      and not exists (select 1 from visitors v where v.trck_user_id = purchases.trck_user_id and v.is_test)
       and (meta_sent_at is null and meta_attempts < ${MAX_ATTEMPTS} or ga4_sent_at is null and ga4_attempts < ${MAX_ATTEMPTS})
       and coalesce(occurred_at, created_at) > now() - interval '7 days'
     ) or (
