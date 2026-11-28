@@ -30,7 +30,7 @@ Migração `0015`: `visitors.is_test boolean not null default false`, `visitors.
 1. [x] Banco: schema, migração 0015, security-check.
 2. [x] Rastreador: `?rw_teste`, cookie, faixa, sem Pixel/gtag, `test: true` nos envios, "Sair".
 3. [x] Servidor: schemas, upsert do visitante, CAPI, AddPaymentInfo, Purchase/GA4, reenvio.
-4. [ ] Painel: Eventos (selo, filtro, chave), relatórios sem testes + nota, Faturamento, Jornada (marcar/desmarcar).
+4. [x] Painel: Eventos (selo, filtro, chave), relatórios sem testes + nota, Faturamento, Jornada (marcar/desmarcar).
 5. [ ] Documentação (AGENTS do track, business-rules) e testes unitários.
 6. [ ] Validação com screenshots num banco local descartável.
 

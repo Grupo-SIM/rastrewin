@@ -11,7 +11,7 @@ import { formatDateTime } from "@/lib/time";
 import { JourneyLink } from "./back-button";
 import { EventDetailDialog } from "./event-detail-dialog";
 import { OriginText } from "./origin-text";
-import { DeliveryStatus } from "./status-badge";
+import { DeliveryStatus, TestChip } from "./status-badge";
 
 export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: string }) {
 	const [open, setOpen] = useState(false);
@@ -91,7 +91,10 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 								</td>
 								<td className="py-2 pr-3 font-medium">{r.eventName}</td>
 								<td className="py-2 pr-3">
-									<VisitorLink id={r.trckUserId} />
+									<span className="inline-flex items-center gap-1.5">
+										<VisitorLink id={r.trckUserId} />
+										{r.isTest && <TestChip />}
+									</span>
 								</td>
 								<td className="num py-2 pr-3 text-right">{value(r)}</td>
 								<td className="max-w-56 truncate py-2 pr-3">
@@ -145,6 +148,7 @@ export function EventsTable({ rows, timeZone }: { rows: EventRow[]; timeZone: st
 						<div className="flex items-center gap-1.5 px-3 pb-2 text-xs">
 							<span className="text-muted-foreground">Visitante</span>
 							<VisitorLink id={r.trckUserId} />
+							{r.isTest && <TestChip />}
 						</div>
 					</li>
 				))}

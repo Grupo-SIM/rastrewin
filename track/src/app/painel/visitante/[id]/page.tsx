@@ -15,6 +15,7 @@ import { type ReactNode, Suspense } from "react";
 import { BackButton, JourneyLink } from "@/components/dashboard/back-button";
 import { EventDetailButton } from "@/components/dashboard/event-detail-dialog";
 import { DeliveryStatus, PurchaseStatus } from "@/components/dashboard/status-badge";
+import { VisitorTestBanner, VisitorTestButton } from "@/components/dashboard/visitor-test";
 import { EmptyState } from "@/components/empty-state";
 import { GlassCard } from "@/components/glass-card";
 import { PageHeader } from "@/components/page-header";
@@ -22,6 +23,7 @@ import { PageSkeleton } from "@/components/page-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { isAdmin } from "@/lib/dal";
 import { formatInt, formatMoney } from "@/lib/dashboard/format";
 import { getJourney, type Journey, JOURNEY_STEP, type JourneyItem } from "@/lib/dashboard/journey";
 import {
@@ -100,13 +102,30 @@ async function JourneyContent({
 			/>
 		);
 
+	// Modo teste (plano 0008): só o Administrador marca ou desmarca (a action confere de novo).
+	const canEdit = await isAdmin();
+	const isTest = j.visitor?.isTest === true;
+
 	return (
 		<div className="flex flex-col gap-4">
-			<p className="text-muted-foreground text-xs">
-				Visitante <span className="num text-foreground">{j.id}</span> · {formatInt(j.counts.events)}{" "}
-				evento(s) · {formatInt(j.counts.videos)} play(s) de vídeo · {formatInt(j.counts.sales)}{" "}
-				evento(s) de venda
-			</p>
+			{isTest && (
+				<VisitorTestBanner
+					id={j.id}
+					markedAt={
+						j.visitor?.testMarkedAt ? formatDateTime(j.visitor.testMarkedAt, j.timeZone) : null
+					}
+					events={j.counts.events}
+					canEdit={canEdit}
+				/>
+			)}
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<p className="text-muted-foreground text-xs">
+					Visitante <span className="num text-foreground">{j.id}</span> ·{" "}
+					{formatInt(j.counts.events)} evento(s) · {formatInt(j.counts.videos)} play(s) de vídeo ·{" "}
+					{formatInt(j.counts.sales)} evento(s) de venda
+				</p>
+				{canEdit && j.visitor && !isTest && <VisitorTestButton id={j.id} isTest={false} />}
+			</div>
 
 			<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
 				<VisitorCard j={j} />

@@ -5,10 +5,13 @@ import {
 	affiliateFilter,
 	type AffiliateOption,
 	affiliateOptions,
+	notTest,
 	num,
 	param,
 	rows,
 	type SearchParams,
+	type TestExcluded,
+	testExcluded,
 	withDashboard,
 } from "./context";
 import { pageKey, pageKeySql } from "./page-url";
@@ -57,6 +60,8 @@ export interface VideosView {
 	timeZone: string;
 	videos: VideoRow[];
 	selected: VideoDetail | null;
+	/** Visitantes de teste do período, fora dos números (nota). */
+	testExcluded: TestExcluded;
 }
 
 const toNum = (v: unknown) => (v === null || v === undefined ? null : Number(v));
@@ -66,7 +71,8 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
 		const { start: s, end: e } = period;
 		// Filtro de afiliado: plays, PageViews e compras pelo mesmo código (visitante no play/evento, venda).
 		const aff = affiliateFilter(sp);
-		const inPeriod = sql`started_at >= ${s} and started_at < ${e} and ${aff}`;
+		// Modo teste: plays, PageViews e compras de visitante de teste ficam fora.
+		const inPeriod = sql`started_at >= ${s} and started_at < ${e} and ${aff} and ${notTest("video_views.trck_user_id")}`;
 
 		const list = await rows<Record<string, unknown>>(
 			tx,
@@ -94,7 +100,9 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
 		const wanted = param(sp, "video");
 		const pick = videos.find(v => v.videoId === wanted) ?? videos[0];
 		const affiliates = await affiliateOptions(tx, sp);
-		if (!pick) return { affiliates, period, selected: null, timeZone: tz, videos };
+		const excluded = await testExcluded(tx, period);
+		if (!pick)
+			return { affiliates, period, selected: null, testExcluded: excluded, timeZone: tz, videos };
 
 		const vid = sql`video_id = ${pick.videoId} and ${inPeriod}`;
 		const [sum] = await rows<Record<string, unknown>>(
@@ -128,9 +136,10 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
         (select count(*) from plays where ${ctaS === null ? sql`false` : sql`max_position_s >= ${ctaS}`}) as reached_cta,
         (select count(*) from events_log
           where event_name = 'PageView' and created_at >= ${viewsFrom} and created_at < ${e} and ${aff}
+            and ${notTest("events_log.trck_user_id")}
             and ${pageKeySql(sql`event_source_url`)} in (select page from pages)) as page_views,
         (select count(distinct p.trck_user_id) from purchases p
-          where p.status in ${ACTIVE_SALE} and not p.is_renewal and ${aff}
+          where p.status in ${ACTIVE_SALE} and not p.is_renewal and ${aff} and ${notTest("p.trck_user_id")}
             and coalesce(p.occurred_at, p.created_at) >= ${s} and coalesce(p.occurred_at, p.created_at) < ${e}
             and p.trck_user_id in (select trck_user_id from plays)) as buyers`,
 		);
@@ -165,6 +174,7 @@ export function getVideos(sp: SearchParams): Promise<VideosView> {
 				title: pick.title,
 				videoId: pick.videoId,
 			},
+			testExcluded: excluded,
 			timeZone: tz,
 			videos,
 		};

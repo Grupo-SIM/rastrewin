@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { NO_AFFILIATE } from "@/lib/dashboard/affiliate";
 import { parseEventTypes, serializeEventTypes } from "@/lib/dashboard/event-types";
 import { DEFAULT_PRESET, PRESETS } from "@/lib/dashboard/period";
@@ -279,6 +280,27 @@ export function EventTypesFilter({ options }: { options: string[] }) {
 				</div>
 			</DropdownMenuContent>
 		</DropdownMenu>
+	);
+}
+
+/** Chave "Mostrar testes" (?testes=ocultar esconde os eventos de visitante de teste; padrão: mostra). */
+export function ShowTestsFilter() {
+	const { setParams } = useFilters();
+	const show = useSearchParams().get("testes") !== "ocultar";
+	return (
+		<div className="flex h-10 items-center gap-2 px-1 sm:ml-auto">
+			<Switch
+				id="mostrar-testes"
+				checked={show}
+				onCheckedChange={on => setParams({ testes: on ? null : "ocultar" })}
+			/>
+			<label
+				htmlFor="mostrar-testes"
+				className="text-muted-foreground cursor-pointer text-sm whitespace-nowrap"
+			>
+				Mostrar testes
+			</label>
+		</div>
 	);
 }
 

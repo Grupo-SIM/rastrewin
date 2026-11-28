@@ -1,6 +1,15 @@
 import "server-only";
 import { sql } from "drizzle-orm";
-import { ACTIVE_SALE, num, rows, type SearchParams, withDashboard } from "./context";
+import {
+	ACTIVE_SALE,
+	notTest,
+	num,
+	rows,
+	type SearchParams,
+	type TestExcluded,
+	testExcluded,
+	withDashboard,
+} from "./context";
 import { countryName } from "./format";
 import type { Period } from "./period";
 
@@ -24,23 +33,28 @@ export interface Geo {
 	cities: { city: string; region: string | null; country: string | null; visitors: number }[];
 	citiesTotal: number;
 	totals: { visitors: number; withGeo: number };
+	/** Visitantes de teste do período, fora dos números (nota). */
+	testExcluded: TestExcluded;
 }
 
 export function getGeo(sp: SearchParams): Promise<Geo> {
 	return withDashboard(sp, async ({ tx, period, currency }) => {
 		const { start: s, end: e } = period;
+		// Modo teste: visitantes de teste ficam fora dos números.
+		const ntE = notTest("events_log.trck_user_id");
+		const ntPu = notTest("purchases.trck_user_id");
 		const visitors = await rows<{ uf: string; v: unknown }>(
 			tx,
 			sql`
       select geo_region as uf, count(distinct trck_user_id) as v from events_log
-      where created_at >= ${s} and created_at < ${e} and geo_country = 'BR' and geo_region ~ '^[A-Z]{2}$'
+      where created_at >= ${s} and created_at < ${e} and ${ntE} and geo_country = 'BR' and geo_region ~ '^[A-Z]{2}$'
       group by 1`,
 		);
 		const sales = await rows<{ uf: string; c: unknown; r: unknown }>(
 			tx,
 			sql`
       select geo_region as uf, count(*) as c, sum(value) as r from purchases
-      where status in ${ACTIVE_SALE} and not is_renewal and coalesce(occurred_at, created_at) >= ${s} and coalesce(occurred_at, created_at) < ${e}
+      where status in ${ACTIVE_SALE} and not is_renewal and coalesce(occurred_at, created_at) >= ${s} and coalesce(occurred_at, created_at) < ${e} and ${ntPu}
         and geo_country = 'BR' and geo_region ~ '^[A-Z]{2}$'
       group by 1`,
 		);
@@ -48,7 +62,7 @@ export function getGeo(sp: SearchParams): Promise<Geo> {
 			tx,
 			sql`
       select geo_country as c, count(distinct trck_user_id) as v from events_log
-      where created_at >= ${s} and created_at < ${e} group by 1 order by 2 desc, 1`,
+      where created_at >= ${s} and created_at < ${e} and ${ntE} group by 1 order by 2 desc, 1`,
 		);
 		const cities = await rows<{
 			city: string;
@@ -59,7 +73,7 @@ export function getGeo(sp: SearchParams): Promise<Geo> {
 			tx,
 			sql`
       select geo_city as city, geo_region as region, geo_country as country, count(distinct trck_user_id) as v from events_log
-      where created_at >= ${s} and created_at < ${e} and geo_city is not null
+      where created_at >= ${s} and created_at < ${e} and ${ntE} and geo_city is not null
       group by 1, 2, 3 order by 4 desc, 1, 2, 3 limit ${CITIES_MAX}`,
 		);
 		const [ct] = await rows<{ n: unknown }>(
@@ -67,7 +81,7 @@ export function getGeo(sp: SearchParams): Promise<Geo> {
 			sql`
       select count(*) as n from (
         select 1 from events_log
-        where created_at >= ${s} and created_at < ${e} and geo_city is not null
+        where created_at >= ${s} and created_at < ${e} and ${ntE} and geo_city is not null
         group by geo_city, geo_region, geo_country
       ) x`,
 		);
@@ -75,7 +89,7 @@ export function getGeo(sp: SearchParams): Promise<Geo> {
 			tx,
 			sql`
       select count(distinct trck_user_id) as total, count(distinct trck_user_id) filter (where geo_country is not null) as geo
-      from events_log where created_at >= ${s} and created_at < ${e}`,
+      from events_log where created_at >= ${s} and created_at < ${e} and ${ntE}`,
 		);
 
 		const ufs = new Map<string, UfStat>();
@@ -110,6 +124,7 @@ export function getGeo(sp: SearchParams): Promise<Geo> {
 			countries: top,
 			currency,
 			period,
+			testExcluded: await testExcluded(tx, period),
 			totals: { visitors: num(t?.total), withGeo: num(t?.geo) },
 		};
 	});

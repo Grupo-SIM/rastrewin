@@ -138,6 +138,8 @@
 	--status-warning: #fab219;
 	--status-serious: #ec835a;
 	--status-critical: #d03b3b;
+	/* Modo teste (plano 0008): selo e nota de visitante de teste. Sempre com ícone + rótulo. */
+	--test: #7c4fd6;
 	/* Grade e eixos: linha fina, sólida, recessiva */
 	--viz-grid: hsl(150 12% 90%);
 	--viz-axis: hsl(150 10% 78%);
@@ -209,6 +211,8 @@
 	--viz-fun-3: #24cb61;
 	--viz-grid: hsl(155 14% 13%);
 	--viz-axis: hsl(155 12% 22%);
+	/* Modo teste: roxo mais claro para contraste no fundo escuro */
+	--test: #b48cff;
 }
 
 @layer base {

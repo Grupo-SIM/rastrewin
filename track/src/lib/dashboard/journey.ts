@@ -116,6 +116,9 @@ export interface Journey {
 		affiliateCode: string | null;
 		createdAt: string | null;
 		updatedAt: string | null;
+		/** Visitante de teste (plano 0008) e desde quando. */
+		isTest: boolean;
+		testMarkedAt: string | null;
 	} | null;
 	/** Primeiro registro (evento ou play) com afiliado: o afiliado do primeiro toque. */
 	firstAffiliate: { at: string; code: string } | null;
@@ -176,7 +179,8 @@ function loadJourney(id: string, ver: string | null): Promise<Journey> {
 			sql`
       select email, em_hash, ph_hash, fbc, fbp, ga_client_id, ga_session_id, host(ip) as ip, user_agent,
              geo_city, geo_region, geo_country, landing_url, referrer,
-             utm_source, utm_medium, utm_campaign, utm_term, utm_content, affiliate_code, created_at, updated_at
+             utm_source, utm_medium, utm_campaign, utm_term, utm_content, affiliate_code, created_at, updated_at,
+             is_test, test_marked_at
       from visitors where trck_user_id = ${id}`,
 		);
 
@@ -389,12 +393,14 @@ function loadJourney(id: string, ver: string | null): Promise<Journey> {
 						gaClientId: str(v.ga_client_id),
 						gaSessionId: str(v.ga_session_id),
 						ip: str(v.ip),
+						isTest: v.is_test === true,
 						landingUrl: str(v.landing_url),
 						name: str(latestBuyer?.customer_name),
 						phone: str(latestBuyer?.phone),
 						place: place(v),
 						referrer: str(v.referrer),
 						referrerSource: referrerSource(str(v.referrer), own),
+						testMarkedAt: iso(v.test_marked_at),
 						updatedAt: iso(v.updated_at),
 						userAgent: str(v.user_agent),
 						utm: utmOf(v),

@@ -12,7 +12,7 @@ import { isBannerRejected } from "@/lib/sales/consent";
 import { formatDateTime } from "@/lib/time";
 import { JourneyLink } from "./back-button";
 import { JsonBlock } from "./json-block";
-import { BannerRejectedBadge, DeliveryStatus, PurchaseStatus } from "./status-badge";
+import { BannerRejectedBadge, DeliveryStatus, PurchaseStatus, TestChip } from "./status-badge";
 
 /** LGPD: a venda não está ligada a um visitante que aceitou marketing no banner. */
 const NO_CONSENT = "Não enviado: o comprador não aceitou marketing no banner (LGPD)";
@@ -101,6 +101,7 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 									{/* Ao lado do status em tela larga; embaixo dele se faltar espaço (a tabela não estoura). */}
 									<span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 2xl:flex-nowrap">
 										<PurchaseStatus status={r.status} />
+										{r.isTest && <TestChip />}
 										{r.bannerRejected && <BannerRejectedBadge />}
 									</span>
 								</td>
@@ -176,6 +177,7 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 									{formatMoney(r.value, r.currency)}
 								</span>
 								<PurchaseStatus status={r.status} />
+								{r.isTest && <TestChip />}
 								{r.bannerRejected && <BannerRejectedBadge />}
 							</span>
 						</button>

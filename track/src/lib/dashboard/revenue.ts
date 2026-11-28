@@ -7,11 +7,14 @@ import {
 	affiliateFilter,
 	type AffiliateOption,
 	affiliateOptions,
+	notTest,
 	num,
 	param,
 	REFUNDED,
 	rows,
 	type SearchParams,
+	type TestExcluded,
+	testExcluded,
 	withDashboard,
 } from "./context";
 import { type DailyPoint, fillDays } from "./overview";
@@ -52,10 +55,13 @@ export interface PurchaseRow {
 	bannerRejected: boolean;
 	/**
 	 * ok = enviado; erro = tentou e falhou; pendente = ainda não tentou (ou sem conta ativa);
-	 * renovacao = não vai à Meta/GA4; sem_consentimento = o comprador não aceitou marketing (LGPD), não vai.
+	 * renovacao = não vai à Meta/GA4; sem_consentimento = o comprador não aceitou marketing (LGPD), não vai;
+	 * teste = visitante de teste (modo teste), não vai.
 	 */
-	metaStatus: "ok" | "erro" | "pendente" | "renovacao" | "sem_consentimento";
-	ga4Status: "ok" | "erro" | "pendente" | "renovacao" | "sem_consentimento";
+	metaStatus: "ok" | "erro" | "pendente" | "renovacao" | "sem_consentimento" | "teste";
+	ga4Status: "ok" | "erro" | "pendente" | "renovacao" | "sem_consentimento" | "teste";
+	/** Venda de visitante de teste: aparece na tabela, fora dos totais (plano 0008). */
+	isTest: boolean;
 }
 
 /** Linha do card "Por afiliado". code null = vendas sem afiliado. */
@@ -97,6 +103,8 @@ export interface Revenue {
 	revenueByDay: DailyPoint[];
 	byPaymentMethod: { key: string; label: string; value: number; count: number }[];
 	table: { rows: PurchaseRow[]; total: number; page: number; pageSize: number; status: string; q: string };
+	/** Visitantes de teste do período, fora dos totais (nota). */
+	testExcluded: TestExcluded;
 }
 
 const PAYMENT_LABEL: Record<string, string> = { BOLETO: "Boleto", CREDIT_CARD: "Cartão", PIX: "PIX" };
@@ -108,7 +116,8 @@ export async function getRevenue(sp: SearchParams): Promise<Revenue> {
 		// Período anterior = [ps, pe). Nos filtros de mês ele não encosta no atual (01–08/10 × 01–08/11).
 		const { start: s, end: e, prevStart: ps, prevEnd: pe } = period;
 		const d = sql`coalesce(occurred_at, created_at)`;
-		const aff = affiliateFilter(sp);
+		// Totais e cards: filtro de afiliado e SEM as vendas de visitante de teste (a tabela mostra, com selo).
+		const aff = sql`${affiliateFilter(sp)} and ${notTest("purchases.trck_user_id")}`;
 
 		const [k] = await rows<Record<string, unknown>>(
 			tx,
@@ -196,8 +205,9 @@ export async function getRevenue(sp: SearchParams): Promise<Revenue> {
              p.payment_method, p.utm_source, p.utm_campaign, p.match->>'by' as matched_by,
              p.affiliate_code, p.affiliate_name, p.affiliate_commission,
              (p.match->>'consent' = 'rejected' or p.match->>'reason' = ${BANNER_REJECTED_REASON}) is true as banner_rejected,
-             case when p.is_renewal then 'renovacao' when p.meta_sent_at is not null then 'ok' when p.marketing_consent is not true then 'sem_consentimento' when p.meta_attempts > 0 then 'erro' else 'pendente' end as meta_status,
-             case when p.is_renewal then 'renovacao' when p.ga4_sent_at is not null then 'ok' when p.marketing_consent is not true then 'sem_consentimento' when p.ga4_attempts > 0 then 'erro' else 'pendente' end as ga4_status
+             not ${notTest("p.trck_user_id")} as is_test,
+             case when p.is_renewal then 'renovacao' when p.meta_sent_at is not null then 'ok' when not ${notTest("p.trck_user_id")} then 'teste' when p.marketing_consent is not true then 'sem_consentimento' when p.meta_attempts > 0 then 'erro' else 'pendente' end as meta_status,
+             case when p.is_renewal then 'renovacao' when p.ga4_sent_at is not null then 'ok' when not ${notTest("p.trck_user_id")} then 'teste' when p.marketing_consent is not true then 'sem_consentimento' when p.ga4_attempts > 0 then 'erro' else 'pendente' end as ga4_status
       from purchases p where ${where}
       order by coalesce(p.occurred_at, p.created_at) desc, p.id desc
       limit ${PAGE_SIZE} offset ${(page - 1) * PAGE_SIZE}`,
@@ -249,6 +259,7 @@ export async function getRevenue(sp: SearchParams): Promise<Revenue> {
 					date: new Date(x.date as string).toISOString(),
 					ga4Status: x.ga4_status as PurchaseRow["ga4Status"],
 					id: num(x.id),
+					isTest: x.is_test === true,
 					matchedBy: (x.matched_by as string) ?? null,
 					metaStatus: x.meta_status as PurchaseRow["metaStatus"],
 					paymentMethod: (x.payment_method as string) ?? null,
@@ -262,6 +273,7 @@ export async function getRevenue(sp: SearchParams): Promise<Revenue> {
 				status,
 				total: num(total),
 			},
+			testExcluded: await testExcluded(tx, period),
 			timeZone: tz,
 		};
 	});

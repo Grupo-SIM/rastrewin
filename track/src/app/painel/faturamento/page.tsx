@@ -15,6 +15,7 @@ import {
 	SelectFilter,
 } from "@/components/dashboard/filters";
 import { PurchasesTable } from "@/components/dashboard/purchases-table";
+import { TestExcludedNote } from "@/components/dashboard/test-excluded-note";
 import { GlassCard } from "@/components/glass-card";
 import { KpiCard } from "@/components/kpi-card";
 import { PageHeader } from "@/components/page-header";
@@ -46,7 +47,8 @@ export default function FaturamentoPage({ searchParams }: PageProps<"/painel/fat
 }
 
 async function RevenueContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
-	const d = await getRevenue(await searchParams);
+	const sp = await searchParams;
+	const d = await getRevenue(sp);
 	const { kpis, currency } = d;
 	/** Em "Máximo" não há período anterior: os cartões não mostram a variação. */
 	const cmp = <T,>(x: T) => (d.period.compare ? x : undefined);
@@ -74,6 +76,7 @@ async function RevenueContent({ searchParams }: { searchParams: Promise<SearchPa
 						placeholder={d.searchesEmail ? "Pedido, email ou produto" : "Pedido ou produto"}
 					/>
 				</FiltersBar>
+				<TestExcludedNote data={d.testExcluded} searchParams={sp} />
 				<PendingArea className="flex flex-col gap-4">
 					<section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
 						<KpiCard

@@ -1,7 +1,7 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { type Origin, originOf } from "@/lib/tracking/referrer";
-import { num, ownHosts, param, rows, type SearchParams, withDashboard } from "./context";
+import { notTest, num, ownHosts, param, rows, type SearchParams, withDashboard } from "./context";
 import { parseEventTypes } from "./event-types";
 import type { Period } from "./period";
 
@@ -11,6 +11,7 @@ export const DELIVERY_FILTERS = [
 	{ key: "erro", label: "Meta: com erro" },
 	{ key: "pendente", label: "Meta: sem envio" },
 	{ key: "expirado", label: "Payload expirado" },
+	{ key: "teste", label: "Teste (sem envio)" },
 ] as const;
 
 /** Status do envio à Meta de cada evento (derivado do log). */
@@ -18,6 +19,7 @@ export const META_STATUS = sql`
   case
     when l.payload_meta is null and l.response_meta is null and l.created_at < now() - interval '14 days' then 'expirado'
     when l.response_meta is null then 'pendente'
+    when l.response_meta ? 'test' then 'teste'
     when l.response_meta ? 'skipped' then 'pendente'
     when l.response_meta ? 'error' then 'erro'
     when exists (select 1 from jsonb_each(l.response_meta) r where coalesce((r.value->>'ok')::boolean, false) = false) then 'erro'
@@ -37,7 +39,9 @@ export interface EventRow {
 	/** UTM do evento; sem UTM, o site de onde a pessoa veio (1ª origem externa); senão, Direto. */
 	origin: Origin;
 	place: string | null;
-	metaStatus: "ok" | "erro" | "pendente" | "expirado";
+	metaStatus: "ok" | "erro" | "pendente" | "expirado" | "teste";
+	/** Visitante de teste (modo teste ou marcado na jornada): etiqueta TESTE. */
+	isTest: boolean;
 }
 
 export interface EventsPage {
@@ -48,7 +52,8 @@ export interface EventsPage {
 	page: number;
 	pageSize: number;
 	eventNames: string[];
-	filters: { tipos: string[]; envio: string; q: string };
+	/** testes = mostrar os eventos de visitante de teste (chave "Mostrar testes"; padrão: sim). */
+	filters: { tipos: string[]; envio: string; q: string; testes: boolean };
 }
 
 const PAGE_SIZE = 50;
@@ -62,10 +67,13 @@ export function getEvents(sp: SearchParams): Promise<EventsPage> {
 			: "todos";
 		const q = (param(sp, "q") ?? "").trim().slice(0, 100);
 		const page = Math.max(1, Math.min(10_000, Number(param(sp, "page")) || 1));
+		// Modo teste: Eventos mostra os testes (com o selo); "Mostrar testes" desligada os esconde.
+		const testes = param(sp, "testes") !== "ocultar";
 
 		const where = sql.join(
 			[
 				sql`l.created_at >= ${s} and l.created_at < ${e}`,
+				...(testes ? [] : [notTest("l.trck_user_id")]),
 				...(tipos.length
 					? [
 							sql`l.event_name in (${sql.join(
@@ -97,6 +105,7 @@ export function getEvents(sp: SearchParams): Promise<EventsPage> {
         select l.id, l.created_at, l.event_name, l.event_id, l.trck_user_id, l.value, l.currency, l.utm_source, l.utm_campaign,
                nullif(concat_ws(', ', l.geo_city, l.geo_region, l.geo_country), '') as place,
                ${META_STATUS} as meta_status,
+               not ${notTest("l.trck_user_id")} as is_test,
                (select v.referrer from visitors v where v.trck_user_id = l.trck_user_id) as referrer
         from events_log l where ${where}
       ) x where ${statusFilter}
@@ -113,7 +122,7 @@ export function getEvents(sp: SearchParams): Promise<EventsPage> {
 
 		return {
 			eventNames: names.map(n => n.event_name),
-			filters: { envio, q, tipos },
+			filters: { envio, q, testes, tipos },
 			page,
 			pageSize: PAGE_SIZE,
 			period,
@@ -123,6 +132,7 @@ export function getEvents(sp: SearchParams): Promise<EventsPage> {
 				eventId: String(x.event_id),
 				eventName: String(x.event_name),
 				id: num(x.id),
+				isTest: x.is_test === true,
 				metaStatus: x.meta_status as EventRow["metaStatus"],
 				origin: originOf(
 					{

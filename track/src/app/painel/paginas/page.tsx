@@ -16,6 +16,7 @@ import {
 	PendingArea,
 	SearchFilter,
 } from "@/components/dashboard/filters";
+import { TestExcludedNote } from "@/components/dashboard/test-excluded-note";
 import { GlassCard } from "@/components/glass-card";
 import { KpiCard } from "@/components/kpi-card";
 import { PageHeader } from "@/components/page-header";
@@ -66,7 +67,8 @@ const COLUMNS: { key: string; label: string; info: string }[] = [
 ];
 
 async function PagesContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
-	const d = await getPages(await searchParams);
+	const sp = await searchParams;
+	const d = await getPages(sp);
 	const t = d.totals;
 	return (
 		<FiltersProvider>
@@ -75,6 +77,7 @@ async function PagesContent({ searchParams }: { searchParams: Promise<SearchPara
 					<AffiliateFilter options={d.affiliates} />
 					<SearchFilter placeholder="Buscar URL (ex.: vsl)" />
 				</FiltersBar>
+				<TestExcludedNote data={d.testExcluded} searchParams={sp} />
 				<PendingArea className="flex flex-col gap-4">
 					<section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
 						<KpiCard

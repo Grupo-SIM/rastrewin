@@ -9,6 +9,7 @@ import {
 	PendingArea,
 	SearchFilter,
 	SelectFilter,
+	ShowTestsFilter,
 } from "@/components/dashboard/filters";
 import { GlassCard } from "@/components/glass-card";
 import { PageHeader } from "@/components/page-header";
@@ -51,6 +52,7 @@ async function EventsContent({ searchParams }: { searchParams: Promise<SearchPar
 						}))}
 					/>
 					<SearchFilter placeholder="Visitante, campanha ou origem" />
+					<ShowTestsFilter />
 				</FiltersBar>
 				<PendingArea>
 					<GlassCard>

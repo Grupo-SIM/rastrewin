@@ -3,7 +3,17 @@ import { eq, sql } from "drizzle-orm";
 import { connection } from "next/server";
 import { serviceDb } from "@/db";
 import { metaAdAccounts } from "@/db/schema";
-import { ACTIVE_SALE, num, param, rows, type SearchParams, withDashboard } from "@/lib/dashboard/context";
+import {
+	ACTIVE_SALE,
+	notTest,
+	num,
+	param,
+	rows,
+	type SearchParams,
+	type TestExcluded,
+	testExcluded,
+	withDashboard,
+} from "@/lib/dashboard/context";
 import { daysBetween, daysOf, localDate, maxLookback, type Period, withFrom } from "@/lib/dashboard/period";
 import { decryptSecret } from "@/lib/secrets";
 import {
@@ -62,6 +72,8 @@ export interface CampaignsView {
 	dailyAvailable: boolean;
 	salesWithCampaignUtm: number;
 	salesInPeriod: number;
+	/** Visitantes de teste do período: as vendas deles ficam fora (nota). */
+	testExcluded: TestExcluded;
 }
 
 async function loadSales(sp: SearchParams) {
@@ -74,7 +86,8 @@ async function loadSales(sp: SearchParams) {
           select id, value, ((coalesce(occurred_at, created_at) at time zone ${tz})::date)::text as day,
                  utm_campaign, utm_term, utm_content
           from purchases
-          where status in ${ACTIVE_SALE} and not is_renewal and coalesce(occurred_at, created_at) >= ${start} and coalesce(occurred_at, created_at) < ${end}`,
+          where status in ${ACTIVE_SALE} and not is_renewal and coalesce(occurred_at, created_at) >= ${start} and coalesce(occurred_at, created_at) < ${end}
+            and ${notTest("purchases.trck_user_id")}`,
 				)
 			).map((r): SalePurchase => ({
 				day: String(r.day),
@@ -89,6 +102,7 @@ async function loadSales(sp: SearchParams) {
 			period,
 			prevSales: period.compare ? await load(period.prevStart, period.prevEnd) : [],
 			sales: await load(period.start, period.end),
+			testExcluded: await testExcluded(tx, period),
 			tz,
 		};
 	});
@@ -191,7 +205,7 @@ export async function getAdSpend(period: Period, timeZone: string): Promise<AdSp
 export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 	// 1) vendas do período (RLS) — fora desta transação vem a chamada à Meta
 	const loaded = await loadSales(sp);
-	const { tz, currency, sales, prevSales } = loaded;
+	const { tz, currency, sales, prevSales, testExcluded: excluded } = loaded;
 	let period = loaded.period;
 	const all = await listAdAccounts();
 	const wanted = param(sp, "conta");
@@ -307,6 +321,7 @@ export async function getCampaigns(sp: SearchParams): Promise<CampaignsView> {
 			),
 			truncated: structures.some(s => s.structure?.truncated),
 		},
+		testExcluded: excluded,
 		timeZone: tz,
 		totals,
 		tree: current,

@@ -5,6 +5,7 @@ import { ChartCard } from "@/components/charts/chart-card";
 import { RankedBars } from "@/components/charts/ranked-bars";
 import { CitiesTable } from "@/components/dashboard/cities-table";
 import { FiltersBar, FiltersProvider, PendingArea } from "@/components/dashboard/filters";
+import { TestExcludedNote } from "@/components/dashboard/test-excluded-note";
 import { GlassCard } from "@/components/glass-card";
 import { PageHeader } from "@/components/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
@@ -31,12 +32,14 @@ export default function GeoPage({ searchParams }: PageProps<"/painel/geo">) {
 }
 
 async function GeoContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
-	const d = await getGeo(await searchParams);
+	const sp = await searchParams;
+	const d = await getGeo(sp);
 	const ufRows = [...d.byUf].sort((a, b) => b.visitors - a.visitors);
 	return (
 		<FiltersProvider>
 			<div className="flex flex-col gap-4">
 				<FiltersBar />
+				<TestExcludedNote data={d.testExcluded} searchParams={sp} />
 				<PendingArea className="flex flex-col gap-4">
 					<div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
 						<ChartCard

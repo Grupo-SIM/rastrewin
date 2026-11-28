@@ -4,6 +4,7 @@ import {
 	CircleDashedIcon,
 	CircleXIcon,
 	ClockIcon,
+	FlaskConicalIcon,
 	RefreshCwIcon,
 	ShieldOffIcon,
 	Undo2Icon,
@@ -32,6 +33,8 @@ const DELIVERY: Record<string, { label: string; icon: typeof CircleCheckIcon; co
 		icon: ShieldOffIcon,
 		label: "Sem consentimento (não enviada)",
 	},
+	// Modo teste (plano 0008): visitante da equipe, nada vai à Meta nem ao GA4.
+	teste: { color: "var(--test)", icon: FlaskConicalIcon, label: "Teste (sem envio)" },
 };
 
 function Badge({
@@ -72,6 +75,21 @@ const BANNER_REJECTED = { color: "var(--status-warning)", icon: ShieldOffIcon, l
 
 export function BannerRejectedBadge({ className }: { className?: string }) {
 	return <Badge spec={BANNER_REJECTED} className={className} />;
+}
+
+/** Etiqueta TESTE ao lado do visitante/venda de teste (plano 0008). Texto + cor, nunca só cor. */
+export function TestChip({ className }: { className?: string }) {
+	return (
+		<span
+			className={cn(
+				"inline-flex shrink-0 items-center rounded-full border px-1.5 text-[10px] leading-4 font-semibold tracking-wide",
+				className,
+			)}
+			style={{ borderColor: "color-mix(in srgb, var(--test) 45%, transparent)", color: "var(--test)" }}
+		>
+			TESTE
+		</span>
+	);
 }
 
 export function DeliveryStatus({ status, className }: { status: string; className?: string }) {

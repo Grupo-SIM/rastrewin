@@ -20,6 +20,7 @@ import {
 	PendingArea,
 	SelectFilter,
 } from "@/components/dashboard/filters";
+import { TestExcludedNote } from "@/components/dashboard/test-excluded-note";
 import { EmptyState } from "@/components/empty-state";
 import { GlassCard } from "@/components/glass-card";
 import { KpiCard } from "@/components/kpi-card";
@@ -52,7 +53,8 @@ export default function VideosPage({ searchParams }: PageProps<"/painel/videos">
 const label = (v: { title: string | null; videoId: string }) => v.title || v.videoId;
 
 async function VideosContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
-	const d = await getVideos(await searchParams);
+	const sp = await searchParams;
+	const d = await getVideos(sp);
 	const v = d.selected;
 	const range = d.period.key !== "custom" ? ` (${periodRange(d.period)})` : "";
 
@@ -71,6 +73,7 @@ async function VideosContent({ searchParams }: { searchParams: Promise<SearchPar
 					)}
 					<AffiliateFilter options={d.affiliates} />
 				</FiltersBar>
+				<TestExcludedNote data={d.testExcluded} searchParams={sp} />
 				<PendingArea className="flex flex-col gap-4">
 					{!v ? (
 						<EmptyState

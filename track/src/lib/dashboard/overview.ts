@@ -7,10 +7,13 @@ import {
 	type AffiliateOption,
 	affiliateOptions,
 	affiliateParam,
+	notTest,
 	num,
 	ownHosts,
 	rows,
 	type SearchParams,
+	type TestExcluded,
+	testExcluded,
 	withDashboard,
 } from "./context";
 import { daysOf, type Period } from "./period";
@@ -28,6 +31,8 @@ export interface Overview {
 	timeZone: string;
 	currency: string;
 	hasAnyData: boolean;
+	/** Visitantes de teste do período, fora de todos os números (nota no rodapé). */
+	testExcluded: TestExcluded;
 	kpis: {
 		users: number;
 		usersPrev: number;
@@ -68,6 +73,11 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 		const evAffL = affiliateFilter(sp, "l.affiliate_code");
 		const puAff = affiliateFilter(sp, "affiliate_code");
 		const puAffP = affiliateFilter(sp, "p.affiliate_code");
+		// Modo teste: visitantes de teste ficam fora de todos os números (nota no rodapé).
+		const nt = notTest("events_log.trck_user_id");
+		const ntPu = notTest("purchases.trck_user_id");
+		const ntL = notTest("l.trck_user_id");
+		const ntP = notTest("p.trck_user_id");
 
 		const [ev] = await rows<Record<string, unknown>>(
 			tx,
@@ -77,7 +87,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
         count(distinct trck_user_id) filter (where created_at < ${pe}) as users_prev,
         count(*) filter (where created_at >= ${s} and created_at < ${e}) as events,
         count(*) filter (where created_at < ${pe}) as events_prev
-      from events_log where created_at >= ${ps} and created_at < ${e} and ${evAff}`,
+      from events_log where created_at >= ${ps} and created_at < ${e} and ${evAff} and ${nt}`,
 		);
 
 		const [pu] = await rows<Record<string, unknown>>(
@@ -85,7 +95,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 			sql`
       with p as (
         select coalesce(occurred_at, created_at) as d, value, is_renewal as ren
-        from purchases where status in ${ACTIVE_SALE} and ${puAff}
+        from purchases where status in ${ACTIVE_SALE} and ${puAff} and ${ntPu}
       )
       select
         count(*) filter (where d >= ${s} and not ren) as purchases,
@@ -104,13 +114,13 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 			sql`
       with visited as (
         select distinct trck_user_id from events_log
-        where event_name = 'PageView' and created_at >= ${s} and created_at < ${e} and ${evAff}
+        where event_name = 'PageView' and created_at >= ${s} and created_at < ${e} and ${evAff} and ${nt}
       ), checkout as (
         select distinct l.trck_user_id from events_log l join visited v using (trck_user_id)
-        where l.event_name = 'InitiateCheckout' and l.created_at >= ${s} and l.created_at < ${e} and ${evAffL}
+        where l.event_name = 'InitiateCheckout' and l.created_at >= ${s} and l.created_at < ${e} and ${evAffL} and ${ntL}
       ), buyers as (
         select distinct trck_user_id from purchases
-        where status in ${ACTIVE_SALE} and not is_renewal and trck_user_id is not null and ${puAff}
+        where status in ${ACTIVE_SALE} and not is_renewal and trck_user_id is not null and ${puAff} and ${ntPu}
           and coalesce(occurred_at, created_at) >= ${s} and coalesce(occurred_at, created_at) < ${e}
       )
       select
@@ -118,7 +128,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
         (select count(*) from checkout) as checkout,
         (select count(*) from checkout c join buyers b using (trck_user_id)) as purchased,
         (select count(*) from purchases p
-          where p.status in ${ACTIVE_SALE} and not p.is_renewal and ${puAffP}
+          where p.status in ${ACTIVE_SALE} and not p.is_renewal and ${puAffP} and ${ntP}
             and coalesce(p.occurred_at, p.created_at) >= ${s} and coalesce(p.occurred_at, p.created_at) < ${e}
             and (p.trck_user_id is null or p.trck_user_id not in (select trck_user_id from checkout))) as outside`,
 		);
@@ -127,7 +137,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 			tx,
 			sql`
       select event_name as label, count(*) as value from events_log
-      where created_at >= ${s} and created_at < ${e} and ${evAff}
+      where created_at >= ${s} and created_at < ${e} and ${evAff} and ${nt}
       group by event_name order by count(*) desc`,
 		);
 
@@ -135,14 +145,14 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 			tx,
 			sql`
       select ((created_at at time zone ${tz})::date)::text as day, count(distinct trck_user_id) as value
-      from events_log where created_at >= ${s} and created_at < ${e} and ${evAff} group by 1`,
+      from events_log where created_at >= ${s} and created_at < ${e} and ${evAff} and ${nt} group by 1`,
 		);
 
 		const revenueByDay = await rows<{ day: string; value: unknown }>(
 			tx,
 			sql`
       select ((coalesce(occurred_at, created_at) at time zone ${tz})::date)::text as day, sum(value) as value
-      from purchases where status in ${ACTIVE_SALE} and ${puAff}
+      from purchases where status in ${ACTIVE_SALE} and ${puAff} and ${ntPu}
         and coalesce(occurred_at, created_at) >= ${s} and coalesce(occurred_at, created_at) < ${e}
       group by 1`,
 		);
@@ -168,7 +178,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
         select trck_user_id,
                (array_agg(utm_source order by created_at desc) filter (where utm_source is not null))[1] as utm,
                (array_agg(affiliate_code order by created_at desc) filter (where affiliate_code is not null))[1] as aff
-        from events_log where created_at >= ${s} and created_at < ${e} and ${evAff}
+        from events_log where created_at >= ${s} and created_at < ${e} and ${evAff} and ${nt}
         group by trck_user_id
       )
       select p.aff, p.utm, lower(substring(v.referrer from '^[a-zA-Z]+://([^/:?#]+)')) as host, count(*) as visitors
@@ -217,6 +227,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 			origins,
 			period,
 			revenueByDay: fillDays(period, revenueByDay),
+			testExcluded: await testExcluded(tx, period),
 			timeZone: tz,
 			usersByDay: fillDays(period, usersByDay),
 		};

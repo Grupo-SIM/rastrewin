@@ -14,6 +14,7 @@ import { UtmGuide } from "@/components/campaigns/utm-guide";
 import { ChartCard } from "@/components/charts/chart-card";
 import { MultiTrendChart } from "@/components/charts/multi-trend-chart";
 import { FiltersBar, FiltersProvider, PendingArea, SelectFilter } from "@/components/dashboard/filters";
+import { TestExcludedNote } from "@/components/dashboard/test-excluded-note";
 import { EmptyState } from "@/components/empty-state";
 import { GlassCard } from "@/components/glass-card";
 import { KpiCard } from "@/components/kpi-card";
@@ -44,7 +45,8 @@ export default function CampanhasPage({ searchParams }: PageProps<"/painel/campa
 }
 
 async function CampaignsContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
-	const d = await getCampaigns(await searchParams);
+	const sp = await searchParams;
+	const d = await getCampaigns(sp);
 
 	if (!d.accounts.length) {
 		return (
@@ -76,6 +78,7 @@ async function CampaignsContent({ searchParams }: { searchParams: Promise<Search
 						/>
 					)}
 				</FiltersBar>
+				<TestExcludedNote data={d.testExcluded} searchParams={sp} />
 				<StatusStrip
 					results={d.results}
 					detail={d.detail}

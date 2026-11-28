@@ -16,6 +16,7 @@ import { Funnel } from "@/components/charts/funnel";
 import { RankedBars } from "@/components/charts/ranked-bars";
 import { TrendChart } from "@/components/charts/trend-chart";
 import { AffiliateFilter, FiltersBar, FiltersProvider, PendingArea } from "@/components/dashboard/filters";
+import { TestExcludedNote } from "@/components/dashboard/test-excluded-note";
 import { EmptyState } from "@/components/empty-state";
 import { KpiCard } from "@/components/kpi-card";
 import { PageHeader } from "@/components/page-header";
@@ -55,7 +56,8 @@ export default function VisaoGeralPage({ searchParams }: PageProps<"/painel">) {
 }
 
 async function OverviewContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
-	const d = await getOverview(await searchParams);
+	const sp = await searchParams;
+	const d = await getOverview(sp);
 	const { kpis, funnel, currency } = d;
 	/** Em "Máximo" não há período anterior: os cartões não mostram a variação. */
 	const cmp = <T,>(x: T) => (d.period.compare ? x : undefined);
@@ -80,6 +82,7 @@ async function OverviewContent({ searchParams }: { searchParams: Promise<SearchP
 					{d.period.key !== "custom" && ` · ${formatDayRangeShort(d.period)}`}
 					{prev && ` · comparado com ${formatDayRangeShort(prev)}`}
 				</p>
+				<TestExcludedNote data={d.testExcluded} searchParams={sp} />
 				<PendingArea className="flex flex-col gap-4">
 					{!d.hasAnyData && (
 						<EmptyState
