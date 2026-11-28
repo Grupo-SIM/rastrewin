@@ -148,4 +148,20 @@ test("summarizeOrigins: junta por rótulo, UTM separado, ordena e cria Outros", 
 	]);
 	const total = (xs: { value: number }[]) => xs.reduce((s, x) => s + x.value, 0);
 	assert.equal(total(out), total(many.map(m => ({ value: m.visitors }))));
+	// Afiliado aparece pelo nome (sem nome, o código) e agrupa pelo código.
+	assert.deepEqual(
+		summarizeOrigins(
+			[
+				{ affiliate: "AAA111", affiliateName: "Ana", referrer: null, utmSource: null, visitors: 3 },
+				{ affiliate: "BBB222", affiliateName: "Ana", referrer: null, utmSource: "fb", visitors: 2 },
+				{ affiliate: "CCC333", affiliateName: null, referrer: null, utmSource: null, visitors: 1 },
+			],
+			OWN,
+		),
+		[
+			{ label: "Afiliado · Ana", value: 3 },
+			{ label: "Afiliado · Ana", value: 2 },
+			{ label: "Afiliado · CCC333", value: 1 },
+		],
+	);
 });

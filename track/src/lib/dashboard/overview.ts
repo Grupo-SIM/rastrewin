@@ -185,9 +185,12 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
       from p left join visitors v on v.trck_user_id = p.trck_user_id
       group by 1, 2, 3`,
 		);
+		const affiliates = await affiliateOptions(tx, sp);
+		const affiliateNames = new Map(affiliates.map(a => [a.code, a.name]));
 		const origins = summarizeOrigins(
 			originRows.map(r => ({
 				affiliate: r.aff,
+				affiliateName: r.aff ? affiliateNames.get(r.aff) : null,
 				referrer: r.host,
 				utmSource: r.utm,
 				visitors: num(r.visitors),
@@ -201,7 +204,7 @@ export function getOverview(sp: SearchParams): Promise<Overview> {
 
 		return {
 			affiliateFilter: affiliateParam(sp),
-			affiliates: await affiliateOptions(tx, sp),
+			affiliates,
 			currency,
 			eventsByType,
 			funnel: {

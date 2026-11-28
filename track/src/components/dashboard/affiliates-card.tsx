@@ -8,7 +8,8 @@ import type { AffiliateStat } from "@/lib/dashboard/revenue";
  * comissão e líquido do dono, por código, ordenado por receita. Segue o filtro da página.
  */
 export function AffiliatesCard({ rows, currency }: { rows: AffiliateStat[]; currency: string }) {
-	const label = (r: AffiliateStat) => r.code ?? "Sem afiliado";
+	// Nome primeiro (código apagado ao lado); sem nome, o código; sem afiliado, "Sem afiliados".
+	const label = (r: AffiliateStat) => r.name ?? r.code ?? "Sem afiliados";
 	const hasAffiliate = rows.some(r => r.code);
 
 	return (
@@ -62,8 +63,10 @@ export function AffiliatesCard({ rows, currency }: { rows: AffiliateStat[]; curr
 												>
 													{label(r)}
 												</span>
-												{r.name && (
-													<span className="text-muted-foreground"> · {r.name}</span>
+												{r.name && r.code && (
+													<span className="text-muted-foreground ml-1.5 font-mono text-xs">
+														{r.code}
+													</span>
 												)}
 											</td>
 											<td className="num py-2 pr-3 text-right">{formatInt(r.sales)}</td>
@@ -97,10 +100,9 @@ export function AffiliatesCard({ rows, currency }: { rows: AffiliateStat[]; curr
 											}
 										>
 											{label(r)}
-											{r.name && (
-												<span className="text-muted-foreground font-normal">
-													{" "}
-													· {r.name}
+											{r.name && r.code && (
+												<span className="text-muted-foreground ml-1.5 font-mono text-xs font-normal">
+													{r.code}
 												</span>
 											)}
 										</span>

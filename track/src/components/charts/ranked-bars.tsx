@@ -29,11 +29,12 @@ export function RankedBars({
 
 	return (
 		<ul className="flex flex-col gap-1.5">
-			{shown.map(item => (
-				<li key={item.label}>
+			{shown.map((item, i) => (
+				// Rótulos podem repetir (dois afiliados com o mesmo nome): a chave leva a posição.
+				<li key={`${i}-${item.label}`}>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<div className="group hover:bg-accent/60 focus-visible:ring-ring/50 grid grid-cols-[minmax(6rem,10rem)_1fr_auto] items-center gap-3 rounded-md px-1 py-1 outline-none focus-visible:ring-3">
+							<div className="group hover:bg-accent/60 focus-visible:ring-ring/50 grid grid-cols-[minmax(6rem,10rem)_1fr_auto] items-center gap-3 rounded-md px-1 py-1 outline-none focus-visible:ring-3 md:grid-cols-[minmax(6rem,14rem)_1fr_auto]">
 								<span className="truncate text-sm">{item.label}</span>
 								<span className="bg-muted/50 h-4 rounded-r-[4px]" aria-hidden>
 									<span

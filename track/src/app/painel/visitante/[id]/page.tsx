@@ -390,11 +390,12 @@ function PurchasesCard({ j }: { j: Journey }) {
 								<Row label="Afiliado">
 									{p.affiliate ? (
 										<span>
-											<span className="font-medium">{p.affiliate.code}</span>
+											<span className="font-medium">
+												{p.affiliate.name ?? p.affiliate.code}
+											</span>
 											{p.affiliate.name && (
-												<span className="text-muted-foreground">
-													{" "}
-													· {p.affiliate.name}
+												<span className="text-muted-foreground ml-1.5 font-mono text-xs">
+													{p.affiliate.code}
 												</span>
 											)}
 											{p.affiliate.commission !== null && (

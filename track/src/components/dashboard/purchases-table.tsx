@@ -147,8 +147,15 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 								</td>
 								<td className="max-w-40 py-2 pr-3">
 									{r.affiliateCode ? (
-										<span className="block truncate" title={r.affiliateName ?? undefined}>
-											{r.affiliateCode}
+										<span className="block min-w-0" title={r.affiliateCode}>
+											<span className="block truncate">
+												{r.affiliateName ?? r.affiliateCode}
+											</span>
+											{r.affiliateName && (
+												<span className="text-muted-foreground block truncate font-mono text-xs">
+													{r.affiliateCode}
+												</span>
+											)}
 										</span>
 									) : (
 										<span className="text-muted-foreground">—</span>
@@ -205,7 +212,7 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 								</span>
 								{r.affiliateCode && (
 									<span className="text-muted-foreground block truncate text-xs">
-										Afiliado · {r.affiliateCode}
+										Afiliado · {r.affiliateName ?? r.affiliateCode}
 									</span>
 								)}
 							</span>
@@ -328,11 +335,12 @@ export function PurchasesTable({ rows, timeZone }: { rows: PurchaseRow[]; timeZo
 									<dd className="break-all">
 										{detail.affiliateCode ? (
 											<>
-												<span className="font-medium">{detail.affiliateCode}</span>
+												<span className="font-medium">
+													{detail.affiliateName ?? detail.affiliateCode}
+												</span>
 												{detail.affiliateName && (
-													<span className="text-muted-foreground">
-														{" "}
-														· {detail.affiliateName}
+													<span className="text-muted-foreground ml-1.5 font-mono text-xs">
+														{detail.affiliateCode}
 													</span>
 												)}
 												{detail.affiliateCommission !== null && (

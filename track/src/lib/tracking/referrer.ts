@@ -139,6 +139,8 @@ export function originOf(r: OriginInput, ownHosts: string[]): Origin {
 export interface OriginCountRow {
 	/** Afiliado mais recente do visitante no período (vence a UTM e o referrer: é quem indicou). */
 	affiliate?: string | null;
+	/** Nome do afiliado (da SimIntPay), se conhecido: aparece no lugar do código. */
+	affiliateName?: string | null;
 	/** utm_source mais recente do visitante no período (null = sem UTM). */
 	utmSource: string | null;
 	/** Domínio do referrer guardado (já extraído no SQL) ou o endereço. */
@@ -147,7 +149,8 @@ export interface OriginCountRow {
 }
 
 /**
- * Resumo "Origens dos visitantes": afiliado vira "Afiliado · CÓDIGO"; senão UTM vira "UTM · fonte";
+ * Resumo "Origens dos visitantes": afiliado vira "Afiliado · NOME" (sem nome, o código; agrupa pelo
+ * código, então dois afiliados com o mesmo nome não se juntam); senão UTM vira "UTM · fonte";
  * sem UTM, o rótulo do referrer.
  * Ordenado do maior para o menor; além de `top` grupos, o resto vira "Outros".
  */
@@ -156,20 +159,23 @@ export function summarizeOrigins(
 	ownHosts: string[],
 	top = 8,
 ): { label: string; value: number }[] {
-	const by = new Map<string, number>();
+	const by = new Map<string, { label: string; value: number }>();
 	for (const r of rows) {
 		const utm = r.utmSource?.trim();
 		const aff = r.affiliate?.trim();
 		const label = aff
-			? `Afiliado · ${aff}`
+			? `Afiliado · ${r.affiliateName?.trim() || aff}`
 			: utm
 				? `UTM · ${utm.toLowerCase()}`
 				: referrerSource(r.referrer, ownHosts).label;
-		by.set(label, (by.get(label) ?? 0) + r.visitors);
+		const key = aff ? `aff:${aff}` : label;
+		const cur = by.get(key);
+		if (cur) cur.value += r.visitors;
+		else by.set(key, { label, value: r.visitors });
 	}
-	const sorted = [...by.entries()]
-		.map(([label, value]) => ({ label, value }))
-		.sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, "pt-BR"));
+	const sorted = [...by.values()].sort(
+		(a, b) => b.value - a.value || a.label.localeCompare(b.label, "pt-BR"),
+	);
 	if (sorted.length <= top) return sorted;
 	const rest = sorted.slice(top - 1).reduce((s, x) => s + x.value, 0);
 	return [...sorted.slice(0, top - 1), { label: "Outros", value: rest }];
